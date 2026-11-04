@@ -120,7 +120,10 @@ export function buildOfficialReceiptUrl(
   phone: string,
   amount?: string,
   name?: string,
-  user?: string
+  user?: string,
+  rec?: string,
+  date?: string,
+  reason?: string
 ): string {
   const baseUrl = getAppBaseUrl();
   const cleanPhone = (phone || '251959842829').replace(/\D/g, '');
@@ -133,11 +136,15 @@ export function buildOfficialReceiptUrl(
 
   const params = new URLSearchParams({
     TID: txnId,
+    ref: txnId,
     PH: fullPhone,
   });
   if (amount) params.set('amt', amount);
   if (name) params.set('name', name);
   if (user) params.set('user', user);
+  if (rec) params.set('rec', rec);
+  if (date) params.set('date', date);
+  if (reason) params.set('reason', reason);
 
   return `${baseUrl}/official-receipt?${params.toString()}`;
 }

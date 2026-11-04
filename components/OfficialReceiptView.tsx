@@ -68,16 +68,16 @@ function OfficialReceiptContent() {
     searchParams.get('TID') ||
     searchParams.get('ref') ||
     searchParams.get('tid') ||
-    '9V8GPL5D';
-  const amtParam = searchParams.get('amt') || '740.00';
-  const recParam = searchParams.get('rec') || searchParams.get('receiverAccount') || '1000760389289';
-  const nameParam = searchParams.get('name') || searchParams.get('receiverName') || 'Miss Simera Gofer Abdisa';
-  const userParam = searchParams.get('user') || searchParams.get('fullName') || 'JUREY ABDUL HUSSEN';
-  const accParam = searchParams.get('acc') || searchParams.get('PH') || searchParams.get('userAcc') || '1000760389289';
-  const dateParam = searchParams.get('date') || '27-10-2026 11:56:20';
+    'DJM51SKYIQ3';
+  const amtParam = searchParams.get('amt') || '1.01';
+  const recParam = searchParams.get('rec') || searchParams.get('receiverAccount') || '1000355447788';
+  const nameParam = searchParams.get('name') || searchParams.get('receiverName') || 'Fayyee Lammeessa Didhaa';
+  const userParam = searchParams.get('user') || searchParams.get('fullName') || 'AYMEN NIGATU YIMAM';
+  const accParam = searchParams.get('acc') || searchParams.get('PH') || searchParams.get('userAcc') || '0959754788';
+  const dateParam = searchParams.get('date') || '22-10-2026 21:36:00';
   const reasonParam = searchParams.get('reason') || 'Wallet Transfer';
 
-  const numericAmt = parseFloat(amtParam) || 740.0;
+  const numericAmt = parseFloat(amtParam) || 1.01;
   const formattedAmt = numericAmt.toFixed(2);
   const words = amountToWords(numericAmt);
 

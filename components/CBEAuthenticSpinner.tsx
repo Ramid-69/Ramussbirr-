@@ -4,20 +4,21 @@ import React from 'react';
 
 interface CBEAuthenticSpinnerProps {
   size?: number; // overall width/height in px
-  color?: string; // petal color
+  color?: string; // dot color (brand purple #8b278e)
   className?: string;
   speed?: number; // animation cycle duration in seconds
+  dotCount?: number; // authentic 12 dots
 }
 
 export default function CBEAuthenticSpinner({
-  size = 44,
+  size = 38,
   color = '#8b278e',
   className = '',
-  speed = 0.55,
+  speed = 0.95,
+  dotCount = 12,
 }: CBEAuthenticSpinnerProps) {
-  const petals = 8;
-  const petalWidth = Math.max(3, Math.round(size * 0.085));
-  const petalHeight = Math.round(size * 0.28);
+  // Dot diameter proportional to spinner size (matches CBEBirr authentic dot chaser)
+  const dotDiameter = Math.max(3, Math.round(size * 0.17));
   const radius = Math.round(size * 0.36);
 
   return (
@@ -27,26 +28,33 @@ export default function CBEAuthenticSpinner({
       aria-label="Loading..."
       role="status"
     >
-      {Array.from({ length: petals }).map((_, index) => {
-        const angle = index * (360 / petals);
-        const delay = -((petals - index) * (speed / petals));
+      {Array.from({ length: dotCount }).map((_, index) => {
+        const angle = index * (360 / dotCount);
+        // Staggered negative delay so dots light up and turn off sequentially clockwise
+        const delay = -((dotCount - index) * (speed / dotCount));
 
         return (
-          <span
+          <div
             key={index}
-            className="absolute origin-center block"
+            className="absolute origin-center flex items-center justify-center pointer-events-none select-none"
             style={{
-              width: `${petalWidth}px`,
-              height: `${petalHeight}px`,
-              backgroundColor: color,
-              borderRadius: '9999px',
+              width: `${dotDiameter}px`,
+              height: `${dotDiameter}px`,
               top: '50%',
               left: '50%',
               transform: `translate(-50%, -50%) rotate(${angle}deg) translateY(-${radius}px)`,
-              animation: `cbePetalPulse ${speed}s linear infinite`,
-              animationDelay: `${delay}s`,
             }}
-          />
+          >
+            <span
+              className="block w-full h-full rounded-full"
+              style={{
+                backgroundColor: color,
+                animation: `cbeDotChaser ${speed}s linear infinite`,
+                animationDelay: `${delay}s`,
+                willChange: 'opacity, transform',
+              }}
+            />
+          </div>
         );
       })}
     </div>

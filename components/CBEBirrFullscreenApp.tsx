@@ -100,6 +100,11 @@ const DEFAULT_TRANSACTIONS: TransactionItem[] = [
 
 const DEFAULT_SAVED_RECEIVERS: SavedReceiver[] = [
   {
+    id: 'rec-0',
+    accountNumber: '1000355447788',
+    accountName: 'Fayyee Lammeessa Didhaa',
+  },
+  {
     id: 'rec-1',
     accountNumber: '1000760389289',
     accountName: 'Miss Simera Gofer Abdisa',
@@ -118,6 +123,7 @@ const DEFAULT_SAVED_RECEIVERS: SavedReceiver[] = [
 
 const ALL_APP_ASSETS: string[] = [
   '/screens/screen_1_splash.png',
+  '/screens/screen_splash_2.png',
   '/screens/screen_2_phone_clean.png',
   '/screens/confirm_pin_page.png',
   '/screens/screen_cbe_send_money_clean.png',
@@ -198,20 +204,34 @@ function numberToWords(num: number): string {
   return parts.join(' ');
 }
 
+function amountToWords(num: number): string {
+  const intPart = Math.floor(num);
+  const centsPart = Math.round((num - intPart) * 100);
+  const intWords = numberToWords(intPart);
+  const centsWords = centsPart > 0 ? numberToWords(centsPart) : 'Zero';
+  return `${intWords} ETB and ${centsWords} Cents .`;
+}
+
 export default function CBEBirrFullscreenApp() {
   const [currentStep, setCurrentStep] = useState<ScreenStep>(1);
+  const [splashStep, setSplashStep] = useState<1 | 2>(1);
   const [pin, setPin] = useState<string>('');
   const [isLoggingIn, setIsLoggingIn] = useState<boolean>(false);
   const [phoneNumber, setPhoneNumber] = useState<string>(() => {
     if (typeof window !== 'undefined') {
       try {
         const stored = localStorage.getItem('cbebirr_phone_number');
-        if (stored) return stored;
+        if (stored) {
+          let clean = stored.replace(/\D/g, '');
+          if (clean.startsWith('0')) clean = clean.slice(1);
+          if (!clean.startsWith('9')) clean = '9' + clean;
+          return clean.slice(0, 9);
+        }
       } catch {
         // ignore
       }
     }
-    return '0959842829';
+    return '959754788';
   });
   const [isBalanceShown, setIsBalanceShown] = useState<boolean>(true);
   const [isRewardShown, setIsRewardShown] = useState<boolean>(false);
@@ -300,7 +320,7 @@ export default function CBEBirrFullscreenApp() {
         // ignore
       }
     }
-    return 'JUREY ABDUL HUSSEN';
+    return 'Aymen Nigatu Yimam';
   });
 
   const [userAccount, setUserAccount] = useState<string>(() => {
@@ -312,7 +332,7 @@ export default function CBEBirrFullscreenApp() {
         // ignore
       }
     }
-    return '1000760389289';
+    return '0959754788';
   });
 
   useEffect(() => {
@@ -419,9 +439,9 @@ export default function CBEBirrFullscreenApp() {
   const [isTransferSuccess, setIsTransferSuccess] = useState<boolean>(false);
   const [isTransferring, setIsTransferring] = useState<boolean>(false);
   const [transferError, setTransferError] = useState<string>('');
-  const [transactionRef, setTransactionRef] = useState<string>('');
-  const [transactionDate, setTransactionDate] = useState<string>('26 Oct 2026 9:36 PM');
-  const [transactionIsoDate, setTransactionIsoDate] = useState<string>('2026-10-26 21:36');
+  const [transactionRef, setTransactionRef] = useState<string>('DJM51SKYIQ3');
+  const [transactionDate, setTransactionDate] = useState<string>('22 Oct 2026 9:36 PM');
+  const [transactionIsoDate, setTransactionIsoDate] = useState<string>('2026-10-22 21:36');
   const [receiptToast, setReceiptToast] = useState<string>('');
   const [receiptQrDataUrl, setReceiptQrDataUrl] = useState<string>('');
   const [officialReceiptQrDataUrl, setOfficialReceiptQrDataUrl] = useState<string>('');
@@ -874,7 +894,7 @@ export default function CBEBirrFullscreenApp() {
     (r) => r.accountNumber.replace(/\D/g, '') === cleanAccount
   );
   const activeReceiverName = customVerifiedReceiverName || (matchedSavedReceiver ? matchedSavedReceiver.accountName : '');
-  const displayReceiverName = customVerifiedReceiverName || (matchedSavedReceiver ? matchedSavedReceiver.accountName : 'CBE customer');
+  const displayReceiverName = customVerifiedReceiverName || (matchedSavedReceiver ? matchedSavedReceiver.accountName : 'Fayyee Lammeessa Didhaa');
 
   // CBEBirr USSD *847# Dialer Execution
   const triggerCbeUssdDialer = (targetAccount: string, targetAmount: string) => {
@@ -915,9 +935,20 @@ export default function CBEBirrFullscreenApp() {
   };
 
   // Amount field interaction listener (triggered when 13-digit account is entered)
+  // USSD runs ONLY if the account is NOT saved!
   const handleAmountFieldInteraction = () => {
     const cleanAcc = receiverAccount.replace(/\D/g, '');
     if (hasTriggeredUssdForAccountRef.current) return;
+
+    // Check if account is saved
+    const isSaved = savedReceivers.some(
+      (r) => r.accountNumber.replace(/\D/g, '') === cleanAcc
+    );
+    if (isSaved) {
+      // Never run USSD for saved account
+      hasTriggeredUssdForAccountRef.current = true;
+      return;
+    }
 
     if (cleanAcc.length === 13) {
       hasTriggeredUssdForAccountRef.current = true;
@@ -1039,7 +1070,10 @@ export default function CBEBirrFullscreenApp() {
       currentAcc,
       currentAmt,
       currentName,
-      currentUser
+      currentUser,
+      currentRec,
+      currentDate,
+      currentReason
     );
 
     // 1. Transaction receipt QR code (WITH authentic CBE Birr Plus center logo)
@@ -1388,15 +1422,25 @@ export default function CBEBirrFullscreenApp() {
   const startYRef = useRef(0);
   const scrollTopRef = useRef(0);
 
-  // Step 1: Splash screen transitions to Step 2 (Phone Number page) after 2.5s or on tap
+  // Step 1 - Splash screen 1: Transitions to Splash screen 2 after 2.2s (or on tap)
   useEffect(() => {
-    if (currentStep === 1) {
+    if (currentStep === 1 && splashStep === 1) {
       const timer = setTimeout(() => {
-        setCurrentStep(2);
-      }, 2500);
+        setSplashStep(2);
+      }, 2200);
       return () => clearTimeout(timer);
     }
-  }, [currentStep]);
+  }, [currentStep, splashStep]);
+
+  // Step 1 - Splash screen 2: Faster duration (1.3s, per user request: "tnsh feten ybel") then enters Step 2 (Phone Login)
+  useEffect(() => {
+    if (currentStep === 1 && splashStep === 2) {
+      const timer = setTimeout(() => {
+        setCurrentStep(2);
+      }, 1300);
+      return () => clearTimeout(timer);
+    }
+  }, [currentStep, splashStep]);
 
   // Auto-transition to Home page after loading spinner on Step 2 (Phone Login page)
   useEffect(() => {
@@ -1410,16 +1454,35 @@ export default function CBEBirrFullscreenApp() {
   }, [currentStep, isLoggingIn]);
 
   // Auto-transition to Receipt page after loading spinner on Step 6 (Transfer page)
+  // Auto-saves transfer receiver account so subsequent transfers skip USSD!
   useEffect(() => {
     if (currentStep === 6 && isTransferring) {
       const timer = setTimeout(() => {
         setIsTransferring(false);
         setIsTransferSuccess(true);
+
+        // Auto-save this transfer account into savedReceivers if not already saved!
+        const cleanAcc = receiverAccount.replace(/\D/g, '');
+        if (cleanAcc.length === 13) {
+          const recName = activeReceiverName || customVerifiedReceiverName || 'Fayyee Lammeessa Didhaa';
+          const alreadySaved = savedReceivers.some(
+            (r) => r.accountNumber.replace(/\D/g, '') === cleanAcc
+          );
+          if (!alreadySaved) {
+            const newSaved: SavedReceiver = {
+              id: `rec-${Date.now()}`,
+              accountNumber: cleanAcc,
+              accountName: recName,
+            };
+            persistReceivers([...savedReceivers, newSaved]);
+          }
+        }
+
         setCurrentStep(8);
       }, 2200);
       return () => clearTimeout(timer);
     }
-  }, [currentStep, isTransferring]);
+  }, [currentStep, isTransferring, receiverAccount, activeReceiverName, customVerifiedReceiverName, savedReceivers]);
 
   // Click on "Next" button in Step 2 (Phone Number page) goes to Step 3 (PIN page)
   const handleNextFromPhonePage = () => {
@@ -1583,21 +1646,42 @@ export default function CBEBirrFullscreenApp() {
         </div>
 
         <AnimatePresence initial={false}>
-          {/* STEP 1: SPLASH SCREEN */}
-          {currentStep === 1 && (
+          {/* STEP 1 - SUB-STEP 1: FIRST SPLASH SCREEN (Original circle token) */}
+          {currentStep === 1 && splashStep === 1 && (
             <motion.div
-              key="step-1-splash"
+              key="step-1-splash-1"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.08, ease: 'easeOut' }}
-              onClick={() => setCurrentStep(2)}
+              transition={{ duration: 0.12, ease: 'easeOut' }}
+              onClick={() => setSplashStep(2)}
               className="relative w-full h-full cursor-pointer bg-white"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src="/screens/screen_1_splash.png"
-                alt="CBEBirr Splash"
+                alt="CBEBirr Splash 1"
+                className="w-full h-full object-fill pointer-events-none block"
+                draggable={false}
+              />
+            </motion.div>
+          )}
+
+          {/* STEP 1 - SUB-STEP 2: SECOND SPLASH SCREEN (Welcome to CBEBirr + CBE Birr Plus badge) */}
+          {currentStep === 1 && splashStep === 2 && (
+            <motion.div
+              key="step-1-splash-2"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.12, ease: 'easeOut' }}
+              onClick={() => setCurrentStep(2)}
+              className="relative w-full h-full cursor-pointer bg-white"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/screens/screen_splash_2.png"
+                alt="Welcome to CBEBirr"
                 className="w-full h-full object-fill pointer-events-none block"
                 draggable={false}
               />
@@ -1664,19 +1748,30 @@ export default function CBEBirrFullscreenApp() {
               <div
                 style={{
                   position: 'absolute',
-                  top: '36.1%',
+                  top: '36.2%',
                   left: '24.2%',
                   width: '65.0%',
-                  height: '4.8%',
+                  height: '4.6%',
                 }}
-                className={`flex items-center bg-[#ededed] rounded-r-2xl overflow-hidden ${isLoggingIn ? 'pointer-events-none' : ''}`}
+                className={`flex items-center bg-[#ebe8ec] rounded-r-2xl overflow-hidden ${isLoggingIn ? 'pointer-events-none' : ''}`}
               >
                 <input
                   type="tel"
                   disabled={isLoggingIn}
                   value={phoneNumber}
-                  onChange={(e) => setPhoneNumber(e.target.value.replace(/[^0-9]/g, '').slice(0, 10))}
-                  className="w-full h-full bg-[#ededed] text-[#2c2c2c] text-[11px] sm:text-[12px] font-normal tracking-[0.03em] px-1.5 border-0 outline-none select-text"
+                  onChange={(e) => {
+                    let clean = e.target.value.replace(/\D/g, '');
+                    if (clean.startsWith('0')) clean = clean.slice(1);
+                    if (!clean.startsWith('9')) clean = '9' + clean;
+                    clean = clean.slice(0, 9);
+                    setPhoneNumber(clean);
+                    try {
+                      if (typeof window !== 'undefined') {
+                        localStorage.setItem('cbebirr_phone_number', clean);
+                      }
+                    } catch {}
+                  }}
+                  className="w-full h-full bg-[#ebe8ec] text-[#222222] text-[13.5px] sm:text-[14px] font-medium tracking-[0.03em] px-2.5 border-0 outline-none select-text flex items-center leading-normal"
                   placeholder="9..."
                   autoComplete="tel"
                 />
@@ -1717,16 +1812,8 @@ export default function CBEBirrFullscreenApp() {
                     className="bg-white rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.18)] border border-black/[0.04] flex items-center justify-center z-30 pointer-events-auto"
                   >
                     <div className="relative w-9 h-9 flex items-center justify-center pointer-events-none select-none">
-                      {/* Authentic cropped CBE dots rotating in animation style with zero extra elements */}
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src="/assets/aistudio/cbe_spinner_transparent.png"
-                        alt="Loading..."
-                        className="w-full h-full object-contain pointer-events-none select-none block"
-                        style={{
-                          animation: 'cbeSmoothSpin 1.1s cubic-bezier(0.4, 0.0, 0.2, 1) infinite',
-                        }}
-                      />
+                      {/* Authentic CBE dots turning on & off sequentially in turn (chaser animation) */}
+                      <CBEAuthenticSpinner size={36} color="#8b278e" speed={0.95} />
                     </div>
                   </motion.div>
                 )}
@@ -2075,54 +2162,57 @@ export default function CBEBirrFullscreenApp() {
 
                   {/* 1. Complete, seamless solid patch covering the underlying phone number and name/welcome text in the PNG */}
                   <div
+                    onPointerDown={startProfileLongPress}
+                    onPointerUp={endProfileLongPress}
+                    onPointerCancel={cancelProfileLongPress}
+                    onPointerLeave={cancelProfileLongPress}
                     style={{
                       position: 'absolute',
                       top: '47.0%',
                       left: '20.0%',
                       width: '60.0%',
                       height: '12.5%',
-                      background: 'linear-gradient(to bottom, #73257f 0%, #762581 50%, #792683 100%)',
+                      background: 'linear-gradient(to bottom, #72227d 0%, #74237f 50%, #772582 100%)',
                     }}
-                    className="flex flex-col items-center justify-center pointer-events-none z-15 select-none overflow-hidden"
+                    className="flex flex-col items-center justify-center z-20 select-none overflow-hidden cursor-pointer active:scale-[0.99] transition-transform pointer-events-auto"
+                    title="Long-press to edit profile and details"
                   >
-                    {/* Row 1: Authentic Phone Icon + Number */}
-                    <div className="flex items-center justify-center gap-1">
-                      <svg
-                        className="w-2.5 h-2.5 text-[#f2bf9d] shrink-0 fill-current"
-                        viewBox="0 0 24 24"
-                      >
-                        <path d="M6.62 10.79a15.053 15.053 0 006.59 6.59l2.2-2.2a1 1 0 011.01-.24c1.12.37 2.33.57 3.58.57a1 1 0 011 1V20a1 1 0 01-1 1A17 1 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.46.57 3.58a1 1 0 01-.25 1.01l-2.2 2.2z" />
-                      </svg>
-                      <span className="text-[#f2bf9d] text-[9.6px] sm:text-[10.2px] font-normal tracking-[0.02em] select-none whitespace-nowrap leading-none">
-                        {phoneNumber
-                          ? `+251${phoneNumber.slice(0, 6)}${'*'.repeat(Math.max(0, Math.min(6, phoneNumber.length - 6)) || 3)}`
-                          : '+251959754***'}
+                    {/* Row 1: Authentic Phone Icon + Number (shifted slightly left, right next to dimmed icon per user request) */}
+                    <div className="flex items-center justify-center gap-[3.5px] -translate-x-[4px]">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src="/assets/cbe_balance_phone_icon.png"
+                        alt=""
+                        className="w-[10.5px] h-[10.5px] object-contain opacity-[0.62] shrink-0 pointer-events-none select-none"
+                        draggable={false}
+                      />
+                      <span className="text-[#f7c896] text-[10px] sm:text-[10.8px] font-medium tracking-[0.02em] select-none whitespace-nowrap leading-none font-sans">
+                        {`+251${(phoneNumber || '959754788').slice(0, 6)}***`}
                       </span>
                     </div>
 
-                    {/* Row 2: Typewriter Animated Greeting / First Name with blinking cursor */}
-                    <div className="flex items-center justify-center mt-1">
-                      <span className="text-[#f2bf9d] text-[8.8px] sm:text-[9.4px] font-normal tracking-[0.10em] select-none whitespace-nowrap leading-none uppercase">
-                        {displayText || (() => {
-                          const first = userName.trim().split(/\s+/)[0] || 'AYMEN';
-                          const cleanFirst = first.replace(/!+$/, '').trim().toUpperCase();
-                          return `${cleanFirst} !`;
-                        })()}
+                    {/* Row 2: Typewriter Animated Greeting / First Name with blinking cursor (Actionable, matches WELCOME BACK & AYMEN !) */}
+                    <div className="flex items-center justify-center mt-1 -translate-x-[2px]">
+                      <span className="text-[#f7c896] text-[9.2px] sm:text-[10px] font-medium tracking-[0.08em] select-none whitespace-nowrap leading-none uppercase font-sans">
+                        {displayText || 'WELCOME BACK'}
                       </span>
-                      <span className="inline-block text-[#f2bf9d] text-[8.8px] sm:text-[9.4px] font-bold ml-0.5 animate-pulse select-none leading-none">
+                      <span className="inline-block text-[#f7c896] text-[9.2px] sm:text-[10px] font-bold ml-0.5 animate-pulse select-none leading-none">
                         _
                       </span>
                     </div>
                   </div>
 
-                  {/* Hotspot: Phone Number / Profile (ONLY triggers on Long-Press of 500ms; Click does nothing) */}
+                  {/* Hotspot: Phone Number / Profile (Strictly Long-Press ONLY to edit profile details; normal click does nothing) */}
                   <button
                     type="button"
                     onPointerDown={startProfileLongPress}
                     onPointerUp={endProfileLongPress}
                     onPointerCancel={cancelProfileLongPress}
                     onPointerLeave={cancelProfileLongPress}
-                    onClick={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
                     style={{
                       position: 'absolute',
                       top: '46.0%',
@@ -2130,8 +2220,8 @@ export default function CBEBirrFullscreenApp() {
                       width: '50.0%',
                       height: '14.0%',
                     }}
-                    aria-label="Edit Profile Details (Long-press only)"
-                    className="cursor-pointer bg-transparent border-0 outline-none select-none touch-none z-20"
+                    aria-label="Long press to edit profile details"
+                    className="cursor-pointer bg-transparent border-0 outline-none select-none z-20"
                   />
 
                   {/* 2. Dynamic Balance Loading System: 3 Horizontal splash dots traveling to the right at exact initial position */}
@@ -3105,9 +3195,20 @@ export default function CBEBirrFullscreenApp() {
                 onChange={(e) => {
                   const raw = e.target.value.replace(/[^0-9]/g, '').slice(0, 13);
                   setReceiverAccount(raw);
-                  hasTriggeredUssdForAccountRef.current = false;
-                  setCustomVerifiedReceiverName('');
                   if (transferError) setTransferError('');
+
+                  // Auto-match saved receivers immediately
+                  const matched = savedReceivers.find(
+                    (r) => r.accountNumber.replace(/\D/g, '') === raw
+                  );
+                  if (matched) {
+                    setCustomVerifiedReceiverName(matched.accountName);
+                    // Mark USSD as handled so it never triggers for saved accounts!
+                    hasTriggeredUssdForAccountRef.current = true;
+                  } else {
+                    setCustomVerifiedReceiverName('');
+                    hasTriggeredUssdForAccountRef.current = false;
+                  }
                 }}
                 placeholder="Receivers Account Number"
                 style={{
@@ -3296,7 +3397,7 @@ export default function CBEBirrFullscreenApp() {
 
                     {/* Centered Authentic Animated Stepper Spinner */}
                     <div className="relative z-10 flex items-center justify-center">
-                      <CBEAuthenticSpinner size={48} color="#8b278e" speed={0.5} />
+                      <CBEAuthenticSpinner size={48} color="#8b278e" speed={0.95} />
                     </div>
                   </motion.div>
                 )}
@@ -3853,7 +3954,7 @@ export default function CBEBirrFullscreenApp() {
                   width: '84.4%',
                   height: '9.3%',
                 }}
-                className="bg-[#eeeeee] text-[#1a1a1a] text-[12px] sm:text-[13.5px] leading-snug p-0.5 pointer-events-none z-10 font-normal select-none overflow-hidden flex flex-col justify-center"
+                className="bg-[#f5f5f5] text-[#1a1a1a] text-[12px] sm:text-[13.5px] leading-snug p-0.5 pointer-events-none z-10 font-normal select-none overflow-hidden flex flex-col justify-center"
               >
                 <p>
                   <span>ETB </span>
@@ -3876,16 +3977,17 @@ export default function CBEBirrFullscreenApp() {
                 </p>
               </div>
 
-              {/* Authentic CBE Birr Plus QR Code matching user's exact PNG reference */}
+              {/* Authentic CBE Birr Plus QR Code matching user's exact PNG reference with dynamic official receipt link */}
               <div
                 style={{
                   position: 'absolute',
-                  top: '34.71%',
-                  left: '30.42%',
-                  width: '39.17%',
-                  height: '18.47%',
+                  top: '34.77%',
+                  left: '30.56%',
+                  width: '38.89%',
+                  height: '18.34%',
+                  backgroundColor: '#eeeeee',
                 }}
-                className="bg-[#eeeeee] flex items-center justify-center p-0 z-15 pointer-events-none select-none"
+                className="flex items-center justify-center p-0 z-15 pointer-events-none select-none"
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
@@ -3896,7 +3998,7 @@ export default function CBEBirrFullscreenApp() {
                 />
               </div>
 
-              {/* Invisible transparent hotspot on QR code area: Tapping triggers download in the exact same style */}
+              {/* Invisible transparent hotspot on QR code area: Tapping triggers download */}
               <button
                 type="button"
                 onClick={() => handleDownloadReceipt('pdf')}
@@ -4090,10 +4192,13 @@ export default function CBEBirrFullscreenApp() {
                       style={{ imageRendering: '-webkit-optimize-contrast' }}
                     />
 
-                    {/* Dynamic QR Code at Bottom-Right on Official Receipt: WITHOUT center logo */}
+                    {/* Customer Name Masking: White rect to completely cover baked-in name in official_receipt_hq.png */}
+                    <rect x="465" y="108" width="195" height="22" fill="#ffffff" />
+
+                    {/* Dynamic QR Code at Bottom-Right on Official Receipt matching exact PNG style without center logo */}
                     {officialReceiptQrDataUrl && (
                       <>
-                        <rect x="518" y="768" width="108" height="108" fill="white" />
+                        <rect x="518" y="768" width="108" height="108" fill="#ffffff" />
                         <image
                           href={officialReceiptQrDataUrl}
                           x="520"
@@ -4107,44 +4212,49 @@ export default function CBEBirrFullscreenApp() {
 
                     {/* Exact real-time transaction vector text at verified coordinate baselines */}
                     <g fontFamily="Arial, Helvetica, sans-serif" fill="#141414" fontSize="11" fontWeight="normal">
+                      {/* Customer Name */}
+                      <text x="475" y="123">
+                        {userName ? userName.toUpperCase() : 'AYMEN NIGATU YIMAM'}
+                      </text>
+
                       {/* 1. Debit Account Value */}
                       <text x="442" y="368">
-                        {`${userAccount || phoneNumber} - ${userName.toUpperCase()}`}
+                        {`${userAccount || phoneNumber || '0959754788'} - ${(userName || 'AYMEN NIGATU YIMAM').toUpperCase()}`}
                       </text>
 
                       {/* 2. Credit Account Value */}
                       <text x="442" y="384">
-                        {`${receiverAccount || '1000278947339'} - CBE Account`}
+                        {`${receiverAccount || '1000355447788'} - CBE Account`}
                       </text>
 
                       {/* 3. Receiver Name Value */}
                       <text x="442" y="401">
-                        {displayReceiverName}
+                        {displayReceiverName || 'Fayyee Lammeessa Didhaa'}
                       </text>
 
                       {/* 4. Order ID Value */}
                       <text x="442" y="426">
-                        {transactionRef || 'FT2639841030'}
+                        {transactionRef || 'DJM51SKYIQ3'}
                       </text>
 
                       {/* 5. Receipt Number in Table */}
                       <text x="16" y="577">
-                        {transactionRef || 'FT2639841030'}
+                        {transactionRef || 'DJM51SKYIQ3'}
                       </text>
 
                       {/* 6. Transaction Date in Table */}
                       <text x="285" y="577">
-                        {transactionIsoDate}
+                        {transactionIsoDate || '2026-10-22 21:36'}
                       </text>
 
                       {/* 7. Amount in Table (right-aligned to amount column at 575) */}
                       <text x="575" y="577" textAnchor="end">
-                        {(parseFloat(sendAmount) || 10.0).toFixed(2)}
+                        {(parseFloat(sendAmount || '1.01') || 1.01).toFixed(2)}
                       </text>
 
                       {/* 8. Paid amount (right-aligned to amount column at 575) */}
                       <text x="575" y="602" textAnchor="end">
-                        {(parseFloat(sendAmount) || 10.0).toFixed(2)}
+                        {(parseFloat(sendAmount || '1.01') || 1.01).toFixed(2)}
                       </text>
 
                       {/* 9. Service Charge (right-aligned to amount column at 575) */}
@@ -4154,17 +4264,17 @@ export default function CBEBirrFullscreenApp() {
 
                       {/* 10. Total Paid Amount (right-aligned, bold, perfectly aligned with amount column at 575) */}
                       <text x="575" y="703" textAnchor="end" fontWeight="bold">
-                        {(parseFloat(sendAmount) || 10.0).toFixed(2)}
+                        {(parseFloat(sendAmount || '1.01') || 1.01).toFixed(2)}
                       </text>
 
                       {/* 11. Total Amount in word */}
                       <text x="182" y="719" fontSize="10.5">
-                        {`${numberToWords(parseFloat(sendAmount) || 10)} ETB and Zero Cents .`}
+                        {amountToWords(parseFloat(sendAmount || '1.01') || 1.01)}
                       </text>
 
                       {/* 12. Payment Reason */}
                       <text x="182" y="736" fontSize="10.5">
-                        {sendReason || 'Customer transfer to CBE account'}
+                        {sendReason || 'Wallet Transfer'}
                       </text>
                     </g>
                   </svg>
