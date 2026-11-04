@@ -1070,10 +1070,7 @@ export default function CBEBirrFullscreenApp() {
       currentAcc,
       currentAmt,
       currentName,
-      currentUser,
-      currentRec,
-      currentDate,
-      currentReason
+      currentUser
     );
 
     // 1. Transaction receipt QR code (WITH authentic CBE Birr Plus center logo)
@@ -2177,22 +2174,22 @@ export default function CBEBirrFullscreenApp() {
                     className="flex flex-col items-center justify-center z-20 select-none overflow-hidden cursor-pointer active:scale-[0.99] transition-transform pointer-events-auto"
                     title="Long-press to edit profile and details"
                   >
-                    {/* Row 1: Authentic Phone Icon + Number (shifted slightly left, right next to dimmed icon per user request) */}
-                    <div className="flex items-center justify-center gap-[3.5px] -translate-x-[4px]">
+                    {/* Row 1: Authentic Phone Icon + Number (exact match with Balance_card__ddf00b62.png & Balance_card_text__d3d5b6cb.png) */}
+                    <div className="flex items-center justify-center gap-1.5">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src="/assets/cbe_balance_phone_icon.png"
                         alt=""
-                        className="w-[10.5px] h-[10.5px] object-contain opacity-[0.62] shrink-0 pointer-events-none select-none"
+                        className="w-[11px] h-[11px] object-contain opacity-75 shrink-0 pointer-events-none select-none"
                         draggable={false}
                       />
-                      <span className="text-[#f7c896] text-[10px] sm:text-[10.8px] font-medium tracking-[0.02em] select-none whitespace-nowrap leading-none font-sans">
+                      <span className="text-[#f7c896] text-[10px] sm:text-[10.8px] font-medium tracking-[0.03em] select-none whitespace-nowrap leading-none font-sans">
                         {`+251${(phoneNumber || '959754788').slice(0, 6)}***`}
                       </span>
                     </div>
 
                     {/* Row 2: Typewriter Animated Greeting / First Name with blinking cursor (Actionable, matches WELCOME BACK & AYMEN !) */}
-                    <div className="flex items-center justify-center mt-1 -translate-x-[2px]">
+                    <div className="flex items-center justify-center mt-1">
                       <span className="text-[#f7c896] text-[9.2px] sm:text-[10px] font-medium tracking-[0.08em] select-none whitespace-nowrap leading-none uppercase font-sans">
                         {displayText || 'WELCOME BACK'}
                       </span>
@@ -3977,27 +3974,6 @@ export default function CBEBirrFullscreenApp() {
                 </p>
               </div>
 
-              {/* Authentic CBE Birr Plus QR Code matching user's exact PNG reference with dynamic official receipt link */}
-              <div
-                style={{
-                  position: 'absolute',
-                  top: '34.77%',
-                  left: '30.56%',
-                  width: '38.89%',
-                  height: '18.34%',
-                  backgroundColor: '#eeeeee',
-                }}
-                className="flex items-center justify-center p-0 z-15 pointer-events-none select-none"
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={receiptQrDataUrl || "/assets/cbe_authentic_receipt_qr_exact.png"}
-                  alt="CBEBirr QR Code"
-                  className="w-full h-full object-contain pointer-events-none block"
-                  draggable={false}
-                />
-              </div>
-
               {/* Invisible transparent hotspot on QR code area: Tapping triggers download */}
               <button
                 type="button"
@@ -4192,28 +4168,12 @@ export default function CBEBirrFullscreenApp() {
                       style={{ imageRendering: '-webkit-optimize-contrast' }}
                     />
 
-                    {/* Customer Name Masking: White rect to completely cover baked-in name in official_receipt_hq.png */}
-                    <rect x="465" y="108" width="195" height="22" fill="#ffffff" />
-
-                    {/* Dynamic QR Code at Bottom-Right on Official Receipt matching exact PNG style without center logo */}
-                    {officialReceiptQrDataUrl && (
-                      <>
-                        <rect x="518" y="768" width="108" height="108" fill="#ffffff" />
-                        <image
-                          href={officialReceiptQrDataUrl}
-                          x="520"
-                          y="770"
-                          width="104"
-                          height="104"
-                          preserveAspectRatio="none"
-                        />
-                      </>
-                    )}
+                    {/* Original QR Code on official_receipt_hq.png is preserved directly without overlay */}
 
                     {/* Exact real-time transaction vector text at verified coordinate baselines */}
                     <g fontFamily="Arial, Helvetica, sans-serif" fill="#141414" fontSize="11" fontWeight="normal">
                       {/* Customer Name */}
-                      <text x="475" y="123">
+                      <text x="505" y="126">
                         {userName ? userName.toUpperCase() : 'AYMEN NIGATU YIMAM'}
                       </text>
 
