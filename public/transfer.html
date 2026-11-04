@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>CBE USSD Transfer &amp; Receiver Listener</title>
+  <style>
+    :root {
+      --primary: #7a1c7d;
+      --primary-dark: #5e1161;
+      --primary-light: #f6eaf7;
+      --gold: #d4a017;
+      --gold-light: #fef8e7;
+      --bg: #f3f4f6;
+      --card: #ffffff;
+      --text: #1f2937;
+      --text-muted: #6b7280;
+      --border: #e5e7eb;
+      --success: #10b981;
+      --danger: #ef4444;
+      --radius: 16px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 16px 12px 32px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 440px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* Header Bar */
+    .header-card {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+      color: white;
+      border-radius: var(--radius);
+      padding: 20px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 4px 15px rgba(122, 28, 125, 0.25);
+    }
+
+    .header-title {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .header-title h1 {
+      font-size: 19px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .header-title span.badge {
+      background: var(--gold);
+      color: #1f2937;
+      font-size: 10px;
+      font-weight: 800;
+      padding: 2px 6px;
+      border-radius: 6px;
+      text-transform: uppercase;
+    }
+
+    .header-title p {
+      font-size: 12px;
+      opacity: 0.85;
+      margin-top: 2px;
+    }
+
+    .cbe-logo-emblem {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.15);
+      border: 2px solid rgba(212, 160, 23, 0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+      font-size: 15px;
+      color: var(--gold);
+      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
+    /* Main Form Card */
+    .form-card {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 22px 18px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+      border: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .field-label {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .field-label .counter {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      background: #f3f4f6;
+      padding: 2px 6px;
+      border-radius: 6px;
+    }
+
+    .field-label .counter.valid {
+      background: #d1fae5;
+      color: #065f46;
+    }
+
+    .input-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .input-wrapper input {
+      width: 100%;
+      padding: 14px 14px 14px 42px;
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text);
+      background: #fafafa;
+      border: 2px solid var(--border);
+      border-radius: 12px;
+      outline: none;
+      transition: all 0.2s ease;
+      letter-spacing: 0.5px;
+    }
+
+    .input-wrapper input:focus {
+      background: #ffffff;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(122, 28, 125, 0.15);
+    }
+
+    .input-wrapper input.valid {
+      border-color: var(--success);
+      background-color: #f0fdf4;
+    }
+
+    .input-wrapper input.invalid {
+      border-color: var(--danger);
+      background-color: #fef2f2;
+    }
+
+    .input-icon {
+      position: absolute;
+      left: 14px;
+      width: 20px;
+      height: 20px;
+      fill: none;
+      stroke: var(--text-muted);
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      pointer-events: none;
+    }
+
+    .validation-badge {
+      position: absolute;
+      right: 12px;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .validation-badge.show-valid {
+      display: flex;
+      background: var(--success);
+      color: white;
+    }
+
+    .field-hint {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
+      line-height: 1.4;
+    }
+
+    .field-hint.error {
+      color: var(--danger);
+      font-weight: 600;
+    }
+
+    /* USSD Execution Notice Box */
+    .ussd-preview-box {
+      background: var(--primary-light);
+      border: 1px dashed var(--primary);
+      border-radius: 12px;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .ussd-preview-header {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: var(--primary-dark);
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .ussd-string {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 15px;
+      font-weight: 800;
+      color: var(--primary-dark);
+      background: white;
+      padding: 6px 10px;
+      border-radius: 8px;
+      border: 1px solid #e9d5ff;
+      word-break: break-all;
+    }
+
+    /* Button Controls */
+    .btn {
+      width: 100%;
+      padding: 14px;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+      border: none;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: white;
+      box-shadow: 0 4px 10px rgba(122, 28, 125, 0.3);
+    }
+
+    .btn-primary:active {
+      transform: scale(0.98);
+      background: var(--primary-dark);
+    }
+
+    .btn-primary:disabled {
+      background: #d1d5db;
+      color: #9ca3af;
+      box-shadow: none;
+      cursor: not-allowed;
+    }
+
+    .btn-secondary {
+      background: #f3f4f6;
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .btn-secondary:active {
+      background: #e5e7eb;
+    }
+
+    /* Live Listener Status Card */
+    .status-card {
+      background: white;
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      border: 1px solid var(--border);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .status-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+    }
+
+    .status-indicator {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 700;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #9ca3af;
+    }
+
+    .dot.pulsing {
+      background: var(--success);
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6); }
+      70% { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+
+    .shake {
+      animation: shake 0.4s ease-in-out;
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-6px); }
+      40%, 80% { transform: translateX(6px); }
+    }
+
+    /* FULLSCREEN RECEIVER MODAL (MacroDroid Delivery) */
+    .fullscreen-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(17, 24, 39, 0.92);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      z-index: 9999;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px 16px;
+      animation: fadeIn 0.3s ease-out;
+    }
+
+    .fullscreen-modal.active {
+      display: flex;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: scale(0.96); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    .receiver-card {
+      width: 100%;
+      max-width: 380px;
+      background: #ffffff;
+      border-radius: 24px;
+      overflow: hidden;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4);
+      display: flex;
+      flex-direction: column;
+      text-align: center;
+    }
+
+    .receiver-header {
+      background: linear-gradient(135deg, var(--primary) 0%, #4a0d4c 100%);
+      color: white;
+      padding: 24px 20px 20px;
+      position: relative;
+    }
+
+    .verified-icon-circle {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      background: #10b981;
+      border: 4px solid #ffffff;
+      margin: 0 auto 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);
+    }
+
+    .verified-icon-circle svg {
+      width: 36px;
+      height: 36px;
+      stroke: white;
+      stroke-width: 3;
+    }
+
+    .receiver-header h2 {
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+    }
+
+    .receiver-header p {
+      font-size: 11px;
+      color: #f3e8ff;
+      margin-top: 3px;
+    }
+
+    .receiver-body {
+      padding: 24px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .receiver-name-box {
+      background: #faf5ff;
+      border: 2px solid #e9d5ff;
+      border-radius: 16px;
+      padding: 16px;
+    }
+
+    .receiver-name-box .label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--primary);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 4px;
+    }
+
+    .receiver-name-box .name {
+      font-size: 20px;
+      font-weight: 900;
+      color: #111827;
+      text-transform: uppercase;
+      line-height: 1.25;
+      word-break: break-word;
+    }
+
+    .detail-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      padding: 8px 0;
+      border-bottom: 1px solid #f3f4f6;
+    }
+
+    .detail-row:last-child {
+      border-bottom: none;
+    }
+
+    .detail-row .key {
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .detail-row .val {
+      color: var(--text);
+      font-weight: 700;
+      font-family: ui-monospace, SFMono-Regular, monospace;
+    }
+
+    .receiver-actions {
+      padding: 0 20px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* Webhook info bottom sheet / collapsible */
+    .webhook-info-box {
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      font-size: 12px;
+      color: var(--text-muted);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .webhook-info-box code {
+      font-family: ui-monospace, monospace;
+      background: #f3f4f6;
+      color: #111827;
+      padding: 4px 6px;
+      border-radius: 6px;
+      font-size: 11px;
+      word-break: break-all;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <!-- Header -->
+    <header class="header-card">
+      <div class="header-title">
+        <h1>
+          CBE USSD Transfer
+          <span class="badge">WebView</span>
+        </h1>
+        <p>Commercial Bank of Ethiopia &bull; *847# Dialing</p>
+      </div>
+      <div class="cbe-logo-emblem">CBE</div>
+    </header>
+
+    <!-- Main Transfer Form -->
+    <main class="form-card">
+      <!-- 13-Digit Account Field -->
+      <div class="field-group" id="accountGroup">
+        <label class="field-label" for="accountNumber">
+          <span>Receiver Account Number</span>
+          <span class="counter" id="digitCounter">0/13</span>
+        </label>
+        <div class="input-wrapper">
+          <svg class="input-icon" viewBox="0 0 24 24">
+            <rect x="2" y="5" width="20" height="14" rx="2" />
+            <line x1="2" y1="10" x2="22" y2="10" />
+          </svg>
+          <input
+            type="tel"
+            id="accountNumber"
+            name="accountNumber"
+            inputmode="numeric"
+            pattern="[0-9]*"
+            maxlength="13"
+            placeholder="1000760389289"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <div class="validation-badge" id="accountBadge">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          </div>
+        </div>
+        <p class="field-hint" id="accountHint">
+          Must be strictly 13 digits (e.g., starts with 1000...).
+        </p>
+      </div>
+
+      <!-- Amount Field (USSD Trigger Target) -->
+      <div class="field-group" id="amountGroup">
+        <label class="field-label" for="amount">
+          <span>Transfer Amount (ETB)</span>
+          <span style="font-size: 11px; color: var(--primary); font-weight: 700;">Tap triggers USSD</span>
+        </label>
+        <div class="input-wrapper">
+          <svg class="input-icon" viewBox="0 0 24 24">
+            <text x="3" y="17" font-size="14" font-weight="900" fill="currentColor" stroke="none">Br</text>
+          </svg>
+          <input
+            type="number"
+            id="amount"
+            name="amount"
+            inputmode="decimal"
+            placeholder="e.g. 500"
+            autocomplete="off"
+          />
+        </div>
+        <p class="field-hint">
+          Tapping this field after completing the 13-digit account triggers the USSD dialer.
+        </p>
+      </div>
+
+      <!-- Live USSD Code Preview Box -->
+      <div class="ussd-preview-box">
+        <span class="ussd-preview-header">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+          </svg>
+          Target USSD Dialer URI
+        </span>
+        <div class="ussd-string" id="ussdPreview">tel:*847*1000...*%23</div>
+      </div>
+
+      <!-- Explicit Action Button -->
+      <button type="button" class="btn btn-primary" id="btnDialUSSD">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+        </svg>
+        <span>Dial USSD (*847#)</span>
+      </button>
+
+      <!-- Test Simulation Button (to test fullscreen modal in browser without waiting for USSD) -->
+      <button type="button" class="btn btn-secondary" id="btnSimulateWebhook">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+          <polyline points="22 4 12 14.01 9 11.01"/>
+        </svg>
+        <span>Simulate MacroDroid Webhook</span>
+      </button>
+    </main>
+
+    <!-- MacroDroid Live Listener Status -->
+    <section class="status-card">
+      <div class="status-row">
+        <span class="status-indicator">
+          <span class="dot pulsing" id="statusDot"></span>
+          <span id="statusText">MacroDroid Webhook Listener Active</span>
+        </span>
+        <span style="font-size: 11px; color: var(--text-muted);" id="pollCount">Listening...</span>
+      </div>
+      <p style="font-size: 11px; color: var(--text-muted); line-height: 1.4;">
+        When MacroDroid captures the recipient name from USSD or CBE SMS and POSTs it, it immediately pops up full-screen.
+      </p>
+    </section>
+
+    <!-- MacroDroid Webhook Setup Info -->
+    <details class="webhook-info-box">
+      <summary style="font-weight: 700; color: var(--primary); cursor: pointer;">
+        MacroDroid Configuration Guide (Tap to view)
+      </summary>
+      <div style="margin-top: 8px; display: flex; flex-direction: column; gap: 6px;">
+        <p><strong>1. HTTP POST URL:</strong></p>
+        <code id="webhookUrlCode">https://your-domain/api/ussd/receiver-webhook</code>
+        <p><strong>2. Request Body (JSON):</strong></p>
+        <code>{"name": "{extracted_ussd_name}", "account": "{account_number}", "amount": "{amount}"}</code>
+        <p><strong>3. Or via Android WebView Bridge:</strong></p>
+        <code>webView.evaluateJavascript("window.onReceiverNameReceived('{name}')", null);</code>
+      </div>
+    </details>
+  </div>
+
+
+
+  <script>
+    (function () {
+      'use strict';
+
+      // Elements
+      const accountInput = document.getElementById('accountNumber');
+      const amountInput = document.getElementById('amount');
+      const accountGroup = document.getElementById('accountGroup');
+      const digitCounter = document.getElementById('digitCounter');
+      const accountBadge = document.getElementById('accountBadge');
+      const accountHint = document.getElementById('accountHint');
+      const ussdPreview = document.getElementById('ussdPreview');
+      const btnDialUSSD = document.getElementById('btnDialUSSD');
+      const btnSimulateWebhook = document.getElementById('btnSimulateWebhook');
+      const statusText = document.getElementById('statusText');
+      const pollCount = document.getElementById('pollCount');
+
+      // Fullscreen Modal Elements
+      const fullscreenModal = document.getElementById('fullscreenModal');
+      const modalReceiverName = document.getElementById('modalReceiverName');
+      const modalReceiverAccount = document.getElementById('modalReceiverAccount');
+      const modalReceiverAmount = document.getElementById('modalReceiverAmount');
+      const btnModalConfirm = document.getElementById('btnModalConfirm');
+      const btnModalClose = document.getElementById('btnModalClose');
+
+      // Set Webhook URL in guide based on current domain
+      const webhookUrlCode = document.getElementById('webhookUrlCode');
+      if (webhookUrlCode && window.location.origin) {
+        webhookUrlCode.textContent = window.location.origin + '/api/ussd/receiver-webhook';
+      }
+
+      // State tracking
+      let hasTriggeredForCurrentAccount = false;
+      let pollingIntervalId = null;
+      let pollTicks = 0;
+
+      /**
+       * 1. Validate that the account is strictly 13 numeric digits
+       */
+      function validateAccount(val) {
+        const cleaned = (val || '').replace(/\D/g, '');
+        return cleaned.length === 13;
+      }
+
+      function getCleanAccount() {
+        return (accountInput.value || '').replace(/\D/g, '').slice(0, 13);
+      }
+
+      function getCleanAmount() {
+        const amt = parseFloat(amountInput.value);
+        return isNaN(amt) || amt <= 0 ? '' : amt.toFixed(2);
+      }
+
+      /**
+       * Build authentic CBE USSD dial URI
+       * Pattern: tel:*847*[account]*[amount]%23 (or tel:*847*[account]%23)
+       * Note: '%23' is required for URL encoding the '#' character in tel: URIs.
+       */
+      function buildUssdUri(account, amount) {
+        const cleanAcc = (account || '').replace(/\D/g, '');
+        const cleanAmt = amount ? String(amount).replace(/[^0-9.]/g, '') : '';
+        if (cleanAmt) {
+          return 'tel:*847*1*2*' + cleanAcc + '*' + cleanAmt + '%23';
+        }
+        return 'tel:*847*1*2*' + cleanAcc + '%23';
+      }
+
+      function updateUIState() {
+        const cleanAcc = getCleanAccount();
+        accountInput.value = cleanAcc;
+        const count = cleanAcc.length;
+        digitCounter.textContent = count + '/13';
+
+        if (count === 13) {
+          digitCounter.classList.add('valid');
+          accountBadge.classList.add('show-valid');
+          accountInput.classList.add('valid');
+          accountInput.classList.remove('invalid');
+          accountHint.textContent = 'Valid 13-digit CBE account number.';
+          accountHint.classList.remove('error');
+        } else {
+          digitCounter.classList.remove('valid');
+          accountBadge.classList.remove('show-valid');
+          accountInput.classList.remove('valid');
+          if (count > 0 && count < 13) {
+            accountHint.textContent = 'Need ' + (13 - count) + ' more digit(s) for a valid 13-digit account.';
+            accountHint.classList.remove('error');
+          } else {
+            accountHint.textContent = 'Must be strictly 13 digits (e.g., starts with 1000...).';
+            accountHint.classList.remove('error');
+          }
+        }
+
+        // Update USSD preview
+        const uri = buildUssdUri(cleanAcc || '1000...', getCleanAmount());
+        ussdPreview.textContent = uri;
+      }
+
+      // Input filter: strictly numbers, max 13 digits
+      accountInput.addEventListener('input', function () {
+        hasTriggeredForCurrentAccount = false;
+        updateUIState();
+      });
+
+      amountInput.addEventListener('input', function () {
+        updateUIState();
+      });
+
+      /**
+       * 2. Core Execution Function: Triggers Phone Dialer with USSD String
+       */
+      function executeUSSDDialer() {
+        const account = getCleanAccount();
+        const amount = getCleanAmount();
+
+        if (!validateAccount(account)) {
+          // Visual error & shake animation
+          accountGroup.classList.remove('shake');
+          void accountGroup.offsetWidth; // trigger reflow
+          accountGroup.classList.add('shake');
+
+          accountInput.classList.add('invalid');
+          accountHint.textContent = 'Please enter a complete 13-digit CBE account number first.';
+          accountHint.classList.add('error');
+          accountInput.focus();
+          return false;
+        }
+
+        const uri = buildUssdUri(account, amount);
+        console.log('[USSD Trigger] Executing dialer:', uri);
+
+        // Haptic feedback if supported
+        if ('vibrate' in navigator && typeof navigator.vibrate === 'function') {
+          navigator.vibrate([40, 60, 40]);
+        }
+
+        // Bridge 1: Android WebView native JavaScriptInterface (if present in custom Android app)
+        if (window.Android && typeof window.Android.dialUSSD === 'function') {
+          window.Android.dialUSSD(uri);
+        } else if (window.Android && typeof window.Android.callUSSD === 'function') {
+          window.Android.callUSSD(uri);
+        } else {
+          // Bridge 2: Standard HTML5 tel: URI intent
+          // Create temporary anchor to guarantee intent dispatch in WebView
+          const a = document.createElement('a');
+          a.href = uri;
+          a.style.display = 'none';
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(function () {
+            if (document.body.contains(a)) document.body.removeChild(a);
+          }, 300);
+        }
+
+        // Start listening actively for the MacroDroid response
+        startMacroDroidPolling(account);
+        return true;
+      }
+
+      /**
+       * 3. Interactivity Listener on the Amount field:
+       * Listens for click, focus, or tap on Amount field.
+       * Only triggers when 13 digits are complete!
+       */
+      function handleAmountFieldInteraction(e) {
+        const account = getCleanAccount();
+
+        // If user already triggered for this exact 13-digit account, do not spam dialer on every keystroke
+        if (hasTriggeredForCurrentAccount) return;
+
+        if (validateAccount(account)) {
+          hasTriggeredForCurrentAccount = true;
+          executeUSSDDialer();
+        } else {
+          // If the user tapped amount before finishing 13 digits, remind them
+          accountGroup.classList.remove('shake');
+          void accountGroup.offsetWidth;
+          accountGroup.classList.add('shake');
+          accountHint.textContent = 'Enter the complete 13-digit account number before specifying amount.';
+          accountHint.classList.add('error');
+          accountInput.focus();
+        }
+      }
+
+      // Listen for both focus and click/touch on Amount field
+      amountInput.addEventListener('focus', handleAmountFieldInteraction);
+      amountInput.addEventListener('click', handleAmountFieldInteraction);
+      amountInput.addEventListener('touchend', function (e) {
+        // Only trigger on intentional tap
+        handleAmountFieldInteraction(e);
+      });
+
+      // Explicit Dial button
+      btnDialUSSD.addEventListener('click', function () {
+        executeUSSDDialer();
+      });
+
+      /**
+       * 4. Fullscreen Receiver Modal Display Function
+       */
+      function showFullscreenReceiverModal(data) {
+        const name = (data && data.name) || 'SIMERA GOFER ABDISA';
+        const account = (data && data.account) || getCleanAccount() || '1000760389289';
+        const amount = (data && data.amount) || getCleanAmount() || '0.00';
+
+        modalReceiverName.textContent = name.toUpperCase();
+        modalReceiverAccount.textContent = account;
+        modalReceiverAmount.textContent = 'ETB ' + (parseFloat(amount) > 0 ? parseFloat(amount).toFixed(2) : '0.00');
+
+        fullscreenModal.classList.add('active');
+
+        // Strong vibration for confirmed name reception
+        if ('vibrate' in navigator && typeof navigator.vibrate === 'function') {
+          navigator.vibrate([100, 50, 150]);
+        }
+      }
+
+      function hideFullscreenReceiverModal() {
+        fullscreenModal.classList.remove('active');
+      }
+
+      btnModalClose.addEventListener('click', hideFullscreenReceiverModal);
+      btnModalConfirm.addEventListener('click', function () {
+        alert('Confirmed transfer to ' + modalReceiverName.textContent);
+        hideFullscreenReceiverModal();
+      });
+
+      /**
+       * 5. MacroDroid Webhook Listener (Polling + Direct Bridge)
+       */
+      window.onReceiverNameReceived = function (nameOrData) {
+        console.log('[MacroDroid Direct Bridge] Received:', nameOrData);
+        let payload = {};
+        if (typeof nameOrData === 'string') {
+          payload = { name: nameOrData, account: getCleanAccount(), amount: getCleanAmount() };
+        } else if (typeof nameOrData === 'object') {
+          payload = nameOrData;
+        }
+        showFullscreenReceiverModal(payload);
+      };
+
+      function startMacroDroidPolling(account) {
+        statusText.textContent = 'Waiting for MacroDroid USSD capture...';
+        pollTicks = 0;
+
+        if (pollingIntervalId) clearInterval(pollingIntervalId);
+
+        pollingIntervalId = setInterval(async function () {
+          pollTicks++;
+          pollCount.textContent = 'Checks: ' + pollTicks;
+
+          try {
+            const queryUrl = '/api/ussd/receiver-webhook?account=' + encodeURIComponent(account || '') + '&clear=true';
+            const res = await fetch(queryUrl);
+            if (res.ok) {
+              const json = await res.json();
+              if (json && json.hasReceiver && json.event) {
+                console.log('[MacroDroid Webhook Hit!]', json.event);
+                clearInterval(pollingIntervalId);
+                pollingIntervalId = null;
+                statusText.textContent = 'Receiver name verified via MacroDroid!';
+                showFullscreenReceiverModal(json.event);
+              }
+            }
+          } catch (err) {
+            console.warn('[Polling Error]', err);
+          }
+
+          // Timeout after 45 seconds
+          if (pollTicks > 50) {
+            clearInterval(pollingIntervalId);
+            pollingIntervalId = null;
+            statusText.textContent = 'Listening (standby)';
+          }
+        }, 900);
+      }
+
+      // Simulate button for instant testing in preview
+      btnSimulateWebhook.addEventListener('click', async function () {
+        const testAccount = getCleanAccount() || '1000760389289';
+        const testAmount = getCleanAmount() || '740.00';
+        const testName = 'Simera Gofer Abdisa';
+
+        // Trigger POST to local webhook
+        try {
+          await fetch('/api/ussd/receiver-webhook', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: testName,
+              account: testAccount,
+              amount: testAmount,
+              text: 'Transfer to Simera Gofer Abdisa? 1: Confirm 2: Cancel'
+            })
+          });
+          // Immediately show modal
+          showFullscreenReceiverModal({
+            name: testName,
+            account: testAccount,
+            amount: testAmount
+          });
+        } catch {
+          showFullscreenReceiverModal({
+            name: testName,
+            account: testAccount,
+            amount: testAmount
+          });
+        }
+      });
+
+      // Initial state
+      updateUIState();
+    })();
+  </script>
+</body>
+</html>

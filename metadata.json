@@ -1,0 +1,6 @@
+{
+  "name": "CBEBirr Demo",
+  "description": "CBEBirr demo mobile application clone featuring Splash, Login, PIN, and Home screens.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
