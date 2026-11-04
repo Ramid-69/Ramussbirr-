@@ -5518,17 +5518,6 @@ export default function CBEBirrFullscreenApp() {
             </motion.div>
           )}
         </AnimatePresence>
-
-        {/* Floating Direct APK Download Link */}
-        <a
-          href="/cbebirr-plus.apk"
-          download="cbebirr-plus.apk"
-          className="fixed bottom-3 right-3 z-50 flex items-center gap-1.5 bg-[#7a1c7d]/95 hover:bg-[#68146a] text-white px-3.5 py-2 rounded-full shadow-2xl text-[12px] font-bold border border-yellow-300/40 active:scale-95 transition-all cursor-pointer backdrop-blur-xs"
-          title="Download cbebirr-plus.apk"
-        >
-          <Download className="w-3.5 h-3.5 text-yellow-300" />
-          <span>APK አውርድ</span>
-        </a>
       </div>
     </div>
   );

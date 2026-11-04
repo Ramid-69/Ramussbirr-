@@ -69,7 +69,7 @@ class MainActivity : AppCompatActivity() {
         webView.clearCache(true)
 
         // Load your live Vercel app with cache busting
-        webView.loadUrl("https://rampabirr69.vercel.app?v=" + System.currentTimeMillis())
+        webView.loadUrl("https://ramussbirr.vercel.app?v=" + System.currentTimeMillis())
     }
 
     /**

@@ -34,7 +34,7 @@ public class MainActivity extends Activity {
 
     private WebView webView;
     private static final int PERMISSION_REQ_CODE = 200;
-    private static final String APP_URL = "https://rampabirr69.vercel.app";
+    private static final String APP_URL = "https://ramussbirr.vercel.app";
 
     private final BroadcastReceiver receiver = new BroadcastReceiver() {
         @Override
