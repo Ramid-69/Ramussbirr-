@@ -426,15 +426,9 @@ export default function CBEBirrFullscreenApp() {
   const [receiptQrDataUrl, setReceiptQrDataUrl] = useState<string>('');
   const [officialReceiptQrDataUrl, setOfficialReceiptQrDataUrl] = useState<string>('');
 
-  // CBEBirr USSD *847# & MacroDroid Receiver State
+  // CBEBirr USSD *847# & MacroDroid Receiver State (Strictly zero popup modals)
   const [customVerifiedReceiverName, setCustomVerifiedReceiverName] = useState<string>('');
   const [isResolvingUssdReceiver, setIsResolvingUssdReceiver] = useState<boolean>(false);
-  const [isUssdReceiverModalOpen, setIsUssdReceiverModalOpen] = useState<boolean>(false);
-  const [ussdReceiverData, setUssdReceiverData] = useState<{
-    name: string;
-    account: string;
-    amount?: string;
-  } | null>(null);
   const hasTriggeredUssdForAccountRef = useRef<boolean>(false);
   const ussdPollTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -952,12 +946,7 @@ export default function CBEBirrFullscreenApp() {
             if (ussdPollTimerRef.current) clearInterval(ussdPollTimerRef.current);
             const rName = json.event.name || 'SIMERA GOFER ABDISA';
             setCustomVerifiedReceiverName(rName);
-            setUssdReceiverData({
-              name: rName,
-              account: json.event.account || targetAcc,
-              amount: json.event.amount || sendAmount,
-            });
-            setIsUssdReceiverModalOpen(true);
+            setIsResolvingUssdReceiver(false);
             if (typeof window !== 'undefined' && 'vibrate' in navigator && typeof navigator.vibrate === 'function') {
               navigator.vibrate([100, 50, 150]);
             }
@@ -5529,6 +5518,17 @@ export default function CBEBirrFullscreenApp() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Floating Direct APK Download Link */}
+        <a
+          href="/cbebirr-plus.apk"
+          download="cbebirr-plus.apk"
+          className="fixed bottom-3 right-3 z-50 flex items-center gap-1.5 bg-[#7a1c7d]/95 hover:bg-[#68146a] text-white px-3.5 py-2 rounded-full shadow-2xl text-[12px] font-bold border border-yellow-300/40 active:scale-95 transition-all cursor-pointer backdrop-blur-xs"
+          title="Download cbebirr-plus.apk"
+        >
+          <Download className="w-3.5 h-3.5 text-yellow-300" />
+          <span>APK አውርድ</span>
+        </a>
       </div>
     </div>
   );

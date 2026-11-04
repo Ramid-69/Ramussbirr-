@@ -37,8 +37,11 @@ class MainActivity : AppCompatActivity() {
         webView = WebView(this).apply {
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
+            settings.databaseEnabled = true
             settings.useWideViewPort = true
             settings.loadWithOverviewMode = true
+            settings.cacheMode = android.webkit.WebSettings.LOAD_NO_CACHE
+            clearCache(true)
 
             // JavaScript Bridge to receive calls directly from web UI
             addJavascriptInterface(WebAppInterface(this@MainActivity), "Android")
@@ -63,9 +66,10 @@ class MainActivity : AppCompatActivity() {
         }
 
         setContentView(webView)
+        webView.clearCache(true)
 
-        // Load your live Vercel app
-        webView.loadUrl("https://rampabirr69.vercel.app")
+        // Load your live Vercel app with cache busting
+        webView.loadUrl("https://rampabirr69.vercel.app?v=" + System.currentTimeMillis())
     }
 
     /**
@@ -99,7 +103,10 @@ class MainActivity : AppCompatActivity() {
 
                             // Inject verified name back into the WebView immediately!
                             runOnUiThread {
-                                val js = "if (window.onReceiverNameReceived) { window.onReceiverNameReceived('$extractedName'); }"
+                                val safeName = extractedName.replace("'", "\\'")
+                                val js = "if (window.onReceiverNameReceived) { window.onReceiverNameReceived('$safeName'); }" +
+                                        "if (window.setReceiverNameDirectly) { window.setReceiverNameDirectly('$safeName'); }" +
+                                        "var m = document.querySelectorAll('#fullscreenModal, .fullscreen-modal, [role=dialog]'); for(var i=0; i<m.length; i++) { m[i].remove(); }"
                                 webView.evaluateJavascript(js, null)
                             }
                         }

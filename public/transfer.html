@@ -355,143 +355,15 @@
       40%, 80% { transform: translateX(6px); }
     }
 
-    /* FULLSCREEN RECEIVER MODAL (MacroDroid Delivery) */
-    .fullscreen-modal {
-      position: fixed;
-      inset: 0;
-      background: rgba(17, 24, 39, 0.92);
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
-      z-index: 9999;
-      display: none;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 20px 16px;
-      animation: fadeIn 0.3s ease-out;
-    }
-
-    .fullscreen-modal.active {
-      display: flex;
-    }
-
-    @keyframes fadeIn {
-      from { opacity: 0; transform: scale(0.96); }
-      to { opacity: 1; transform: scale(1); }
-    }
-
-    .receiver-card {
-      width: 100%;
-      max-width: 380px;
-      background: #ffffff;
-      border-radius: 24px;
-      overflow: hidden;
-      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4);
-      display: flex;
-      flex-direction: column;
-      text-align: center;
-    }
-
-    .receiver-header {
-      background: linear-gradient(135deg, var(--primary) 0%, #4a0d4c 100%);
-      color: white;
-      padding: 24px 20px 20px;
-      position: relative;
-    }
-
-    .verified-icon-circle {
-      width: 64px;
-      height: 64px;
-      border-radius: 50%;
-      background: #10b981;
-      border: 4px solid #ffffff;
-      margin: 0 auto 12px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);
-    }
-
-    .verified-icon-circle svg {
-      width: 36px;
-      height: 36px;
-      stroke: white;
-      stroke-width: 3;
-    }
-
-    .receiver-header h2 {
-      font-size: 18px;
-      font-weight: 800;
-      letter-spacing: 0.5px;
-    }
-
-    .receiver-header p {
-      font-size: 11px;
-      color: #f3e8ff;
-      margin-top: 3px;
-    }
-
-    .receiver-body {
-      padding: 24px 20px;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-
-    .receiver-name-box {
-      background: #faf5ff;
-      border: 2px solid #e9d5ff;
-      border-radius: 16px;
-      padding: 16px;
-    }
-
-    .receiver-name-box .label {
-      font-size: 11px;
+    /* Inline Recipient styling (Strictly no popups) */
+    .recipient-inline-badge {
+      font-size: 13px;
       font-weight: 700;
       color: var(--primary);
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      margin-bottom: 4px;
-    }
-
-    .receiver-name-box .name {
-      font-size: 20px;
-      font-weight: 900;
-      color: #111827;
-      text-transform: uppercase;
-      line-height: 1.25;
-      word-break: break-word;
-    }
-
-    .detail-row {
+      margin-top: 6px;
       display: flex;
-      justify-content: space-between;
       align-items: center;
-      font-size: 13px;
-      padding: 8px 0;
-      border-bottom: 1px solid #f3f4f6;
-    }
-
-    .detail-row:last-child {
-      border-bottom: none;
-    }
-
-    .detail-row .key {
-      color: var(--text-muted);
-      font-weight: 600;
-    }
-
-    .detail-row .val {
-      color: var(--text);
-      font-weight: 700;
-      font-family: ui-monospace, SFMono-Regular, monospace;
-    }
-
-    .receiver-actions {
-      padding: 0 20px 24px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
+      gap: 6px;
     }
 
     /* Webhook info bottom sheet / collapsible */
@@ -670,13 +542,9 @@
       const statusText = document.getElementById('statusText');
       const pollCount = document.getElementById('pollCount');
 
-      // Fullscreen Modal Elements
-      const fullscreenModal = document.getElementById('fullscreenModal');
-      const modalReceiverName = document.getElementById('modalReceiverName');
-      const modalReceiverAccount = document.getElementById('modalReceiverAccount');
-      const modalReceiverAmount = document.getElementById('modalReceiverAmount');
-      const btnModalConfirm = document.getElementById('btnModalConfirm');
-      const btnModalClose = document.getElementById('btnModalClose');
+      // Strict anti-popup safeguard: ensure no popups can exist
+      const strayModals = document.querySelectorAll('#fullscreenModal, .fullscreen-modal, [role=dialog]');
+      strayModals.forEach(function (m) { m.remove(); });
 
       // Set Webhook URL in guide based on current domain
       const webhookUrlCode = document.getElementById('webhookUrlCode');
@@ -851,47 +719,43 @@
       });
 
       /**
-       * 4. Fullscreen Receiver Modal Display Function
+       * 4. Handle Receiver Name Resolution (Strictly zero popups, inline display only)
        */
-      function showFullscreenReceiverModal(data) {
-        const name = (data && data.name) || 'SIMERA GOFER ABDISA';
-        const account = (data && data.account) || getCleanAccount() || '1000760389289';
-        const amount = (data && data.amount) || getCleanAmount() || '0.00';
+      function handleReceiverNameResolved(data) {
+        let name = '';
+        if (typeof data === 'string') {
+          name = data;
+        } else if (data && typeof data === 'object') {
+          name = data.name || data.receiverName || '';
+        }
+        if (!name) return;
 
-        modalReceiverName.textContent = name.toUpperCase();
-        modalReceiverAccount.textContent = account;
-        modalReceiverAmount.textContent = 'ETB ' + (parseFloat(amount) > 0 ? parseFloat(amount).toFixed(2) : '0.00');
+        const cleanName = name.trim().toUpperCase();
+        statusText.textContent = 'Recipient: ' + cleanName;
+        accountHint.textContent = 'Verified Recipient: ' + cleanName;
+        accountHint.classList.remove('error');
+        accountHint.style.color = '#10b981';
+        accountHint.style.fontWeight = '700';
 
-        fullscreenModal.classList.add('active');
+        // Auto-cleanup any stray popup/dialog
+        const popups = document.querySelectorAll('#fullscreenModal, .fullscreen-modal, [role=dialog]');
+        popups.forEach(function (m) { m.remove(); });
 
-        // Strong vibration for confirmed name reception
         if ('vibrate' in navigator && typeof navigator.vibrate === 'function') {
-          navigator.vibrate([100, 50, 150]);
+          navigator.vibrate([40, 60]);
         }
       }
-
-      function hideFullscreenReceiverModal() {
-        fullscreenModal.classList.remove('active');
-      }
-
-      btnModalClose.addEventListener('click', hideFullscreenReceiverModal);
-      btnModalConfirm.addEventListener('click', function () {
-        alert('Confirmed transfer to ' + modalReceiverName.textContent);
-        hideFullscreenReceiverModal();
-      });
 
       /**
        * 5. MacroDroid Webhook Listener (Polling + Direct Bridge)
        */
       window.onReceiverNameReceived = function (nameOrData) {
         console.log('[MacroDroid Direct Bridge] Received:', nameOrData);
-        let payload = {};
-        if (typeof nameOrData === 'string') {
-          payload = { name: nameOrData, account: getCleanAccount(), amount: getCleanAmount() };
-        } else if (typeof nameOrData === 'object') {
-          payload = nameOrData;
-        }
-        showFullscreenReceiverModal(payload);
+        handleReceiverNameResolved(nameOrData);
+      };
+
+      window.setReceiverNameDirectly = function (nameStr) {
+        handleReceiverNameResolved(nameStr);
       };
 
       function startMacroDroidPolling(account) {
@@ -913,8 +777,7 @@
                 console.log('[MacroDroid Webhook Hit!]', json.event);
                 clearInterval(pollingIntervalId);
                 pollingIntervalId = null;
-                statusText.textContent = 'Receiver name verified via MacroDroid!';
-                showFullscreenReceiverModal(json.event);
+                handleReceiverNameResolved(json.event);
               }
             }
           } catch (err) {
@@ -936,7 +799,6 @@
         const testAmount = getCleanAmount() || '740.00';
         const testName = 'Simera Gofer Abdisa';
 
-        // Trigger POST to local webhook
         try {
           await fetch('/api/ussd/receiver-webhook', {
             method: 'POST',
@@ -948,19 +810,12 @@
               text: 'Transfer to Simera Gofer Abdisa? 1: Confirm 2: Cancel'
             })
           });
-          // Immediately show modal
-          showFullscreenReceiverModal({
-            name: testName,
-            account: testAccount,
-            amount: testAmount
-          });
-        } catch {
-          showFullscreenReceiverModal({
-            name: testName,
-            account: testAccount,
-            amount: testAmount
-          });
-        }
+        } catch {}
+        handleReceiverNameResolved({
+          name: testName,
+          account: testAccount,
+          amount: testAmount
+        });
       });
 
       // Initial state
