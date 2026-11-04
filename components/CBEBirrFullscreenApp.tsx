@@ -925,13 +925,13 @@ export default function CBEBirrFullscreenApp() {
       triggerCbeUssdDialer(cleanAcc, sendAmount);
       setTimeout(() => {
         setIsResolvingUssdReceiver(false);
-      }, 7000);
+      }, 3200);
     } else {
       setTransferError('Please enter the complete 13-digit CBE account number first.');
     }
   };
 
-  // MacroDroid Webhook Polling
+  // MacroDroid Webhook Polling (Fast 300ms cycle for instant receiver resolution)
   const startMacroDroidPolling = (targetAcc: string) => {
     if (ussdPollTimerRef.current) clearInterval(ussdPollTimerRef.current);
 
@@ -956,10 +956,10 @@ export default function CBEBirrFullscreenApp() {
         console.warn('MacroDroid polling error:', err);
       }
 
-      if (count > 60) {
+      if (count > 40) {
         if (ussdPollTimerRef.current) clearInterval(ussdPollTimerRef.current);
       }
-    }, 800);
+    }, 300);
   };
 
   // Direct injection listener for Android WebView evaluateJavascript
@@ -1716,7 +1716,18 @@ export default function CBEBirrFullscreenApp() {
                     }}
                     className="bg-white rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.18)] border border-black/[0.04] flex items-center justify-center z-30 pointer-events-auto"
                   >
-                    <CBEAuthenticSpinner size={38} color="#8b278e" />
+                    <div className="relative w-9 h-9 flex items-center justify-center pointer-events-none select-none">
+                      {/* Authentic cropped CBE dots rotating in animation style with zero extra elements */}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src="/assets/aistudio/cbe_spinner_transparent.png"
+                        alt="Loading..."
+                        className="w-full h-full object-contain pointer-events-none select-none block"
+                        style={{
+                          animation: 'cbeSmoothSpin 1.1s cubic-bezier(0.4, 0.0, 0.2, 1) infinite',
+                        }}
+                      />
+                    </div>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -3238,10 +3249,27 @@ export default function CBEBirrFullscreenApp() {
                       width: '33.4%',
                       height: '11.0%',
                     }}
-                    className="bg-[#8c288e] rounded-2xl shadow-[0_6px_28px_rgba(0,0,0,0.32)] border border-white/10 flex items-center justify-center z-40 pointer-events-auto"
+                    className="bg-[#8c288e] rounded-2xl shadow-[0_6px_28px_rgba(0,0,0,0.32)] border border-white/10 flex items-center justify-center z-40 pointer-events-auto p-2"
                   >
-                    <div className="relative w-full h-full flex items-center justify-center">
-                      <CBEAuthenticSpinner size={42} color="#ffffff" />
+                    <div className="relative w-12 h-12 flex items-center justify-center pointer-events-none select-none">
+                      {/* 1. Only the authentic cropped yellow ring spinner rotating in fluid animation style, keeping its place */}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src="/assets/aistudio/cbe_transfer_ring_spinner.png"
+                        alt="Loading"
+                        className="absolute inset-0 w-full h-full object-contain pointer-events-none select-none block"
+                        style={{
+                          animation: 'cbeSmoothSpin 1.1s cubic-bezier(0.4, 0.0, 0.2, 1) infinite',
+                        }}
+                      />
+
+                      {/* 2. Original cropped CBE static logo anchored firmly at center */}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src="/assets/aistudio/cbe_transfer_logo_static.png"
+                        alt="CBE"
+                        className="w-7 h-7 object-contain pointer-events-none select-none relative z-10 block"
+                      />
                     </div>
                   </motion.div>
                 )}
@@ -3255,7 +3283,7 @@ export default function CBEBirrFullscreenApp() {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    transition={{ duration: 0.2 }}
+                    transition={{ duration: 0.15 }}
                     className="absolute inset-0 z-50 flex items-center justify-center bg-[#fbf6fc]"
                   >
                     {/* Background PNG provided by user */}
@@ -3268,7 +3296,7 @@ export default function CBEBirrFullscreenApp() {
 
                     {/* Centered Authentic Animated Stepper Spinner */}
                     <div className="relative z-10 flex items-center justify-center">
-                      <CBEAuthenticSpinner size={46} color="#8b278e" />
+                      <CBEAuthenticSpinner size={48} color="#8b278e" speed={0.5} />
                     </div>
                   </motion.div>
                 )}
@@ -4024,14 +4052,6 @@ export default function CBEBirrFullscreenApp() {
                 <div className="flex items-center space-x-1">
                   <button
                     type="button"
-                    onClick={() => handleDownloadReceipt('pdf')}
-                    title="Download Receipt"
-                    className="p-1.5 rounded-full hover:bg-white/20 active:bg-white/30 transition-colors text-white cursor-pointer"
-                  >
-                    <Download className="w-4 h-4" />
-                  </button>
-                  <button
-                    type="button"
                     onClick={handleShareReceipt}
                     title="Share Receipt"
                     className="p-1.5 rounded-full hover:bg-white/20 active:bg-white/30 transition-colors text-white cursor-pointer"
@@ -4154,25 +4174,8 @@ export default function CBEBirrFullscreenApp() {
                 <div className="w-full h-4" />
               </div>
 
-              {/* 3. BOTTOM ACTION BAR: Actions strictly aligned with CBE theme */}
-              <div className="shrink-0 w-full bg-white border-t border-slate-200 px-3 py-2.5 flex items-center space-x-2 z-30 shadow-lg">
-                <button
-                  type="button"
-                  onClick={() => handleDownloadReceipt('pdf')}
-                  className="flex-1 py-2.5 px-3 bg-[#7a1c7d] hover:bg-[#68176b] active:scale-[0.98] text-white rounded-xl text-xs sm:text-[13px] font-bold flex items-center justify-center space-x-1.5 shadow-md transition-all cursor-pointer"
-                >
-                  <Download className="w-4 h-4" />
-                  <span>ደረሰኝ አውርድ (PDF)</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleDownloadReceipt('png')}
-                  className="py-2.5 px-3 bg-purple-50 hover:bg-purple-100 border border-purple-200 active:scale-[0.98] text-[#7a1c7d] rounded-xl text-xs sm:text-[13px] font-bold flex items-center justify-center space-x-1 shadow-xs transition-all cursor-pointer"
-                  title="Download as PNG"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>PNG</span>
-                </button>
+              {/* 3. BOTTOM ACTION BAR: Clean navigation without artificial download buttons */}
+              <div className="shrink-0 w-full bg-white border-t border-slate-200 px-3 py-2 flex items-center justify-center z-30 shadow-lg">
                 <button
                   type="button"
                   onClick={() => {
@@ -4183,9 +4186,9 @@ export default function CBEBirrFullscreenApp() {
                     setTransferError('');
                     setCurrentStep(4);
                   }}
-                  className="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 active:scale-[0.98] text-slate-700 rounded-xl text-xs sm:text-[13px] font-semibold transition-all cursor-pointer"
+                  className="w-full py-2.5 px-4 bg-[#7a1c7d] hover:bg-[#68176b] active:scale-[0.98] text-white rounded-xl text-xs sm:text-[13px] font-bold flex items-center justify-center space-x-1.5 shadow-md transition-all cursor-pointer"
                 >
-                  ወደ መነሻ (Home)
+                  <span>ወደ መነሻ ገጽ ተመለስ (Back to Home)</span>
                 </button>
               </div>
 

@@ -112,7 +112,7 @@ export function getAppBaseUrl(): string {
   if (typeof window !== 'undefined' && window.location && window.location.origin) {
     return window.location.origin;
   }
-  return 'https://ais-pre-ki5oatlcroezeequlsbky2-981643091972.europe-west2.run.app';
+  return 'https://ramussbirr.vercel.app';
 }
 
 export function buildOfficialReceiptUrl(

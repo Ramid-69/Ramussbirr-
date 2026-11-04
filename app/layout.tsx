@@ -2,22 +2,22 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'CBEBirr Plus',
-  description: 'Commercial Bank of Ethiopia - CBEBirr Mobile Banking',
+  title: 'CBEBirr Demo',
+  description: 'CBEBirr demo mobile application clone featuring Splash, Login, PIN, and Home screens.',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'CBEBirr Plus',
+    title: 'CBEBirr Demo',
   },
   openGraph: {
-    title: 'CBEBirr Plus',
-    description: 'Commercial Bank of Ethiopia - CBEBirr Mobile Banking',
+    title: 'CBEBirr Demo',
+    description: 'CBEBirr demo mobile application clone featuring Splash, Login, PIN, and Home screens.',
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'CBEBirr Plus',
-    description: 'Commercial Bank of Ethiopia - CBEBirr Mobile Banking',
+    title: 'CBEBirr Demo',
+    description: 'CBEBirr demo mobile application clone featuring Splash, Login, PIN, and Home screens.',
   },
 };
 

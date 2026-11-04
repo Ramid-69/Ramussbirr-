@@ -6,12 +6,14 @@ interface CBEAuthenticSpinnerProps {
   size?: number; // overall width/height in px
   color?: string; // petal color
   className?: string;
+  speed?: number; // animation cycle duration in seconds
 }
 
 export default function CBEAuthenticSpinner({
   size = 44,
   color = '#8b278e',
   className = '',
+  speed = 0.55,
 }: CBEAuthenticSpinnerProps) {
   const petals = 8;
   const petalWidth = Math.max(3, Math.round(size * 0.085));
@@ -27,7 +29,7 @@ export default function CBEAuthenticSpinner({
     >
       {Array.from({ length: petals }).map((_, index) => {
         const angle = index * (360 / petals);
-        const delay = -((petals - index) * (0.8 / petals));
+        const delay = -((petals - index) * (speed / petals));
 
         return (
           <span
@@ -41,7 +43,7 @@ export default function CBEAuthenticSpinner({
               top: '50%',
               left: '50%',
               transform: `translate(-50%, -50%) rotate(${angle}deg) translateY(-${radius}px)`,
-              animation: 'cbePetalPulse 0.8s linear infinite',
+              animation: `cbePetalPulse ${speed}s linear infinite`,
               animationDelay: `${delay}s`,
             }}
           />
