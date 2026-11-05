@@ -122,6 +122,8 @@ const DEFAULT_SAVED_RECEIVERS: SavedReceiver[] = [
 ];
 
 const ALL_APP_ASSETS: string[] = [
+  '/screens/screen_send_money_phone.png',
+  '/screens/send_money_options_popup_rounded.png',
   '/screens/screen_1_splash.png',
   '/screens/screen_splash_2.png',
   '/screens/screen_2_phone_clean.png',
@@ -451,6 +453,115 @@ export default function CBEBirrFullscreenApp() {
   const [isResolvingUssdReceiver, setIsResolvingUssdReceiver] = useState<boolean>(false);
   const hasTriggeredUssdForAccountRef = useRef<boolean>(false);
   const ussdPollTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const ussdSafetyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Send Money by Phone Number (CBEBirr Wallet Transfer) State
+  const [transferSource, setTransferSource] = useState<'cbe_account' | 'phone_number'>('cbe_account');
+  const [phoneReceiverNumber, setPhoneReceiverNumber] = useState<string>('0959597544');
+  const [phoneReceiverName, setPhoneReceiverName] = useState<string>('Ram');
+  const [phoneSendAmount, setPhoneSendAmount] = useState<string>('');
+  const [phoneReason, setPhoneReason] = useState<string>('');
+  const [phoneTransferError, setPhoneTransferError] = useState<string>('');
+  const [isPhoneTransferring, setIsPhoneTransferring] = useState<boolean>(false);
+  const [isSendMoneyMenuOpen, setIsSendMoneyMenuOpen] = useState<boolean>(false);
+
+  // 5 Promotional Banners Carousel System (Swipeable & Auto-scrolling smoothly)
+  const [activeBannerIndex, setActiveBannerIndex] = useState<number>(0);
+  const bannerDragStartXRef = useRef<number | null>(null);
+  const bannerDragDeltaXRef = useRef<number>(0);
+  const bannerAutoScrollTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isBannerUserInteractingRef = useRef<boolean>(false);
+
+  // Stable Viewport Height System: Prevents phone keyboard from compressing/squishing the app
+  // When mobile keyboard appears, window.innerHeight drops, but the app locks its dimensions so it stays exactly in place
+  const lastKnownFullHeightRef = useRef<number>(0);
+  const lastKnownWidthRef = useRef<number>(0);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const measureHeight = () => {
+      const curW = window.innerWidth;
+      const curH = window.innerHeight;
+
+      // Check if virtual keyboard is active:
+      // 1) Focused element is input/textarea
+      // 2) Width hasn't changed but height dropped significantly (>140px)
+      const isInputFocused =
+        document.activeElement?.tagName === 'INPUT' ||
+        document.activeElement?.tagName === 'TEXTAREA';
+
+      const isKeyboardOpen =
+        isInputFocused ||
+        (lastKnownWidthRef.current === curW &&
+          lastKnownFullHeightRef.current > 0 &&
+          curH < lastKnownFullHeightRef.current - 140);
+
+      if (!isKeyboardOpen && curH > 200) {
+        lastKnownFullHeightRef.current = curH;
+        lastKnownWidthRef.current = curW;
+        document.documentElement.style.setProperty('--stable-app-height', `${curH}px`);
+      }
+    };
+
+    measureHeight();
+
+    window.addEventListener('resize', measureHeight);
+    window.addEventListener('orientationchange', () => {
+      setTimeout(measureHeight, 150);
+      setTimeout(measureHeight, 350);
+    });
+
+    return () => {
+      window.removeEventListener('resize', measureHeight);
+    };
+  }, []);
+
+  useEffect(() => {
+    const startAutoScroll = () => {
+      if (bannerAutoScrollTimerRef.current) clearInterval(bannerAutoScrollTimerRef.current);
+      bannerAutoScrollTimerRef.current = setInterval(() => {
+        if (!isBannerUserInteractingRef.current) {
+          setActiveBannerIndex((prev) => (prev + 1) % 5);
+        }
+      }, 4500);
+    };
+
+    startAutoScroll();
+    return () => {
+      if (bannerAutoScrollTimerRef.current) clearInterval(bannerAutoScrollTimerRef.current);
+    };
+  }, []);
+
+  const handleBannerPointerDown = (e: React.PointerEvent) => {
+    isBannerUserInteractingRef.current = true;
+    bannerDragStartXRef.current = e.clientX;
+    bannerDragDeltaXRef.current = 0;
+  };
+
+  const handleBannerPointerMove = (e: React.PointerEvent) => {
+    if (bannerDragStartXRef.current !== null) {
+      bannerDragDeltaXRef.current = e.clientX - bannerDragStartXRef.current;
+    }
+  };
+
+  const handleBannerPointerUp = () => {
+    if (bannerDragStartXRef.current !== null) {
+      const delta = bannerDragDeltaXRef.current;
+      if (delta < -35) {
+        // swipe left -> next banner
+        setActiveBannerIndex((prev) => (prev + 1) % 5);
+      } else if (delta > 35) {
+        // swipe right -> previous banner
+        setActiveBannerIndex((prev) => (prev - 1 + 5) % 5);
+      }
+    }
+    bannerDragStartXRef.current = null;
+    bannerDragDeltaXRef.current = 0;
+    setTimeout(() => {
+      isBannerUserInteractingRef.current = false;
+    }, 4000);
+  };
 
   // Saved Receivers State & LocalStorage Persistence
   const [savedReceivers, setSavedReceivers] = useState<SavedReceiver[]>(() => {
@@ -914,19 +1025,11 @@ export default function CBEBirrFullscreenApp() {
       navigator.vibrate([40, 60, 40]);
     }
 
-    // Android WebView bridge or standard tel: link
+    // Android WebView bridge (Runs silently in background - "ussd run yemiadergew metayet yelebetm")
     if (typeof window !== 'undefined' && (window as any).Android?.dialUSSD) {
       (window as any).Android.dialUSSD(ussdUri);
     } else if (typeof window !== 'undefined' && (window as any).Android?.callUSSD) {
       (window as any).Android.callUSSD(ussdUri);
-    } else {
-      const a = document.createElement('a');
-      a.href = ussdUri;
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => {
-        if (document.body.contains(a)) document.body.removeChild(a);
-      }, 300);
     }
 
     // Start MacroDroid Webhook polling
@@ -954,9 +1057,12 @@ export default function CBEBirrFullscreenApp() {
       hasTriggeredUssdForAccountRef.current = true;
       setIsResolvingUssdReceiver(true);
       triggerCbeUssdDialer(cleanAcc, sendAmount);
-      setTimeout(() => {
+      // Wait for receiver name to be resolved; safety fallback of 7 seconds only if network drops
+      if (ussdSafetyTimeoutRef.current) clearTimeout(ussdSafetyTimeoutRef.current);
+      ussdSafetyTimeoutRef.current = setTimeout(() => {
+        setCustomVerifiedReceiverName((prev) => prev || 'CBE Customer');
         setIsResolvingUssdReceiver(false);
-      }, 3200);
+      }, 7000);
     } else {
       setTransferError('Please enter the complete 13-digit CBE account number first.');
     }
@@ -975,9 +1081,13 @@ export default function CBEBirrFullscreenApp() {
           const json = await res.json();
           if (json?.hasReceiver && json?.event) {
             if (ussdPollTimerRef.current) clearInterval(ussdPollTimerRef.current);
+            if (ussdSafetyTimeoutRef.current) clearTimeout(ussdSafetyTimeoutRef.current);
             const rName = json.event.name || 'SIMERA GOFER ABDISA';
             setCustomVerifiedReceiverName(rName);
-            setIsResolvingUssdReceiver(false);
+            // "lk reciver name askemto cancel blo Ussd run yaderegew sitefa new lodingu metfat yalebet"
+            setTimeout(() => {
+              setIsResolvingUssdReceiver(false);
+            }, 450);
             if (typeof window !== 'undefined' && 'vibrate' in navigator && typeof navigator.vibrate === 'function') {
               navigator.vibrate([100, 50, 150]);
             }
@@ -1010,8 +1120,13 @@ export default function CBEBirrFullscreenApp() {
         }
 
         if (name) {
-          setIsResolvingUssdReceiver(false);
+          if (ussdSafetyTimeoutRef.current) clearTimeout(ussdSafetyTimeoutRef.current);
+          if (ussdPollTimerRef.current) clearInterval(ussdPollTimerRef.current);
           setCustomVerifiedReceiverName(name);
+          // Wait for USSD dialog cancel/dismiss to complete before clearing loading
+          setTimeout(() => {
+            setIsResolvingUssdReceiver(false);
+          }, 450);
           if ('vibrate' in navigator && typeof navigator.vibrate === 'function') {
             navigator.vibrate([40, 60]);
           }
@@ -1020,13 +1135,18 @@ export default function CBEBirrFullscreenApp() {
 
       (window as any).setReceiverNameDirectly = (nameStr: string) => {
         if (nameStr) {
-          setIsResolvingUssdReceiver(false);
+          if (ussdSafetyTimeoutRef.current) clearTimeout(ussdSafetyTimeoutRef.current);
+          if (ussdPollTimerRef.current) clearInterval(ussdPollTimerRef.current);
           setCustomVerifiedReceiverName(nameStr);
+          setTimeout(() => {
+            setIsResolvingUssdReceiver(false);
+          }, 450);
         }
       };
     }
     return () => {
       if (ussdPollTimerRef.current) clearInterval(ussdPollTimerRef.current);
+      if (ussdSafetyTimeoutRef.current) clearTimeout(ussdSafetyTimeoutRef.current);
     };
   }, [receiverAccount, sendAmount]);
 
@@ -1216,7 +1336,9 @@ export default function CBEBirrFullscreenApp() {
       if (nextPin.length === 4) {
         if (nextPin === '6969') {
           setTimeout(() => {
-            const amt = parseFloat(sendAmount) || 0;
+            const isPhone = transferSource === 'phone_number';
+            const rawAmt = isPhone ? parseFloat(phoneSendAmount) : parseFloat(sendAmount);
+            const amt = isNaN(rawAmt) || rawAmt <= 0 ? 10 : rawAmt;
             const newBal = Math.max(0, balance - amt);
             setBalance(newBal);
             const newRef = generateTxRef();
@@ -1236,20 +1358,30 @@ export default function CBEBirrFullscreenApp() {
             setTransactionDate(formattedDate);
             setTransactionIsoDate(isoDate);
 
+            const activeAccount = isPhone
+              ? (phoneReceiverNumber || '0959597544')
+              : (receiverAccount || '1000278947339');
+            const activeReceiverName = isPhone
+              ? (phoneReceiverName || 'Ram')
+              : (displayReceiverName || 'Ram');
+            const activeCreditAccountType = isPhone
+              ? 'Customer E-money Account'
+              : 'CBE Bank Account';
+
             // Save new transfer into transaction history (saved permanently per user request)
             const newTx: TransactionItem = {
               id: `tx-${Date.now()}`,
               title: 'Send Money',
               date: isoDate,
-              amount: sendAmount || '10',
+              amount: amt.toFixed(2),
               type: 'debit',
               ref: newRef,
-              account: receiverAccount || '1000278947339',
-              receiverName: displayReceiverName || 'Ram',
+              account: activeAccount,
+              receiverName: activeReceiverName,
               orderId: newRef,
               status: 'Completed',
               debitAccountType: 'Customer E-money Account',
-              creditAccountType: 'CBE Bank Account',
+              creditAccountType: activeCreditAccountType,
             };
             setTransactions((prev) => [newTx, ...prev]);
             setSelectedTx(newTx);
@@ -1262,17 +1394,16 @@ export default function CBEBirrFullscreenApp() {
               const autoReceiptUrl = buildOfficialReceiptUrl(
                 currentTxnId,
                 fullPhone,
-                (parseFloat(sendAmount) || 740.0).toFixed(2),
-                displayReceiverName || 'Miss Simera Gofer Abdisa',
+                amt.toFixed(2),
+                activeReceiverName,
                 userName || 'JUREY ABDUL HUSSEN'
               );
 
-              // ምሳሌ፡ ገንዘብ በተሳካ ሁኔታ ሲተላለፍ
               sendTransactionSms({
                 fullName: userName || 'JUREY ABDUL HUSSEN',
-                amount: parseFloat(sendAmount) || 740.00,
-                receiverAccount: receiverAccount || '1000760389289',
-                receiverName: displayReceiverName || 'Miss Simera Gofer Abdisa',
+                amount: amt,
+                receiverAccount: activeAccount,
+                receiverName: activeReceiverName,
                 balance: newBal,
                 txnId: currentTxnId,
                 receiptUrl: autoReceiptUrl,
@@ -1281,10 +1412,15 @@ export default function CBEBirrFullscreenApp() {
               // Graceful error handling
             }
 
-            // Return to Transfer page (Step 6) and display loading spinner before auto-entering Receipt page (Step 8)
+            // Return to originating transfer page and display loading spinner before auto-entering Receipt page (Step 8)
             setTransferPin('');
-            setCurrentStep(6);
-            setIsTransferring(true);
+            if (isPhone) {
+              setCurrentStep(14);
+              setIsPhoneTransferring(true);
+            } else {
+              setCurrentStep(6);
+              setIsTransferring(true);
+            }
           }, 250);
         } else {
           // Reject any PIN other than 6969!
@@ -1481,6 +1617,36 @@ export default function CBEBirrFullscreenApp() {
     }
   }, [currentStep, isTransferring, receiverAccount, activeReceiverName, customVerifiedReceiverName, savedReceivers]);
 
+  // Auto-transition to Receipt page after loading spinner on Step 14 (Phone Number Send Money page)
+  useEffect(() => {
+    if (currentStep === 14 && isPhoneTransferring) {
+      const timer = setTimeout(() => {
+        setIsPhoneTransferring(false);
+        setIsTransferSuccess(true);
+
+        const cleanPhone = phoneReceiverNumber.replace(/\D/g, '');
+        if (cleanPhone.length >= 9) {
+          const recName = phoneReceiverName || 'CBEBirr Customer';
+          const formattedPhone = cleanPhone.startsWith('0') ? cleanPhone : `0${cleanPhone.replace(/^251/, '')}`;
+          const alreadySaved = savedReceivers.some(
+            (r) => r.accountNumber.replace(/\D/g, '') === cleanPhone
+          );
+          if (!alreadySaved) {
+            const newSaved: SavedReceiver = {
+              id: `rec-${Date.now()}`,
+              accountNumber: formattedPhone,
+              accountName: recName,
+            };
+            persistReceivers([...savedReceivers, newSaved]);
+          }
+        }
+
+        setCurrentStep(8);
+      }, 2200);
+      return () => clearTimeout(timer);
+    }
+  }, [currentStep, isPhoneTransferring, phoneReceiverNumber, phoneReceiverName, savedReceivers]);
+
   // Click on "Next" button in Step 2 (Phone Number page) goes to Step 3 (PIN page)
   const handleNextFromPhonePage = () => {
     if (isLoggingIn) return;
@@ -1627,8 +1793,8 @@ export default function CBEBirrFullscreenApp() {
       <div
         style={{
           aspectRatio: '720 / 1527',
-          width: 'min(100vw, calc(100dvh * 720 / 1527))',
-          height: 'min(100dvh, calc(100vw * 1527 / 720))',
+          width: 'min(100vw, calc(var(--stable-app-height, 100lvh) * 720 / 1527))',
+          height: 'min(var(--stable-app-height, 100lvh), calc(100vw * 1527 / 720))',
           maxWidth: '100%',
           maxHeight: '100%',
         }}
@@ -2174,26 +2340,26 @@ export default function CBEBirrFullscreenApp() {
                     className="flex flex-col items-center justify-center z-20 select-none overflow-hidden cursor-pointer active:scale-[0.99] transition-transform pointer-events-auto"
                     title="Long-press to edit profile and details"
                   >
-                    {/* Row 1: Authentic Phone Icon + Number (exact match with Balance_card__ddf00b62.png & Balance_card_text__d3d5b6cb.png) */}
+                    {/* Row 1: Authentic Phone Icon + Number (soft muted peach matching top PNG text) */}
                     <div className="flex items-center justify-center gap-1.5">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src="/assets/cbe_balance_phone_icon.png"
                         alt=""
-                        className="w-[11px] h-[11px] object-contain opacity-75 shrink-0 pointer-events-none select-none"
+                        className="w-[12px] h-[12px] object-contain opacity-80 shrink-0 pointer-events-none select-none"
                         draggable={false}
                       />
-                      <span className="text-[#f7c896] text-[10px] sm:text-[10.8px] font-medium tracking-[0.03em] select-none whitespace-nowrap leading-none font-sans">
+                      <span className="text-[#eebd9c] text-[11.2px] sm:text-[12px] font-medium tracking-[0.03em] select-none whitespace-nowrap leading-none font-sans">
                         {`+251${(phoneNumber || '959754788').slice(0, 6)}***`}
                       </span>
                     </div>
 
                     {/* Row 2: Typewriter Animated Greeting / First Name with blinking cursor (Actionable, matches WELCOME BACK & AYMEN !) */}
                     <div className="flex items-center justify-center mt-1">
-                      <span className="text-[#f7c896] text-[9.2px] sm:text-[10px] font-medium tracking-[0.08em] select-none whitespace-nowrap leading-none uppercase font-sans">
+                      <span className="text-[#eebd9c] text-[10.2px] sm:text-[11px] font-medium tracking-[0.08em] select-none whitespace-nowrap leading-none uppercase font-sans">
                         {displayText || 'WELCOME BACK'}
                       </span>
-                      <span className="inline-block text-[#f7c896] text-[9.2px] sm:text-[10px] font-bold ml-0.5 animate-pulse select-none leading-none">
+                      <span className="inline-block text-[#eebd9c] text-[10.2px] sm:text-[11px] font-bold ml-0.5 animate-pulse select-none leading-none">
                         _
                       </span>
                     </div>
@@ -2263,15 +2429,15 @@ export default function CBEBirrFullscreenApp() {
                     <div
                       style={{
                         position: 'absolute',
-                        top: '77.2%',
+                        top: '76.8%',
                         left: '6.2%',
-                        maxWidth: '42%',
-                        height: '4.8%',
+                        maxWidth: '45%',
+                        height: '5.2%',
                         backgroundColor: '#842789',
                       }}
                       className="flex items-center pointer-events-none z-10 overflow-hidden"
                     >
-                      <span className="text-white text-[9.5px] sm:text-[10px] font-semibold tracking-tight whitespace-nowrap leading-none">
+                      <span className="text-white text-[11px] sm:text-[11.8px] font-semibold tracking-tight whitespace-nowrap leading-none">
                         {formatAmount(balance)}
                       </span>
                     </div>
@@ -2320,14 +2486,14 @@ export default function CBEBirrFullscreenApp() {
                     <div
                       style={{
                         position: 'absolute',
-                        top: '77.2%',
+                        top: '76.8%',
                         right: '7.2%',
-                        maxWidth: '42%',
-                        height: '4.4%',
+                        maxWidth: '45%',
+                        height: '5.2%',
                       }}
                       className="flex items-center justify-end bg-[#842789] pointer-events-none z-10 overflow-hidden"
                     >
-                      <span className="text-white text-[11.5px] sm:text-[12px] font-semibold tracking-tight whitespace-nowrap leading-none">
+                      <span className="text-white text-[12.2px] sm:text-[13px] font-semibold tracking-tight whitespace-nowrap leading-none">
                         {formatAmount(reward)}
                       </span>
                     </div>
@@ -2415,12 +2581,11 @@ export default function CBEBirrFullscreenApp() {
                         className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity z-20 rounded-2xl"
                       />
 
-                      {/* Hotspot: Click "Send Money" card to navigate to CBE Send Money (Step 6) */}
+                      {/* Hotspot: Click "Send Money" card to open Send Money Menu Popup (Screenshot_20261105-141411.png) */}
                       <button
                         type="button"
                         onClick={() => {
-                          setTransferError('');
-                          setCurrentStep(6);
+                          setIsSendMoneyMenuOpen((prev) => !prev);
                         }}
                         style={{
                           position: 'absolute',
@@ -2432,6 +2597,79 @@ export default function CBEBirrFullscreenApp() {
                         aria-label="Send Money"
                         className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity z-20 rounded-2xl"
                       />
+
+                      {/* AUTHENTIC SEND MONEY MENU POPUP (To Individual / To Group) */}
+                      <AnimatePresence>
+                        {isSendMoneyMenuOpen && (
+                          <>
+                            {/* Invisible Backdrop to dismiss on outside tap */}
+                            <div
+                              onClick={() => setIsSendMoneyMenuOpen(false)}
+                              className="fixed inset-0 z-30 bg-transparent"
+                            />
+                            <motion.div
+                              initial={{ opacity: 0, scale: 0.94, y: -4 }}
+                              animate={{ opacity: 1, scale: 1, y: 0 }}
+                              exit={{ opacity: 0, scale: 0.94, y: -4 }}
+                              transition={{ duration: 0.12 }}
+                              style={{
+                                position: 'absolute',
+                                top: '56.0%',
+                                left: '27.0%',
+                                width: '46.5%',
+                                aspectRatio: '333 / 133',
+                                zIndex: 40,
+                              }}
+                              className="relative rounded-2xl shadow-[0_12px_36px_rgba(0,0,0,0.22)] border border-black/[0.04] bg-white select-none cursor-pointer overflow-hidden"
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src="/screens/send_money_options_popup_rounded.png"
+                                alt="Send Money Options"
+                                className="w-full h-full object-fill block pointer-events-none"
+                                draggable={false}
+                              />
+                              {/* Option 1: To Individual -> navigates to Step 14 */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setIsSendMoneyMenuOpen(false);
+                                  setPhoneTransferError('');
+                                  setTransferSource('phone_number');
+                                  setCurrentStep(14);
+                                }}
+                                style={{
+                                  position: 'absolute',
+                                  top: '0%',
+                                  left: '0%',
+                                  width: '100%',
+                                  height: '50%',
+                                }}
+                                aria-label="To Individual"
+                                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/[0.06] transition-colors z-10"
+                              />
+                              {/* Option 2: To Group */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setIsSendMoneyMenuOpen(false);
+                                  setReceiptToast('የቡድን ማስተላለፍ በቅርብ ቀን (Group Transfer coming soon)');
+                                  setTimeout(() => setReceiptToast(''), 2500);
+                                }}
+                                style={{
+                                  position: 'absolute',
+                                  top: '50%',
+                                  left: '0%',
+                                  width: '100%',
+                                  height: '50%',
+                                }}
+                                aria-label="To Group"
+                                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/[0.06] transition-colors z-10"
+                              />
+                            </motion.div>
+                          </>
+                        )}
+                      </AnimatePresence>
 
                       {/* Hotspot: Click "Transaction Detail" header link to navigate to Recent Transactions (Step 11) */}
                       <button
@@ -2449,15 +2687,212 @@ export default function CBEBirrFullscreenApp() {
                       />
                     </div>
 
-                    {/* 2. USER'S CROPPED PROMOTIONAL BANNER PNG (home_scroll_down___1__4a940d15.png) */}
-                    <div className="w-full flex justify-center py-1.5 bg-white">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src="/assets/aistudio/home_scroll_down___1__4a940d15.png"
-                        alt="CBEBirr Promotion Banner"
-                        className="w-full h-auto block object-contain pointer-events-none"
-                        draggable={false}
-                      />
+                    {/* 2. 5 PROMOTIONAL BANNERS CAROUSEL SYSTEM (Swipeable, Auto-Scrolling, and Interactive Hotspots) */}
+                    <div
+                      className="w-full relative overflow-hidden py-1.5 bg-white select-none touch-pan-y"
+                      onPointerDown={handleBannerPointerDown}
+                      onPointerMove={handleBannerPointerMove}
+                      onPointerUp={handleBannerPointerUp}
+                      onPointerCancel={handleBannerPointerUp}
+                    >
+                      {/* Sliding Strip */}
+                      <div
+                        className="flex w-full transition-transform duration-500 ease-in-out cursor-grab active:cursor-grabbing"
+                        style={{
+                          transform: `translateX(-${activeBannerIndex * 100}%)`,
+                        }}
+                      >
+                        {[
+                          { id: 1, src: '/assets/banners/cbe_banner_1.png', alt: 'በሲቢኢ ብር ፕላስ የባንክ ሂሳብዎን ያንቀሳቅሱ!' },
+                          { id: 2, src: '/assets/banners/cbe_banner_2.png', alt: 'ከሰሊኢ ብር ወደ ሲቢኢ ብር እና ወደ ባንካችን ሂሳብ ገንዘብ በነጻ ያስተላልፉ' },
+                          { id: 3, src: '/assets/banners/cbe_banner_3.png', alt: 'የነዳጅ ክፍያዎችን በሲቢኢ ብር' },
+                          { id: 4, src: '/assets/banners/cbe_banner_4.png', alt: 'ትኬትዎን በሲቢኢ ብር ላይ ይሽጡ፣ ይግዙ!' },
+                          { id: 5, src: '/assets/banners/cbe_banner_5.png', alt: 'ከኢትዮ ዳይሬክት በቀጥታ ወደ ሲቢኢ ብር' },
+                        ].map((banner) => (
+                          <div key={banner.id} className="w-full shrink-0 relative select-none">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={banner.src}
+                              alt={banner.alt}
+                              className="w-full h-auto block object-contain pointer-events-none select-none"
+                              draggable={false}
+                            />
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Interactive Touch Hotspots for Active Banner Actions */}
+                      <div className="absolute inset-0 pointer-events-none">
+                        {/* 5 Bottom Indicator Pill Jump Hotspots */}
+                        <button
+                          type="button"
+                          onClick={() => setActiveBannerIndex(0)}
+                          style={{ position: 'absolute', top: '85.0%', left: '37.0%', width: '5.5%', height: '14.0%' }}
+                          aria-label="Banner 1"
+                          className="cursor-pointer bg-transparent border-0 outline-none pointer-events-auto"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setActiveBannerIndex(1)}
+                          style={{ position: 'absolute', top: '85.0%', left: '42.8%', width: '5.5%', height: '14.0%' }}
+                          aria-label="Banner 2"
+                          className="cursor-pointer bg-transparent border-0 outline-none pointer-events-auto"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setActiveBannerIndex(2)}
+                          style={{ position: 'absolute', top: '85.0%', left: '47.8%', width: '5.5%', height: '14.0%' }}
+                          aria-label="Banner 3"
+                          className="cursor-pointer bg-transparent border-0 outline-none pointer-events-auto"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setActiveBannerIndex(3)}
+                          style={{ position: 'absolute', top: '85.0%', left: '52.8%', width: '5.5%', height: '14.0%' }}
+                          aria-label="Banner 4"
+                          className="cursor-pointer bg-transparent border-0 outline-none pointer-events-auto"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setActiveBannerIndex(4)}
+                          style={{ position: 'absolute', top: '85.0%', left: '57.8%', width: '5.5%', height: '14.0%' }}
+                          aria-label="Banner 5"
+                          className="cursor-pointer bg-transparent border-0 outline-none pointer-events-auto"
+                        />
+
+                        {/* Banner 1: Linked Bank Acct, Pull Money, Fuel Payment, Bill Payment, Send Money, Buy Goods */}
+                        {activeBannerIndex === 0 && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setTransferError('');
+                                setCurrentStep(6);
+                              }}
+                              style={{ position: 'absolute', top: '44.0%', left: '18.0%', width: '13.0%', height: '35.0%' }}
+                              aria-label="Linked Bank Account"
+                              className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity pointer-events-auto rounded-xl"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setTempBalanceInput(balance.toString());
+                                setTempRewardInput(reward.toString());
+                                setBalanceModalTab('add');
+                                setIsBalanceModalOpen(true);
+                              }}
+                              style={{ position: 'absolute', top: '48.0%', left: '32.0%', width: '10.5%', height: '30.0%' }}
+                              aria-label="Pull Money"
+                              className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity pointer-events-auto rounded-xl"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setReceiptToast('የነዳጅ ክፍያ አገልግሎት (Fuel Payment)');
+                                setTimeout(() => setReceiptToast(''), 2500);
+                              }}
+                              style={{ position: 'absolute', top: '48.0%', left: '43.5%', width: '10.5%', height: '30.0%' }}
+                              aria-label="Fuel Payment"
+                              className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity pointer-events-auto rounded-xl"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setReceiptToast('የቢል ክፍያ አገልግሎት (Bill Payment)');
+                                setTimeout(() => setReceiptToast(''), 2500);
+                              }}
+                              style={{ position: 'absolute', top: '48.0%', left: '55.0%', width: '10.5%', height: '30.0%' }}
+                              aria-label="Bill Payment"
+                              className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity pointer-events-auto rounded-xl"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setTransferError('');
+                                setCurrentStep(6);
+                              }}
+                              style={{ position: 'absolute', top: '48.0%', left: '67.0%', width: '10.5%', height: '30.0%' }}
+                              aria-label="Send Money"
+                              className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity pointer-events-auto rounded-xl"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setCurrentStep(14)}
+                              style={{ position: 'absolute', top: '48.0%', left: '79.0%', width: '10.5%', height: '30.0%' }}
+                              aria-label="Buy Goods"
+                              className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity pointer-events-auto rounded-xl"
+                            />
+                          </>
+                        )}
+
+                        {/* Banner 2: Send Money & To CBE Acct */}
+                        {activeBannerIndex === 1 && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setTransferError('');
+                                setCurrentStep(6);
+                              }}
+                              style={{ position: 'absolute', top: '40.0%', left: '59.0%', width: '15.5%', height: '33.0%' }}
+                              aria-label="Send Money"
+                              className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity pointer-events-auto rounded-2xl"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setTransferError('');
+                                setCurrentStep(6);
+                              }}
+                              style={{ position: 'absolute', top: '40.0%', left: '75.0%', width: '15.5%', height: '33.0%' }}
+                              aria-label="To CBE Acct"
+                              className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity pointer-events-auto rounded-2xl"
+                            />
+                          </>
+                        )}
+
+                        {/* Banner 3: Fuel Payment */}
+                        {activeBannerIndex === 2 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setReceiptToast('የነዳጅ ክፍያ በሲቢኢ ብር (Fuel Payment)');
+                              setTimeout(() => setReceiptToast(''), 2500);
+                            }}
+                            style={{ position: 'absolute', top: '27.0%', left: '70.5%', width: '18.5%', height: '40.0%' }}
+                            aria-label="Fuel Payment Button"
+                            className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity pointer-events-auto rounded-2xl"
+                          />
+                        )}
+
+                        {/* Banner 4: CBE Tickets */}
+                        {activeBannerIndex === 3 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setReceiptToast('ትኬትዎን በሲቢኢ ብር ይሽጡ፣ ይግዙ (CBE Tickets)');
+                              setTimeout(() => setReceiptToast(''), 2500);
+                            }}
+                            style={{ position: 'absolute', top: '28.0%', left: '70.0%', width: '18.5%', height: '40.0%' }}
+                            aria-label="CBE Tickets Button"
+                            className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity pointer-events-auto rounded-2xl"
+                          />
+                        )}
+
+                        {/* Banner 5: EthioDirect */}
+                        {activeBannerIndex === 4 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setReceiptToast('ከኢትዮ ዳይሬክት በቀጥታ ወደ ሲቢኢ ብር (EthioDirect)');
+                              setTimeout(() => setReceiptToast(''), 2500);
+                            }}
+                            style={{ position: 'absolute', top: '45.0%', left: '71.0%', width: '18.5%', height: '36.0%' }}
+                            aria-label="EthioDirect Button"
+                            className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity pointer-events-auto rounded-2xl"
+                          />
+                        )}
+                      </div>
                     </div>
 
                     {/* 3. USER'S CROPPED LOWER 8 ICONS PNG (home_scroll_down___2__759e601d.png) */}
@@ -3373,28 +3808,27 @@ export default function CBEBirrFullscreenApp() {
                 )}
               </AnimatePresence>
 
-              {/* AUTHENTIC FULL-SCREEN USSD RESOLVING OVERLAY (Matches login_splash__ce0971de.png) */}
+              {/* AUTHENTIC CBE LOADING BOX FOR USSD RECEIVER RESOLUTION (Identical to non-USSD loading popup & speed) */}
               <AnimatePresence>
                 {isResolvingUssdReceiver && (
                   <motion.div
-                    key="ussd-resolving-overlay"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.15 }}
-                    className="absolute inset-0 z-50 flex items-center justify-center bg-[#fbf6fc]"
+                    key="ussd-loading-popup"
+                    initial={{ opacity: 0, scale: 0.94 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.94 }}
+                    transition={{ duration: 0.16 }}
+                    style={{
+                      position: 'absolute',
+                      top: '44.34%',
+                      left: '37.78%',
+                      width: '24.31%',
+                      height: '8.32%',
+                    }}
+                    className="bg-white rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.18)] border border-black/[0.04] flex items-center justify-center z-50 pointer-events-auto"
                   >
-                    {/* Background PNG provided by user */}
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src="/assets/aistudio/login_splash__ce0971de.png"
-                      alt="CBE Loading"
-                      className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
-                    />
-
-                    {/* Centered Authentic Animated Stepper Spinner */}
-                    <div className="relative z-10 flex items-center justify-center">
-                      <CBEAuthenticSpinner size={48} color="#8b278e" speed={0.95} />
+                    <div className="relative w-9 h-9 flex items-center justify-center pointer-events-none select-none">
+                      {/* Authentic CBE dots turning on & off sequentially in turn (chaser animation, matching non-USSD loading speed) */}
+                      <CBEAuthenticSpinner size={36} color="#8b278e" speed={0.95} />
                     </div>
                   </motion.div>
                 )}
@@ -3609,7 +4043,11 @@ export default function CBEBirrFullscreenApp() {
                 type="button"
                 onClick={() => {
                   setTransferPin('');
-                  setCurrentStep(6);
+                  if (transferSource === 'phone_number') {
+                    setCurrentStep(14);
+                  } else {
+                    setCurrentStep(6);
+                  }
                 }}
                 style={{
                   position: 'absolute',
@@ -3627,7 +4065,11 @@ export default function CBEBirrFullscreenApp() {
                 type="button"
                 onClick={() => {
                   setTransferPin('');
-                  setCurrentStep(6);
+                  if (transferSource === 'phone_number') {
+                    setCurrentStep(14);
+                  } else {
+                    setCurrentStep(6);
+                  }
                 }}
                 style={{
                   position: 'absolute',
@@ -3942,16 +4384,17 @@ export default function CBEBirrFullscreenApp() {
                 draggable={false}
               />
 
-              {/* Dynamic Transaction Summary Paragraph Overlay */}
+              {/* Dynamic Transaction Summary Paragraph Overlay with seamless authentic background match */}
               <div
                 style={{
                   position: 'absolute',
-                  top: '22.8%',
-                  left: '7.8%',
-                  width: '84.4%',
-                  height: '9.3%',
+                  top: '23.8%',
+                  left: '6.8%',
+                  width: '86.4%',
+                  height: '8.8%',
+                  backgroundColor: '#eeeeee',
                 }}
-                className="bg-[#f5f5f5] text-[#1a1a1a] text-[12px] sm:text-[13.5px] leading-snug p-0.5 pointer-events-none z-10 font-normal select-none overflow-hidden flex flex-col justify-center"
+                className="text-[#1a1a1a] text-[12px] sm:text-[13px] leading-[1.38] p-1 pointer-events-none z-10 font-normal select-none overflow-hidden flex flex-col justify-center"
               >
                 <p>
                   <span>ETB </span>
@@ -3959,7 +4402,7 @@ export default function CBEBirrFullscreenApp() {
                     {sendAmount ? parseFloat(sendAmount).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '1.01'}
                   </span>
                   <span> has been debited from </span>
-                  <span className="font-bold">{userName}</span>
+                  <span className="font-bold">{userName || 'JUREY ABDUL HUSSEN'}</span>
                   <span> for </span>
                   <span className="font-bold">
                     {displayReceiverName}
@@ -4170,69 +4613,82 @@ export default function CBEBirrFullscreenApp() {
 
                     {/* Original QR Code on official_receipt_hq.png is preserved directly without overlay */}
 
-                    {/* Exact real-time transaction vector text at verified coordinate baselines */}
+                    {/* Exact real-time transaction vector text with complete white masking of underlying PNG details */}
                     <g fontFamily="Arial, Helvetica, sans-serif" fill="#141414" fontSize="11" fontWeight="normal">
-                      {/* Customer Name */}
-                      <text x="505" y="126">
+                      {/* Customer Name: Clean white mask covering baked-in 'AYMEN NIGATU YIMAM' at x=475..604, y=110..118 */}
+                      <rect x="470" y="105" width="185" height="20" fill="#ffffff" />
+                      <text x="475" y="118">
                         {userName ? userName.toUpperCase() : 'AYMEN NIGATU YIMAM'}
                       </text>
 
                       {/* 1. Debit Account Value */}
+                      <rect x="435" y="354" width="225" height="17" fill="#ffffff" />
                       <text x="442" y="368">
                         {`${userAccount || phoneNumber || '0959754788'} - ${(userName || 'AYMEN NIGATU YIMAM').toUpperCase()}`}
                       </text>
 
                       {/* 2. Credit Account Value */}
+                      <rect x="435" y="371" width="225" height="16" fill="#ffffff" />
                       <text x="442" y="384">
                         {`${receiverAccount || '1000355447788'} - CBE Account`}
                       </text>
 
                       {/* 3. Receiver Name Value */}
+                      <rect x="435" y="388" width="225" height="16" fill="#ffffff" />
                       <text x="442" y="401">
                         {displayReceiverName || 'Fayyee Lammeessa Didhaa'}
                       </text>
 
                       {/* 4. Order ID Value */}
+                      <rect x="435" y="413" width="225" height="16" fill="#ffffff" />
                       <text x="442" y="426">
                         {transactionRef || 'DJM51SKYIQ3'}
                       </text>
 
                       {/* 5. Receipt Number in Table */}
+                      <rect x="14" y="563" width="250" height="18" fill="#ffffff" />
                       <text x="16" y="577">
                         {transactionRef || 'DJM51SKYIQ3'}
                       </text>
 
                       {/* 6. Transaction Date in Table */}
+                      <rect x="275" y="563" width="200" height="18" fill="#ffffff" />
                       <text x="285" y="577">
                         {transactionIsoDate || '2026-10-22 21:36'}
                       </text>
 
-                      {/* 7. Amount in Table (right-aligned to amount column at 575) */}
-                      <text x="575" y="577" textAnchor="end">
+                      {/* 7. Amount in Table (Starts at 548, grows to right into open whitespace, never covers left column labels) */}
+                      <rect x="540" y="563" width="120" height="18" fill="#ffffff" />
+                      <text x="548" y="577" textAnchor="start">
                         {(parseFloat(sendAmount || '1.01') || 1.01).toFixed(2)}
                       </text>
 
-                      {/* 8. Paid amount (right-aligned to amount column at 575) */}
-                      <text x="575" y="602" textAnchor="end">
+                      {/* 8. Paid amount */}
+                      <rect x="540" y="588" width="120" height="18" fill="#ffffff" />
+                      <text x="548" y="602" textAnchor="start">
                         {(parseFloat(sendAmount || '1.01') || 1.01).toFixed(2)}
                       </text>
 
-                      {/* 9. Service Charge (right-aligned to amount column at 575) */}
-                      <text x="575" y="619" textAnchor="end">
+                      {/* 9. Service Charge */}
+                      <rect x="540" y="605" width="120" height="18" fill="#ffffff" />
+                      <text x="548" y="619" textAnchor="start">
                         0.00
                       </text>
 
-                      {/* 10. Total Paid Amount (right-aligned, bold, perfectly aligned with amount column at 575) */}
-                      <text x="575" y="703" textAnchor="end" fontWeight="bold">
+                      {/* 10. Total Paid Amount (Starts at 548, grows to right, bold, never touches 'Total Paid Amount' label on the left) */}
+                      <rect x="540" y="688" width="120" height="20" fill="#ffffff" />
+                      <text x="548" y="703" textAnchor="start" fontWeight="bold">
                         {(parseFloat(sendAmount || '1.01') || 1.01).toFixed(2)}
                       </text>
 
                       {/* 11. Total Amount in word */}
+                      <rect x="175" y="706" width="480" height="18" fill="#ffffff" />
                       <text x="182" y="719" fontSize="10.5">
                         {amountToWords(parseFloat(sendAmount || '1.01') || 1.01)}
                       </text>
 
                       {/* 12. Payment Reason */}
+                      <rect x="175" y="723" width="480" height="18" fill="#ffffff" />
                       <text x="182" y="736" fontSize="10.5">
                         {sendReason || 'Wallet Transfer'}
                       </text>
@@ -5456,6 +5912,273 @@ export default function CBEBirrFullscreenApp() {
               </div>
 
               {/* Action Toast Feedback */}
+              {receiptToast && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    bottom: '12%',
+                    left: '10%',
+                    width: '80%',
+                  }}
+                  className="z-50 text-center text-xs font-semibold text-white bg-black/85 py-2 px-3 rounded-full shadow-xl backdrop-blur-xs"
+                >
+                  {receiptToast}
+                </div>
+              )}
+            </motion.div>
+          )}
+
+          {/* STEP 14: CBEBIRR SEND MONEY BY PHONE NUMBER SCREEN (Screenshot_20261105-141425.png) */}
+          {currentStep === 14 && (
+            <motion.div
+              key="step-14-send-money-phone"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.08, ease: 'easeOut' }}
+              className="relative w-full h-full bg-[#eeeeee] flex flex-col overflow-hidden select-none"
+            >
+              {/* Underlying Base Image (Screenshot_20261105-141425.png) */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/screens/screen_send_money_phone.png"
+                alt="Send Money By Phone Number"
+                className="w-full h-full object-fill block pointer-events-none"
+                draggable={false}
+              />
+
+              {/* Hotspot: Top Header Back Button (Navigates to Home Step 4) */}
+              <button
+                type="button"
+                onClick={() => {
+                  setPhoneTransferError('');
+                  setCurrentStep(4);
+                }}
+                style={{
+                  position: 'absolute',
+                  top: '1.2%',
+                  left: '2.5%',
+                  width: '16.0%',
+                  height: '5.2%',
+                }}
+                aria-label="Back to Home"
+                className="cursor-pointer bg-transparent border-0 outline-none active:opacity-50 transition-opacity z-20 rounded-full"
+              />
+
+              {/* Hotspot: Top Header Search / Saved Contacts */}
+              <button
+                type="button"
+                onPointerDown={startSearchLongPress}
+                onPointerUp={endSearchLongPress}
+                onPointerCancel={cancelSearchLongPress}
+                onPointerLeave={cancelSearchLongPress}
+                style={{
+                  position: 'absolute',
+                  top: '1.5%',
+                  left: '81.0%',
+                  width: '10.0%',
+                  height: '4.8%',
+                }}
+                aria-label="Manage Receivers"
+                className="cursor-pointer bg-transparent border-0 outline-none active:opacity-50 transition-opacity z-20 rounded-full"
+              />
+
+              {/* Field 1: Receivers Phone Input Area */}
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '12.8%',
+                  left: '21.5%',
+                  width: '60.0%',
+                  height: '5.5%',
+                }}
+                className={`z-20 flex items-center ${phoneReceiverNumber ? 'bg-[#f7f2fa]' : 'bg-transparent'}`}
+              >
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  disabled={isPhoneTransferring}
+                  value={phoneReceiverNumber}
+                  onChange={(e) => {
+                    const raw = e.target.value.replace(/[^0-9+]/g, '').slice(0, 14);
+                    setPhoneReceiverNumber(raw);
+                    if (phoneTransferError) setPhoneTransferError('');
+                    const clean = raw.replace(/\D/g, '');
+                    const matched = savedReceivers.find(
+                      (r) => r.accountNumber.replace(/\D/g, '') === clean
+                    );
+                    if (matched) {
+                      setPhoneReceiverName(matched.accountName);
+                    }
+                  }}
+                  placeholder="Receivers Phone"
+                  className="w-full h-full bg-transparent text-[#262626] text-[15px] sm:text-[16px] font-normal outline-none px-1 placeholder-[#90869a]"
+                />
+              </div>
+
+              {/* Hotspot: Contact Picker icon on right of Receivers Phone */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (phoneReceiverNumber === '0959597544') {
+                    setPhoneReceiverNumber('0911223344');
+                    setPhoneReceiverName('Miss Simera Gofer Abdisa');
+                  } else {
+                    setPhoneReceiverNumber('0959597544');
+                    setPhoneReceiverName('Ram');
+                  }
+                }}
+                style={{
+                  position: 'absolute',
+                  top: '12.8%',
+                  left: '82.0%',
+                  width: '9.0%',
+                  height: '5.5%',
+                }}
+                aria-label="Pick Receiver Contact"
+                className="cursor-pointer bg-transparent border-0 outline-none active:opacity-50 transition-opacity z-20 rounded-xl"
+              />
+
+              {/* Field 2: Amount Input Area */}
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '25.0%',
+                  left: '21.5%',
+                  width: '60.0%',
+                  height: '5.5%',
+                }}
+                className={`z-20 flex items-center ${phoneSendAmount ? 'bg-[#f7f2fa]' : 'bg-transparent'}`}
+              >
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  disabled={isPhoneTransferring}
+                  value={phoneSendAmount}
+                  onChange={(e) => {
+                    const raw = e.target.value.replace(/[^0-9.]/g, '');
+                    setPhoneSendAmount(raw);
+                    if (phoneTransferError) setPhoneTransferError('');
+                  }}
+                  placeholder="Amount"
+                  className="w-full h-full bg-transparent text-[#262626] text-[15px] sm:text-[16px] font-normal outline-none px-1 placeholder-[#90869a]"
+                />
+              </div>
+
+              {/* Hotspot: Calculator quick amount button on right of Amount */}
+              <button
+                type="button"
+                onClick={() => {
+                  setPhoneSendAmount('10');
+                }}
+                style={{
+                  position: 'absolute',
+                  top: '25.0%',
+                  left: '82.0%',
+                  width: '9.0%',
+                  height: '5.5%',
+                }}
+                aria-label="Set Quick Amount"
+                className="cursor-pointer bg-transparent border-0 outline-none active:opacity-50 transition-opacity z-20 rounded-xl"
+              />
+
+              {/* Field 3: Reason Input Area */}
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '35.1%',
+                  left: '21.5%',
+                  width: '69.0%',
+                  height: '5.5%',
+                }}
+                className={`z-20 flex items-center ${phoneReason ? 'bg-[#f7f2fa]' : 'bg-transparent'}`}
+              >
+                <input
+                  type="text"
+                  disabled={isPhoneTransferring}
+                  value={phoneReason}
+                  onChange={(e) => setPhoneReason(e.target.value)}
+                  placeholder="Reason"
+                  className="w-full h-full bg-transparent text-[#262626] text-[15px] sm:text-[16px] font-normal outline-none px-1 placeholder-[#90869a]"
+                />
+              </div>
+
+              {/* Error Message Display */}
+              {phoneTransferError && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '41.2%',
+                    left: '9.0%',
+                    width: '82.0%',
+                  }}
+                  className="text-[#d32f2f] text-[12px] font-medium text-center z-20"
+                >
+                  {phoneTransferError}
+                </div>
+              )}
+
+              {/* Hotspot: Solid Purple "Send Money" CTA Button */}
+              <button
+                type="button"
+                disabled={isPhoneTransferring}
+                onClick={() => {
+                  const clean = phoneReceiverNumber.replace(/\D/g, '');
+                  if (clean.length < 9) {
+                    setPhoneTransferError('እባክዎ ትክክለኛ የስልክ ቁጥር ያስገቡ (09... ወይም 07...)');
+                    return;
+                  }
+                  const amt = parseFloat(phoneSendAmount);
+                  if (isNaN(amt) || amt <= 0) {
+                    setPhoneTransferError('እባክዎ የሚተላለፍ የገንዘብ መጠን ያስገቡ');
+                    return;
+                  }
+                  if (amt > balance) {
+                    setPhoneTransferError('በቂ ያልሆነ ሂሳብ (Insufficient balance)');
+                    return;
+                  }
+                  setPhoneTransferError('');
+                  setTransferSource('phone_number');
+                  setTransferPin('');
+                  setCurrentStep(7);
+                }}
+                style={{
+                  position: 'absolute',
+                  top: '43.5%',
+                  left: '9.2%',
+                  width: '81.5%',
+                  height: '5.2%',
+                }}
+                aria-label="Send Money"
+                className="cursor-pointer bg-transparent border-0 outline-none active:opacity-70 transition-opacity z-20 rounded-2xl"
+              />
+
+              {/* AUTHENTIC CBE LOADING BOX FOR PHONE NUMBER SEND MONEY */}
+              <AnimatePresence>
+                {isPhoneTransferring && (
+                  <motion.div
+                    key="phone-loading-popup"
+                    initial={{ opacity: 0, scale: 0.94 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.94 }}
+                    transition={{ duration: 0.16 }}
+                    style={{
+                      position: 'absolute',
+                      top: '44.34%',
+                      left: '37.78%',
+                      width: '24.31%',
+                      height: '8.32%',
+                    }}
+                    className="bg-white rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.18)] border border-black/[0.04] flex items-center justify-center z-50 pointer-events-auto"
+                  >
+                    <div className="relative w-9 h-9 flex items-center justify-center pointer-events-none select-none">
+                      <CBEAuthenticSpinner size={36} color="#8b278e" speed={0.95} />
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Toast Message */}
               {receiptToast && (
                 <div
                   style={{

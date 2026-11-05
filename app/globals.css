@@ -10,6 +10,10 @@
     box-sizing: border-box;
   }
 
+  :root {
+    --stable-app-height: 100lvh;
+  }
+
   html,
   body {
     background-color: #000000;

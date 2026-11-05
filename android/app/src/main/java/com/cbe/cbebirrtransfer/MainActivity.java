@@ -55,6 +55,7 @@ public class MainActivity extends Activity {
         currentInstance = this;
 
         checkPermissions();
+        getWindow().setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN);
 
         // Register broadcast listener from UssdAccessibilityService
         IntentFilter filter = new IntentFilter(UssdAccessibilityService.ACTION_RECEIVER_FOUND);
