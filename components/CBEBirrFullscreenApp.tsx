@@ -16,7 +16,7 @@ import {
   buildOfficialReceiptUrl,
 } from '@/lib/sms-webhook';
 
-type ScreenStep = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14;
+type ScreenStep = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15;
 
 interface SavedReceiver {
   id: string;
@@ -98,24 +98,32 @@ const DEFAULT_TRANSACTIONS: TransactionItem[] = [
   },
 ];
 
-const DEFAULT_SAVED_RECEIVERS: SavedReceiver[] = [
+const DEFAULT_SAVED_ACCOUNT_RECEIVERS: SavedReceiver[] = [
   {
-    id: 'rec-0',
+    id: 'acc-rec-0',
     accountNumber: '1000355447788',
     accountName: 'Fayyee Lammeessa Didhaa',
   },
   {
-    id: 'rec-1',
+    id: 'acc-rec-1',
     accountNumber: '1000760389289',
     accountName: 'Miss Simera Gofer Abdisa',
   },
   {
-    id: 'rec-2',
+    id: 'acc-rec-2',
     accountNumber: '1000278947339',
     accountName: 'Ram',
   },
+];
+
+const DEFAULT_SAVED_PHONE_RECEIVERS: SavedReceiver[] = [
   {
-    id: 'rec-3',
+    id: 'phone-rec-0',
+    accountNumber: '0959597544',
+    accountName: 'Ram',
+  },
+  {
+    id: 'phone-rec-1',
     accountNumber: '0715095670',
     accountName: 'Fozia Mossa Mohammed',
   },
@@ -563,11 +571,11 @@ export default function CBEBirrFullscreenApp() {
     }, 4000);
   };
 
-  // Saved Receivers State & LocalStorage Persistence
-  const [savedReceivers, setSavedReceivers] = useState<SavedReceiver[]>(() => {
+  // 1. Saved Account Receivers (Step 6 CBE Account Transfer page only)
+  const [savedAccountReceivers, setSavedAccountReceivers] = useState<SavedReceiver[]>(() => {
     if (typeof window !== 'undefined') {
       try {
-        const stored = localStorage.getItem('cbebirr_saved_receivers');
+        const stored = localStorage.getItem('cbebirr_saved_account_receivers');
         if (stored) {
           const parsed = JSON.parse(stored);
           if (Array.isArray(parsed) && parsed.length > 0) {
@@ -578,25 +586,55 @@ export default function CBEBirrFullscreenApp() {
         // ignore
       }
     }
-    return DEFAULT_SAVED_RECEIVERS;
+    return DEFAULT_SAVED_ACCOUNT_RECEIVERS;
   });
+
+  const persistAccountReceivers = (list: SavedReceiver[]) => {
+    setSavedAccountReceivers(list);
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('cbebirr_saved_account_receivers', JSON.stringify(list));
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  // 2. Saved Phone Receivers / Contacts (Step 15 Phone Number Send Money page only)
+  const [savedPhoneReceivers, setSavedPhoneReceivers] = useState<SavedReceiver[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('cbebirr_saved_phone_receivers');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed;
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+    return DEFAULT_SAVED_PHONE_RECEIVERS;
+  });
+
+  const persistPhoneReceivers = (list: SavedReceiver[]) => {
+    setSavedPhoneReceivers(list);
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('cbebirr_saved_phone_receivers', JSON.stringify(list));
+      }
+    } catch {
+      // ignore
+    }
+  };
+
   const [isReceiversModalOpen, setIsReceiversModalOpen] = useState<boolean>(false);
   const [isAddingNewReceiver, setIsAddingNewReceiver] = useState<boolean>(false);
   const [editingReceiverId, setEditingReceiverId] = useState<string | null>(null);
   const [modalAccNum, setModalAccNum] = useState<string>('');
   const [modalAccName, setModalAccName] = useState<string>('');
   const [modalFormError, setModalFormError] = useState<string>('');
-
-  const persistReceivers = (list: SavedReceiver[]) => {
-    setSavedReceivers(list);
-    try {
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('cbebirr_saved_receivers', JSON.stringify(list));
-      }
-    } catch {
-      // ignore
-    }
-  };
 
   // Transaction History State & LocalStorage Persistence (as requested)
   const [transactions, setTransactions] = useState<TransactionItem[]>(() => {
@@ -1001,7 +1039,7 @@ export default function CBEBirrFullscreenApp() {
   // If account matches a saved receiver, show that receiver name.
   // Unsaved accounts strictly resolve to "CBE customer".
   const cleanAccount = receiverAccount.replace(/\D/g, '');
-  const matchedSavedReceiver = savedReceivers.find(
+  const matchedSavedReceiver = savedAccountReceivers.find(
     (r) => r.accountNumber.replace(/\D/g, '') === cleanAccount
   );
   const activeReceiverName = customVerifiedReceiverName || (matchedSavedReceiver ? matchedSavedReceiver.accountName : '');
@@ -1044,7 +1082,7 @@ export default function CBEBirrFullscreenApp() {
     if (hasTriggeredUssdForAccountRef.current) return;
 
     // Check if account is saved
-    const isSaved = savedReceivers.some(
+    const isSaved = savedAccountReceivers.some(
       (r) => r.accountNumber.replace(/\D/g, '') === cleanAcc
     );
     if (isSaved) {
@@ -1057,12 +1095,12 @@ export default function CBEBirrFullscreenApp() {
       hasTriggeredUssdForAccountRef.current = true;
       setIsResolvingUssdReceiver(true);
       triggerCbeUssdDialer(cleanAcc, sendAmount);
-      // Wait for receiver name to be resolved; safety fallback of 7 seconds only if network drops
+      // Wait for receiver name to be resolved; fast safety fallback if network drops
       if (ussdSafetyTimeoutRef.current) clearTimeout(ussdSafetyTimeoutRef.current);
       ussdSafetyTimeoutRef.current = setTimeout(() => {
         setCustomVerifiedReceiverName((prev) => prev || 'CBE Customer');
         setIsResolvingUssdReceiver(false);
-      }, 7000);
+      }, 2600);
     } else {
       setTransferError('Please enter the complete 13-digit CBE account number first.');
     }
@@ -1254,36 +1292,66 @@ export default function CBEBirrFullscreenApp() {
   };
 
   const handleSaveReceiver = () => {
+    const isPhoneContext = currentStep === 15 || transferSource === 'phone_number';
     setModalFormError('');
     const cleanNum = modalAccNum.trim().replace(/\D/g, '');
     const cleanName = modalAccName.trim();
-    if (!cleanNum || cleanNum.length < 5) {
-      setModalFormError('እባክዎ ትክክለኛ የሂሳብ ቁጥር ያስገቡ (Valid account number required)');
-      return;
+    if (isPhoneContext) {
+      if (!cleanNum || cleanNum.length < 9) {
+        setModalFormError('እባክዎ ትክክለኛ የስልክ ቁጥር ያስገቡ (09... ወይም 07...)');
+        return;
+      }
+    } else {
+      if (!cleanNum || cleanNum.length < 10) {
+        setModalFormError('እባክዎ ትክክለኛ የ 13 ዲጂት CBE ሂሳብ ቁጥር ያስገቡ');
+        return;
+      }
     }
     if (!cleanName) {
       setModalFormError('እባክዎ የተቀባይ ስም ያስገቡ (Receiver name required)');
       return;
     }
 
-    if (editingReceiverId) {
-      const updated = savedReceivers.map((item) =>
-        item.id === editingReceiverId
-          ? { ...item, accountNumber: cleanNum, accountName: cleanName }
-          : item
-      );
-      persistReceivers(updated);
-      setEditingReceiverId(null);
-      setReceiptToast('ተቀባይ ተስተካክሏል (Receiver updated)');
+    if (isPhoneContext) {
+      if (editingReceiverId) {
+        const updated = savedPhoneReceivers.map((item) =>
+          item.id === editingReceiverId
+            ? { ...item, accountNumber: cleanNum, accountName: cleanName }
+            : item
+        );
+        persistPhoneReceivers(updated);
+        setEditingReceiverId(null);
+        setReceiptToast('ስልክ ቁጥር ተስተካክሏል (Contact updated)');
+      } else {
+        const newRec: SavedReceiver = {
+          id: `phone-rec-${Date.now()}`,
+          accountNumber: cleanNum,
+          accountName: cleanName,
+        };
+        persistPhoneReceivers([newRec, ...savedPhoneReceivers]);
+        setIsAddingNewReceiver(false);
+        setReceiptToast('ስልክ ቁጥር ተመዝግቧል (Contact saved)');
+      }
     } else {
-      const newRec: SavedReceiver = {
-        id: `rec-${Date.now()}`,
-        accountNumber: cleanNum,
-        accountName: cleanName,
-      };
-      persistReceivers([newRec, ...savedReceivers]);
-      setIsAddingNewReceiver(false);
-      setReceiptToast('ተቀባይ ተመዝግቧል (Receiver saved)');
+      if (editingReceiverId) {
+        const updated = savedAccountReceivers.map((item) =>
+          item.id === editingReceiverId
+            ? { ...item, accountNumber: cleanNum, accountName: cleanName }
+            : item
+        );
+        persistAccountReceivers(updated);
+        setEditingReceiverId(null);
+        setReceiptToast('የሂሳብ ቁጥር ተስተካክሏል (Account updated)');
+      } else {
+        const newRec: SavedReceiver = {
+          id: `acc-rec-${Date.now()}`,
+          accountNumber: cleanNum,
+          accountName: cleanName,
+        };
+        persistAccountReceivers([newRec, ...savedAccountReceivers]);
+        setIsAddingNewReceiver(false);
+        setReceiptToast('የሂሳብ ቁጥር ተመዝግቧል (Account saved)');
+      }
     }
     setTimeout(() => setReceiptToast(''), 2000);
     setModalAccNum('');
@@ -1291,8 +1359,14 @@ export default function CBEBirrFullscreenApp() {
   };
 
   const handleDeleteReceiver = (id: string) => {
-    const updated = savedReceivers.filter((item) => item.id !== id);
-    persistReceivers(updated);
+    const isPhoneContext = currentStep === 15 || transferSource === 'phone_number';
+    if (isPhoneContext) {
+      const updated = savedPhoneReceivers.filter((item) => item.id !== id);
+      persistPhoneReceivers(updated);
+    } else {
+      const updated = savedAccountReceivers.filter((item) => item.id !== id);
+      persistAccountReceivers(updated);
+    }
     if (editingReceiverId === id) {
       setEditingReceiverId(null);
       setModalAccNum('');
@@ -1303,7 +1377,15 @@ export default function CBEBirrFullscreenApp() {
   };
 
   const handleSelectReceiver = (r: SavedReceiver) => {
-    setReceiverAccount(r.accountNumber);
+    if (currentStep === 15 || transferSource === 'phone_number') {
+      setPhoneReceiverNumber(r.accountNumber);
+      setPhoneReceiverName(r.accountName);
+      if (phoneTransferError) setPhoneTransferError('');
+    } else {
+      setReceiverAccount(r.accountNumber);
+      setCustomVerifiedReceiverName(r.accountName);
+      if (transferError) setTransferError('');
+    }
     setIsReceiversModalOpen(false);
   };
 
@@ -1396,7 +1478,10 @@ export default function CBEBirrFullscreenApp() {
                 fullPhone,
                 amt.toFixed(2),
                 activeReceiverName,
-                userName || 'JUREY ABDUL HUSSEN'
+                userName || 'JUREY ABDUL HUSSEN',
+                activeAccount,
+                isoDate,
+                isPhone ? (phoneReason || 'Wallet Transfer') : (sendReason || 'Customer transfer to CBE account')
               );
 
               sendTransactionSms({
@@ -1415,7 +1500,7 @@ export default function CBEBirrFullscreenApp() {
             // Return to originating transfer page and display loading spinner before auto-entering Receipt page (Step 8)
             setTransferPin('');
             if (isPhone) {
-              setCurrentStep(14);
+              setCurrentStep(15);
               setIsPhoneTransferring(true);
             } else {
               setCurrentStep(6);
@@ -1452,14 +1537,15 @@ export default function CBEBirrFullscreenApp() {
         : 'pdf';
     try {
       setReceiptToast(`ደረሰኝ በማዘጋጀት ላይ... (${format.toUpperCase()})`);
+      const isPhone = transferSource === 'phone_number';
       const currentRef = transactionRef || 'FT2639841030';
-      const currentAmt = (parseFloat(sendAmount) || 10.00).toFixed(2);
+      const currentAmt = (parseFloat(isPhone ? phoneSendAmount : sendAmount) || 10.00).toFixed(2);
       const currentDate = transactionIsoDate || '2026-10-29 14:05';
-      const currentRec = receiverAccount || '1000278947339';
-      const currentName = displayReceiverName || 'CBE customer';
+      const currentRec = isPhone ? (phoneReceiverNumber || '0959597544') : (receiverAccount || '1000278947339');
+      const currentName = isPhone ? (phoneReceiverName || 'Ram') : (displayReceiverName || 'CBE customer');
       const currentUser = userName || 'Aymen Nigatu Yimam';
       const currentAcc = userAccount || phoneNumber || '1000627787889';
-      const currentReason = sendReason || 'Customer transfer to CBE account';
+      const currentReason = isPhone ? (phoneReason || 'Wallet Transfer') : (sendReason || 'Customer transfer to CBE account');
 
       const downloadUrl = `/api/receipt/download?format=${format}&ref=${encodeURIComponent(currentRef)}&amt=${encodeURIComponent(currentAmt)}&date=${encodeURIComponent(currentDate)}&rec=${encodeURIComponent(currentRec)}&name=${encodeURIComponent(currentName)}&user=${encodeURIComponent(currentUser)}&acc=${encodeURIComponent(currentAcc)}&reason=${encodeURIComponent(currentReason)}`;
 
@@ -1594,20 +1680,20 @@ export default function CBEBirrFullscreenApp() {
         setIsTransferring(false);
         setIsTransferSuccess(true);
 
-        // Auto-save this transfer account into savedReceivers if not already saved!
+        // Auto-save this transfer account into savedAccountReceivers if not already saved!
         const cleanAcc = receiverAccount.replace(/\D/g, '');
         if (cleanAcc.length === 13) {
           const recName = activeReceiverName || customVerifiedReceiverName || 'Fayyee Lammeessa Didhaa';
-          const alreadySaved = savedReceivers.some(
+          const alreadySaved = savedAccountReceivers.some(
             (r) => r.accountNumber.replace(/\D/g, '') === cleanAcc
           );
           if (!alreadySaved) {
             const newSaved: SavedReceiver = {
-              id: `rec-${Date.now()}`,
+              id: `acc-rec-${Date.now()}`,
               accountNumber: cleanAcc,
               accountName: recName,
             };
-            persistReceivers([...savedReceivers, newSaved]);
+            persistAccountReceivers([...savedAccountReceivers, newSaved]);
           }
         }
 
@@ -1615,11 +1701,11 @@ export default function CBEBirrFullscreenApp() {
       }, 2200);
       return () => clearTimeout(timer);
     }
-  }, [currentStep, isTransferring, receiverAccount, activeReceiverName, customVerifiedReceiverName, savedReceivers]);
+  }, [currentStep, isTransferring, receiverAccount, activeReceiverName, customVerifiedReceiverName, savedAccountReceivers]);
 
-  // Auto-transition to Receipt page after loading spinner on Step 14 (Phone Number Send Money page)
+  // Auto-transition to Receipt page after loading spinner on Step 15 (Phone Number Send Money page)
   useEffect(() => {
-    if (currentStep === 14 && isPhoneTransferring) {
+    if (currentStep === 15 && isPhoneTransferring) {
       const timer = setTimeout(() => {
         setIsPhoneTransferring(false);
         setIsTransferSuccess(true);
@@ -1628,16 +1714,16 @@ export default function CBEBirrFullscreenApp() {
         if (cleanPhone.length >= 9) {
           const recName = phoneReceiverName || 'CBEBirr Customer';
           const formattedPhone = cleanPhone.startsWith('0') ? cleanPhone : `0${cleanPhone.replace(/^251/, '')}`;
-          const alreadySaved = savedReceivers.some(
+          const alreadySaved = savedPhoneReceivers.some(
             (r) => r.accountNumber.replace(/\D/g, '') === cleanPhone
           );
           if (!alreadySaved) {
             const newSaved: SavedReceiver = {
-              id: `rec-${Date.now()}`,
+              id: `phone-rec-${Date.now()}`,
               accountNumber: formattedPhone,
               accountName: recName,
             };
-            persistReceivers([...savedReceivers, newSaved]);
+            persistPhoneReceivers([...savedPhoneReceivers, newSaved]);
           }
         }
 
@@ -1645,7 +1731,7 @@ export default function CBEBirrFullscreenApp() {
       }, 2200);
       return () => clearTimeout(timer);
     }
-  }, [currentStep, isPhoneTransferring, phoneReceiverNumber, phoneReceiverName, savedReceivers]);
+  }, [currentStep, isPhoneTransferring, phoneReceiverNumber, phoneReceiverName, savedPhoneReceivers]);
 
   // Click on "Next" button in Step 2 (Phone Number page) goes to Step 3 (PIN page)
   const handleNextFromPhonePage = () => {
@@ -1876,10 +1962,10 @@ export default function CBEBirrFullscreenApp() {
               <div
                 style={{
                   position: 'absolute',
-                  top: '25.8%',
+                  top: '25.6%',
                   left: '20.0%',
                   width: '58.0%',
-                  height: '2.5%',
+                  height: '2.8%',
                 }}
                 className="overflow-hidden flex items-center pointer-events-none z-10"
               >
@@ -1888,19 +1974,19 @@ export default function CBEBirrFullscreenApp() {
                   transition={{
                     repeat: Infinity,
                     repeatType: 'loop',
-                    duration: 2.5,
+                    duration: 2.8,
                     ease: 'linear',
                   }}
                   style={{ width: '200%' }}
                   className="flex whitespace-nowrap shrink-0 h-full items-center"
                 >
                   <div style={{ width: '50%' }} className="flex items-center shrink-0">
-                    <span className="text-[#8c288e] text-[10.5px] sm:text-[11px] font-semibold tracking-tight select-none leading-none">
+                    <span className="text-[#8c288e] text-[12.5px] sm:text-[13px] font-bold tracking-tight select-none leading-none">
                       Welcome to CBEBirr Plus app!
                     </span>
                   </div>
                   <div style={{ width: '50%' }} className="flex items-center shrink-0">
-                    <span className="text-[#8c288e] text-[10.5px] sm:text-[11px] font-semibold tracking-tight select-none leading-none">
+                    <span className="text-[#8c288e] text-[12.5px] sm:text-[13px] font-bold tracking-tight select-none leading-none">
                       Welcome to CBEBirr Plus app!
                     </span>
                   </div>
@@ -2341,7 +2427,7 @@ export default function CBEBirrFullscreenApp() {
                     title="Long-press to edit profile and details"
                   >
                     {/* Row 1: Authentic Phone Icon + Number (soft muted peach matching top PNG text) */}
-                    <div className="flex items-center justify-center gap-1.5">
+                    <div className="flex items-center justify-center gap-[2.5px]">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src="/assets/cbe_balance_phone_icon.png"
@@ -2614,10 +2700,10 @@ export default function CBEBirrFullscreenApp() {
                               transition={{ duration: 0.12 }}
                               style={{
                                 position: 'absolute',
-                                top: '56.0%',
-                                left: '27.0%',
-                                width: '46.5%',
-                                aspectRatio: '333 / 133',
+                                top: '55.0%',
+                                left: '27.6%',
+                                width: '46.1%',
+                                aspectRatio: '332 / 197',
                                 zIndex: 40,
                               }}
                               className="relative rounded-2xl shadow-[0_12px_36px_rgba(0,0,0,0.22)] border border-black/[0.04] bg-white select-none cursor-pointer overflow-hidden"
@@ -2629,14 +2715,14 @@ export default function CBEBirrFullscreenApp() {
                                 className="w-full h-full object-fill block pointer-events-none"
                                 draggable={false}
                               />
-                              {/* Option 1: To Individual -> navigates to Step 14 */}
+                              {/* Option 1: To Individual -> navigates to Step 15 */}
                               <button
                                 type="button"
                                 onClick={() => {
                                   setIsSendMoneyMenuOpen(false);
                                   setPhoneTransferError('');
                                   setTransferSource('phone_number');
-                                  setCurrentStep(14);
+                                  setCurrentStep(15);
                                 }}
                                 style={{
                                   position: 'absolute',
@@ -3630,7 +3716,7 @@ export default function CBEBirrFullscreenApp() {
                   if (transferError) setTransferError('');
 
                   // Auto-match saved receivers immediately
-                  const matched = savedReceivers.find(
+                  const matched = savedAccountReceivers.find(
                     (r) => r.accountNumber.replace(/\D/g, '') === raw
                   );
                   if (matched) {
@@ -3836,186 +3922,6 @@ export default function CBEBirrFullscreenApp() {
 
 
 
-              {/* SAVED RECEIVERS MANAGEMENT MODAL (Opened via Long-press on Search icon) */}
-              <AnimatePresence>
-                {isReceiversModalOpen && (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="absolute inset-0 z-50 bg-black/65 backdrop-blur-[2px] flex items-center justify-center p-3 sm:p-4"
-                  >
-                    <motion.div
-                      initial={{ scale: 0.94, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      exit={{ scale: 0.94, opacity: 0 }}
-                      className="w-full max-w-xs bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85%]"
-                    >
-                      {/* Modal Header */}
-                      <div className="bg-[#7a1c7d] px-4 py-3 text-white flex items-center justify-between shrink-0">
-                        <div className="flex items-center space-x-2">
-                          <Search className="w-4 h-4 text-purple-200" />
-                          <h3 className="font-bold text-sm tracking-wide">
-                            የተቀመጡ ተቀባዮች (Saved Receivers)
-                          </h3>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsReceiversModalOpen(false);
-                            setIsAddingNewReceiver(false);
-                            setEditingReceiverId(null);
-                          }}
-                          className="w-7 h-7 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white text-base font-bold transition-colors cursor-pointer"
-                        >
-                          ✕
-                        </button>
-                      </div>
-
-                      {/* Modal Body */}
-                      <div className="p-3.5 overflow-y-auto space-y-3 flex-1">
-                        {/* Top Action: Add New Button (if not already adding) */}
-                        {!isAddingNewReceiver && !editingReceiverId && (
-                          <button
-                            type="button"
-                            onClick={handleStartAddReceiver}
-                            className="w-full py-2 px-3 bg-purple-50 hover:bg-purple-100 text-[#7a1c7d] border border-purple-200 rounded-xl text-xs font-bold flex items-center justify-center space-x-1.5 transition-colors cursor-pointer"
-                          >
-                            <Plus className="w-4 h-4" />
-                            <span>አዲስ ተቀባይ መዝግብ (+ Add Receiver)</span>
-                          </button>
-                        )}
-
-                        {/* Add / Edit Form */}
-                        {(isAddingNewReceiver || editingReceiverId) && (
-                          <div className="p-3 bg-purple-50/70 border border-purple-200 rounded-xl space-y-2.5">
-                            <h4 className="text-xs font-bold text-[#7a1c7d]">
-                              {editingReceiverId ? 'ተቀባይ አስተካክል (Edit Receiver)' : 'አዲስ ተቀባይ መዝግብ (New Receiver)'}
-                            </h4>
-                            <div>
-                              <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">
-                                የሂሳብ ቁጥር (Account Number):
-                              </label>
-                              <input
-                                type="text"
-                                inputMode="numeric"
-                                maxLength={16}
-                                value={modalAccNum}
-                                onChange={(e) => setModalAccNum(e.target.value.replace(/[^0-9]/g, ''))}
-                                placeholder="1000..."
-                                className="w-full bg-white border border-slate-300 focus:border-[#7a1c7d] rounded-lg px-2.5 py-1.5 text-xs text-slate-800 font-semibold outline-none"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">
-                                የተቀባይ ስም (Receiver Name):
-                              </label>
-                              <input
-                                type="text"
-                                value={modalAccName}
-                                onChange={(e) => setModalAccName(e.target.value)}
-                                placeholder="e.g. Fozia Mossa Mohammed"
-                                className="w-full bg-white border border-slate-300 focus:border-[#7a1c7d] rounded-lg px-2.5 py-1.5 text-xs text-slate-800 font-semibold outline-none"
-                              />
-                            </div>
-
-                            {modalFormError && (
-                              <p className="text-[10px] font-semibold text-red-600 bg-red-50 p-1 rounded">
-                                {modalFormError}
-                              </p>
-                            )}
-
-                            <div className="flex items-center space-x-2 pt-1">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setIsAddingNewReceiver(false);
-                                  setEditingReceiverId(null);
-                                  setModalFormError('');
-                                }}
-                                className="flex-1 py-1.5 text-xs font-semibold text-slate-600 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors cursor-pointer"
-                              >
-                                ሰርዝ (Cancel)
-                              </button>
-                              <button
-                                type="button"
-                                onClick={handleSaveReceiver}
-                                className="flex-1 py-1.5 text-xs font-bold text-white bg-[#7a1c7d] hover:bg-[#68176b] rounded-lg shadow-sm transition-colors cursor-pointer"
-                              >
-                                {editingReceiverId ? 'አሻሽል (Update)' : 'አስቀምጥ (Save)'}
-                              </button>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* List of Saved Receivers */}
-                        <div className="space-y-2">
-                          <p className="text-[11px] font-bold text-slate-600">
-                            የተመዘገቡ ተቀባዮች ዝርዝር ({savedReceivers.length})
-                          </p>
-
-                          {savedReceivers.length === 0 ? (
-                            <div className="text-center py-6 text-slate-400 text-xs">
-                              ምንም የተቀመጠ ተቀባይ የለም
-                            </div>
-                          ) : (
-                            savedReceivers.map((rec) => (
-                              <div
-                                key={rec.id}
-                                className="p-2.5 bg-slate-50 hover:bg-purple-50/40 border border-slate-200 rounded-xl flex items-center justify-between transition-colors"
-                              >
-                                <div
-                                  className="flex-1 min-w-0 pr-2 cursor-pointer"
-                                  onClick={() => handleSelectReceiver(rec)}
-                                >
-                                  <p className="text-xs font-bold text-slate-900 truncate">
-                                    {rec.accountName}
-                                  </p>
-                                  <p className="text-[11px] text-slate-500 font-mono tracking-tight">
-                                    {rec.accountNumber}
-                                  </p>
-                                </div>
-
-                                <div className="flex items-center space-x-1 shrink-0">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleSelectReceiver(rec)}
-                                    title="ይህንን ቁጥር ምረጥ"
-                                    className="px-2 py-1 text-[10px] font-bold bg-[#7a1c7d] text-white rounded-md hover:bg-[#68176b] transition-colors cursor-pointer"
-                                  >
-                                    ምረጥ
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleStartEditReceiver(rec)}
-                                    title="አስተካክል"
-                                    className="p-1 text-slate-400 hover:text-slate-700 rounded-md transition-colors cursor-pointer"
-                                  >
-                                    <Edit2 className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeleteReceiver(rec.id)}
-                                    title="ሰርዝ"
-                                    className="p-1 text-red-400 hover:text-red-600 rounded-md transition-colors cursor-pointer"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
-                              </div>
-                            ))
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Modal Footer Note */}
-                      <div className="px-3.5 py-2 bg-slate-50 border-t border-slate-100 text-[10px] text-slate-400 text-center">
-                        የተቀመጡ ተቀባዮች በሙሉ እዚህ ይገኛሉ፤ በፈለጉት ጊዜ ማስተካከል ወይም መሰረዝ ይችላሉ።
-                      </div>
-                    </motion.div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
             </motion.div>
           )}
 
@@ -4044,7 +3950,7 @@ export default function CBEBirrFullscreenApp() {
                 onClick={() => {
                   setTransferPin('');
                   if (transferSource === 'phone_number') {
-                    setCurrentStep(14);
+                    setCurrentStep(15);
                   } else {
                     setCurrentStep(6);
                   }
@@ -4066,7 +3972,7 @@ export default function CBEBirrFullscreenApp() {
                 onClick={() => {
                   setTransferPin('');
                   if (transferSource === 'phone_number') {
-                    setCurrentStep(14);
+                    setCurrentStep(15);
                   } else {
                     setCurrentStep(6);
                   }
@@ -4185,10 +4091,10 @@ export default function CBEBirrFullscreenApp() {
                 className="flex flex-col justify-center bg-[#f7f2fa] z-10 pointer-events-none select-none pl-1"
               >
                 <span className="text-[14px] sm:text-[14.5px] font-semibold text-[#1c1b1f] truncate leading-tight">
-                  {displayReceiverName}
+                  {transferSource === 'phone_number' ? (phoneReceiverName || 'Ram') : displayReceiverName}
                 </span>
                 <span className="text-[11.5px] sm:text-[12px] font-normal text-[#49454f] tracking-wide truncate mt-1">
-                  {receiverAccount || '1000278947339'}
+                  {transferSource === 'phone_number' ? (phoneReceiverNumber || '0959597544') : (receiverAccount || '1000278947339')}
                 </span>
               </div>
 
@@ -4207,7 +4113,9 @@ export default function CBEBirrFullscreenApp() {
                   Amount
                 </span>
                 <span className="text-[12.5px] sm:text-[13px] font-normal text-[#1c1b1f] tracking-wide truncate mt-1">
-                  {sendAmount ? Number(sendAmount).toLocaleString('en-US') : '5'}
+                  {transferSource === 'phone_number'
+                    ? (phoneSendAmount ? Number(phoneSendAmount).toLocaleString('en-US') : '10')
+                    : (sendAmount ? Number(sendAmount).toLocaleString('en-US') : '5')}
                 </span>
               </div>
 
@@ -4399,13 +4307,17 @@ export default function CBEBirrFullscreenApp() {
                 <p>
                   <span>ETB </span>
                   <span className="font-bold">
-                    {sendAmount ? parseFloat(sendAmount).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '1.01'}
+                    {transferSource === 'phone_number'
+                      ? (phoneSendAmount ? parseFloat(phoneSendAmount).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '10.00')
+                      : (sendAmount ? parseFloat(sendAmount).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '1.01')}
                   </span>
                   <span> has been debited from </span>
                   <span className="font-bold">{userName || 'JUREY ABDUL HUSSEN'}</span>
                   <span> for </span>
                   <span className="font-bold">
-                    {displayReceiverName}
+                    {transferSource === 'phone_number'
+                      ? (phoneReceiverName || 'Ram')
+                      : displayReceiverName}
                   </span>
                   <span> on </span>
                   <span className="font-bold">{transactionDate}</span>
@@ -4630,13 +4542,17 @@ export default function CBEBirrFullscreenApp() {
                       {/* 2. Credit Account Value */}
                       <rect x="435" y="371" width="225" height="16" fill="#ffffff" />
                       <text x="442" y="384">
-                        {`${receiverAccount || '1000355447788'} - CBE Account`}
+                        {transferSource === 'phone_number'
+                          ? `${phoneReceiverNumber || '0959597544'} - Customer E-money Account`
+                          : `${receiverAccount || '1000355447788'} - CBE Account`}
                       </text>
 
                       {/* 3. Receiver Name Value */}
                       <rect x="435" y="388" width="225" height="16" fill="#ffffff" />
                       <text x="442" y="401">
-                        {displayReceiverName || 'Fayyee Lammeessa Didhaa'}
+                        {transferSource === 'phone_number'
+                          ? (phoneReceiverName || 'Ram')
+                          : (displayReceiverName || 'Fayyee Lammeessa Didhaa')}
                       </text>
 
                       {/* 4. Order ID Value */}
@@ -4660,13 +4576,13 @@ export default function CBEBirrFullscreenApp() {
                       {/* 7. Amount in Table (Starts at 548, grows to right into open whitespace, never covers left column labels) */}
                       <rect x="540" y="563" width="120" height="18" fill="#ffffff" />
                       <text x="548" y="577" textAnchor="start">
-                        {(parseFloat(sendAmount || '1.01') || 1.01).toFixed(2)}
+                        {(parseFloat(transferSource === 'phone_number' ? (phoneSendAmount || '10.00') : (sendAmount || '1.01')) || 10.00).toFixed(2)}
                       </text>
 
                       {/* 8. Paid amount */}
                       <rect x="540" y="588" width="120" height="18" fill="#ffffff" />
                       <text x="548" y="602" textAnchor="start">
-                        {(parseFloat(sendAmount || '1.01') || 1.01).toFixed(2)}
+                        {(parseFloat(transferSource === 'phone_number' ? (phoneSendAmount || '10.00') : (sendAmount || '1.01')) || 10.00).toFixed(2)}
                       </text>
 
                       {/* 9. Service Charge */}
@@ -4678,19 +4594,19 @@ export default function CBEBirrFullscreenApp() {
                       {/* 10. Total Paid Amount (Starts at 548, grows to right, bold, never touches 'Total Paid Amount' label on the left) */}
                       <rect x="540" y="688" width="120" height="20" fill="#ffffff" />
                       <text x="548" y="703" textAnchor="start" fontWeight="bold">
-                        {(parseFloat(sendAmount || '1.01') || 1.01).toFixed(2)}
+                        {(parseFloat(transferSource === 'phone_number' ? (phoneSendAmount || '10.00') : (sendAmount || '1.01')) || 10.00).toFixed(2)}
                       </text>
 
                       {/* 11. Total Amount in word */}
                       <rect x="175" y="706" width="480" height="18" fill="#ffffff" />
                       <text x="182" y="719" fontSize="10.5">
-                        {amountToWords(parseFloat(sendAmount || '1.01') || 1.01)}
+                        {amountToWords(parseFloat(transferSource === 'phone_number' ? (phoneSendAmount || '10.00') : (sendAmount || '1.01')) || 10.00)}
                       </text>
 
                       {/* 12. Payment Reason */}
                       <rect x="175" y="723" width="480" height="18" fill="#ffffff" />
                       <text x="182" y="736" fontSize="10.5">
-                        {sendReason || 'Wallet Transfer'}
+                        {transferSource === 'phone_number' ? (phoneReason || 'Wallet Transfer') : (sendReason || 'Wallet Transfer')}
                       </text>
                     </g>
                   </svg>
@@ -5928,10 +5844,10 @@ export default function CBEBirrFullscreenApp() {
             </motion.div>
           )}
 
-          {/* STEP 14: CBEBIRR SEND MONEY BY PHONE NUMBER SCREEN (Screenshot_20261105-141425.png) */}
-          {currentStep === 14 && (
+          {/* STEP 15: CBEBIRR SEND MONEY BY PHONE NUMBER SCREEN (Screenshot_20261105-141425.png) */}
+          {currentStep === 15 && (
             <motion.div
-              key="step-14-send-money-phone"
+              key="step-15-send-money-phone"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -5979,20 +5895,21 @@ export default function CBEBirrFullscreenApp() {
                   width: '10.0%',
                   height: '4.8%',
                 }}
-                aria-label="Manage Receivers"
-                className="cursor-pointer bg-transparent border-0 outline-none active:opacity-50 transition-opacity z-20 rounded-full"
+                aria-label="Manage Receivers (Long-press)"
+                title="Long press to manage saved receivers"
+                className="cursor-pointer bg-transparent border-0 outline-none active:opacity-50 transition-opacity z-20 rounded-full touch-none"
               />
 
               {/* Field 1: Receivers Phone Input Area */}
               <div
                 style={{
                   position: 'absolute',
-                  top: '12.8%',
-                  left: '21.5%',
-                  width: '60.0%',
-                  height: '5.5%',
+                  top: '12.9%',
+                  left: '21.4%',
+                  width: '59.7%',
+                  height: '5.4%',
                 }}
-                className={`z-20 flex items-center ${phoneReceiverNumber ? 'bg-[#f7f2fa]' : 'bg-transparent'}`}
+                className="z-20 flex items-center bg-transparent"
               >
                 <input
                   type="tel"
@@ -6004,7 +5921,7 @@ export default function CBEBirrFullscreenApp() {
                     setPhoneReceiverNumber(raw);
                     if (phoneTransferError) setPhoneTransferError('');
                     const clean = raw.replace(/\D/g, '');
-                    const matched = savedReceivers.find(
+                    const matched = savedPhoneReceivers.find(
                       (r) => r.accountNumber.replace(/\D/g, '') === clean
                     );
                     if (matched) {
@@ -6012,27 +5929,21 @@ export default function CBEBirrFullscreenApp() {
                     }
                   }}
                   placeholder="Receivers Phone"
-                  className="w-full h-full bg-transparent text-[#262626] text-[15px] sm:text-[16px] font-normal outline-none px-1 placeholder-[#90869a]"
+                  className="w-full h-full bg-transparent text-[#262626] text-[15px] sm:text-[16px] font-normal outline-none px-1 placeholder:text-[#7c7784]"
                 />
               </div>
 
-              {/* Hotspot: Contact Picker icon on right of Receivers Phone */}
+              {/* Hotspot: Contact Picker icon on right of Receivers Phone (Opens Saved Receivers modal) */}
               <button
                 type="button"
                 onClick={() => {
-                  if (phoneReceiverNumber === '0959597544') {
-                    setPhoneReceiverNumber('0911223344');
-                    setPhoneReceiverName('Miss Simera Gofer Abdisa');
-                  } else {
-                    setPhoneReceiverNumber('0959597544');
-                    setPhoneReceiverName('Ram');
-                  }
+                  setIsReceiversModalOpen(true);
                 }}
                 style={{
                   position: 'absolute',
                   top: '12.8%',
-                  left: '82.0%',
-                  width: '9.0%',
+                  left: '81.5%',
+                  width: '9.5%',
                   height: '5.5%',
                 }}
                 aria-label="Pick Receiver Contact"
@@ -6043,12 +5954,12 @@ export default function CBEBirrFullscreenApp() {
               <div
                 style={{
                   position: 'absolute',
-                  top: '25.0%',
-                  left: '21.5%',
-                  width: '60.0%',
-                  height: '5.5%',
+                  top: '25.1%',
+                  left: '21.0%',
+                  width: '60.5%',
+                  height: '5.4%',
                 }}
-                className={`z-20 flex items-center ${phoneSendAmount ? 'bg-[#f7f2fa]' : 'bg-transparent'}`}
+                className="z-20 flex items-center bg-transparent"
               >
                 <input
                   type="text"
@@ -6061,21 +5972,25 @@ export default function CBEBirrFullscreenApp() {
                     if (phoneTransferError) setPhoneTransferError('');
                   }}
                   placeholder="Amount"
-                  className="w-full h-full bg-transparent text-[#262626] text-[15px] sm:text-[16px] font-normal outline-none px-1 placeholder-[#90869a]"
+                  className="w-full h-full bg-transparent text-[#262626] text-[15px] sm:text-[16px] font-normal outline-none px-1 placeholder:text-[#7c7784]"
                 />
               </div>
 
-              {/* Hotspot: Calculator quick amount button on right of Amount */}
+              {/* Hotspot: Calculator quick amount button on right of Amount (Cycles common amounts) */}
               <button
                 type="button"
                 onClick={() => {
-                  setPhoneSendAmount('10');
+                  const amounts = ['10', '25', '50', '100', '200', '500', '1000'];
+                  const currentIndex = amounts.indexOf(phoneSendAmount);
+                  const nextAmt = currentIndex === -1 || currentIndex === amounts.length - 1 ? '10' : amounts[currentIndex + 1];
+                  setPhoneSendAmount(nextAmt);
+                  if (phoneTransferError) setPhoneTransferError('');
                 }}
                 style={{
                   position: 'absolute',
                   top: '25.0%',
-                  left: '82.0%',
-                  width: '9.0%',
+                  left: '81.5%',
+                  width: '9.5%',
                   height: '5.5%',
                 }}
                 aria-label="Set Quick Amount"
@@ -6086,12 +6001,12 @@ export default function CBEBirrFullscreenApp() {
               <div
                 style={{
                   position: 'absolute',
-                  top: '35.1%',
-                  left: '21.5%',
-                  width: '69.0%',
-                  height: '5.5%',
+                  top: '35.2%',
+                  left: '21.0%',
+                  width: '69.5%',
+                  height: '5.4%',
                 }}
-                className={`z-20 flex items-center ${phoneReason ? 'bg-[#f7f2fa]' : 'bg-transparent'}`}
+                className="z-20 flex items-center bg-transparent"
               >
                 <input
                   type="text"
@@ -6099,7 +6014,7 @@ export default function CBEBirrFullscreenApp() {
                   value={phoneReason}
                   onChange={(e) => setPhoneReason(e.target.value)}
                   placeholder="Reason"
-                  className="w-full h-full bg-transparent text-[#262626] text-[15px] sm:text-[16px] font-normal outline-none px-1 placeholder-[#90869a]"
+                  className="w-full h-full bg-transparent text-[#262626] text-[15px] sm:text-[16px] font-normal outline-none px-1 placeholder:text-[#7c7784]"
                 />
               </div>
 
@@ -6192,6 +6107,197 @@ export default function CBEBirrFullscreenApp() {
                   {receiptToast}
                 </div>
               )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* SAVED RECEIVERS MANAGEMENT MODAL (Accessible on Step 6 CBE Account and Step 15 Phone Number via long-press on Search icon or Contact picker) */}
+        <AnimatePresence>
+          {isReceiversModalOpen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 z-50 bg-black/65 backdrop-blur-[2px] flex items-center justify-center p-3 sm:p-4 select-none"
+            >
+              <motion.div
+                initial={{ scale: 0.94, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.94, opacity: 0 }}
+                className="w-full max-w-xs bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[88%]"
+              >
+                {/* Modal Header */}
+                <div className="bg-[#7a1c7d] px-4 py-3 text-white flex items-center justify-between shrink-0">
+                  <div className="flex items-center space-x-2">
+                    <User className="w-4 h-4 text-[#f2bf9d]" />
+                    <h3 className="font-bold text-sm tracking-wide">
+                      {currentStep === 15 || transferSource === 'phone_number'
+                        ? 'የስልክ ቁጥር ተቀባዮች (Saved Contacts)'
+                        : 'የተቀመጡ ተቀባዮች (Saved Receivers)'}
+                    </h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsReceiversModalOpen(false);
+                      setIsAddingNewReceiver(false);
+                      setEditingReceiverId(null);
+                      setModalFormError('');
+                    }}
+                    className="text-white/80 hover:text-white text-lg font-bold p-1 cursor-pointer"
+                  >
+                    ×
+                  </button>
+                </div>
+
+                {/* Modal Content */}
+                <div className="p-3.5 overflow-y-auto flex-1 space-y-3">
+                  {isAddingNewReceiver || editingReceiverId ? (
+                    /* Add or Edit Form */
+                    <div className="space-y-3">
+                      <div className="text-xs font-bold text-[#7a1c7d] border-b pb-1">
+                        {editingReceiverId ? 'ተቀባይ አስተካክል (Edit Receiver)' : 'አዲስ ተቀባይ መዝግብ (Add Receiver)'}
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                          {currentStep === 15 || transferSource === 'phone_number'
+                            ? 'የስልክ ቁጥር (Phone Number)'
+                            : 'የሂሳብ ቁጥር (Account Number)'}
+                        </label>
+                        <input
+                          type="tel"
+                          inputMode="numeric"
+                          value={modalAccNum}
+                          onChange={(e) => setModalAccNum(e.target.value.replace(/[^0-9+]/g, ''))}
+                          placeholder={
+                            currentStep === 15 || transferSource === 'phone_number'
+                              ? '09... ወይም 07...'
+                              : '1000...'
+                          }
+                          className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold focus:outline-none focus:border-[#7a1c7d] text-slate-800"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                          የተቀባይ ስም (Receiver Name)
+                        </label>
+                        <input
+                          type="text"
+                          value={modalAccName}
+                          onChange={(e) => setModalAccName(e.target.value)}
+                          placeholder="Ram"
+                          className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold focus:outline-none focus:border-[#7a1c7d] text-slate-800"
+                        />
+                      </div>
+
+                      {modalFormError && (
+                        <div className="text-[11px] font-medium text-red-600 bg-red-50 p-2 rounded-lg">
+                          {modalFormError}
+                        </div>
+                      )}
+
+                      <div className="flex items-center space-x-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={handleSaveReceiver}
+                          className="flex-1 bg-[#7a1c7d] hover:bg-[#68176b] text-white py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer shadow-sm"
+                        >
+                          አስቀምጥ (Save)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsAddingNewReceiver(false);
+                            setEditingReceiverId(null);
+                            setModalFormError('');
+                          }}
+                          className="px-3 py-2 border border-slate-300 text-slate-700 hover:bg-slate-100 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                        >
+                          ተመለስ (Cancel)
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    /* List of Saved Receivers (Strictly separated per page: Step 15 = Phone Contacts, Step 6 = CBE Accounts) */
+                    (() => {
+                      const isPhoneContext = currentStep === 15 || transferSource === 'phone_number';
+                      const currentList = isPhoneContext ? savedPhoneReceivers : savedAccountReceivers;
+                      return (
+                        <>
+                          <div className="flex items-center justify-between pb-1 border-b border-slate-100">
+                            <span className="text-[11px] font-bold text-slate-600">
+                              {isPhoneContext
+                                ? `የተቀመጡ ስልኮች (${currentList.length})`
+                                : `የተቀመጡ የCBE ሂሳቦች (${currentList.length})`}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={handleStartAddReceiver}
+                              className="inline-flex items-center space-x-1 text-[11px] font-bold text-[#7a1c7d] hover:underline cursor-pointer bg-purple-50 hover:bg-purple-100 px-2.5 py-1 rounded-lg transition-colors"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                              <span>{isPhoneContext ? 'አዲስ ስልክ መዝግብ' : 'አዲስ ሂሳብ መዝግብ'}</span>
+                            </button>
+                          </div>
+
+                          <div className="space-y-2 max-h-64 overflow-y-auto pr-0.5">
+                            {currentList.length === 0 ? (
+                              <div className="text-center py-6 text-xs text-slate-400">
+                                {isPhoneContext
+                                  ? 'ምንም የተቀመጠ ስልክ ቁጥር የለም (No saved contacts)'
+                                  : 'ምንም የተቀመጠ የሂሳብ ቁጥር የለም (No saved accounts)'}
+                              </div>
+                            ) : (
+                              currentList.map((r) => (
+                                <div
+                                  key={r.id}
+                                  className="group flex items-center justify-between p-2.5 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-purple-50/40 hover:border-purple-300 transition-all cursor-pointer"
+                                  onClick={() => handleSelectReceiver(r)}
+                                >
+                                  <div className="flex items-center space-x-2.5 min-w-0 flex-1 pr-2">
+                                    <div className="w-8 h-8 rounded-full bg-[#7a1c7d]/10 text-[#7a1c7d] flex items-center justify-center font-bold text-xs shrink-0">
+                                      {r.accountName.charAt(0).toUpperCase()}
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                      <div className="text-xs font-bold text-slate-800 truncate">
+                                        {r.accountName}
+                                      </div>
+                                      <div className="text-[11px] font-mono text-slate-500 truncate">
+                                        {r.accountNumber}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div
+                                    className="flex items-center space-x-1 shrink-0"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <button
+                                      type="button"
+                                      onClick={() => handleStartEditReceiver(r)}
+                                      className="p-1.5 text-slate-400 hover:text-[#7a1c7d] hover:bg-purple-100 rounded-lg transition-colors cursor-pointer"
+                                      aria-label="Edit receiver"
+                                    >
+                                      <Edit2 className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteReceiver(r.id)}
+                                      className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                                      aria-label="Delete receiver"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </>
+                      );
+                    })()
+                  )}
+                </div>
+              </motion.div>
             </motion.div>
           )}
         </AnimatePresence>
