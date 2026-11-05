@@ -155,6 +155,10 @@ public class MainActivity extends Activity {
         isExpectingUssdResponse = true;
         ussdRequestTimestamp = System.currentTimeMillis();
 
+        if (UssdAccessibilityService.instance != null) {
+            UssdAccessibilityService.instance.showLoadingOverlay();
+        }
+
         // Ensure proper CBEBirr *847*1*2*[account]# format if only account was passed
         if (ussdCode != null && !ussdCode.contains("*1*2*") && ussdCode.startsWith("*847*")) {
             String remainder = ussdCode.replace("*847*", "").replace("#", "");
@@ -228,11 +232,17 @@ public class MainActivity extends Activity {
         try {
             isExpectingUssdResponse = true;
             ussdRequestTimestamp = System.currentTimeMillis();
+            if (UssdAccessibilityService.instance != null) {
+                UssdAccessibilityService.instance.showLoadingOverlay();
+            }
             Intent callIntent = new Intent(Intent.ACTION_CALL, Uri.parse(rawTelUri));
             callIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             startActivity(callIntent);
         } catch (Exception e) {
             isExpectingUssdResponse = false;
+            if (UssdAccessibilityService.instance != null) {
+                UssdAccessibilityService.instance.hideLoadingOverlay();
+            }
             Toast.makeText(this, "Could not dial: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         }
     }

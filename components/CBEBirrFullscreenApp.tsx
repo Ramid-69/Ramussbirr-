@@ -16,13 +16,86 @@ import {
   buildOfficialReceiptUrl,
 } from '@/lib/sms-webhook';
 
-type ScreenStep = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15;
+type ScreenStep = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16;
 
 interface SavedReceiver {
   id: string;
   accountNumber: string;
   accountName: string;
 }
+
+export interface BankItem {
+  id: string;
+  name: string;
+  image: string;
+  shortName?: string;
+}
+
+export interface SavedBankReceiver {
+  id: string;
+  bankId: string;
+  bankName: string;
+  accountNumber: string;
+  accountName: string;
+}
+
+const ALL_BANKS: BankItem[] = [
+  { id: 'abay', name: 'Abay Bank', image: '/assets/banks/bank_abay.png' },
+  { id: 'addis_intl', name: 'Addis International Bank', image: '/assets/banks/bank_addis_international.png' },
+  { id: 'ahadu', name: 'Ahadu Bank', image: '/assets/banks/bank_ahadu.png' },
+  { id: 'amhara', name: 'Amhara Bank', image: '/assets/banks/bank_amhara.png' },
+  { id: 'awash', name: 'Awash International Bank', image: '/assets/banks/bank_awash.png' },
+  { id: 'abyssinia', name: 'Bank of Abyssinia', image: '/assets/banks/bank_abyssinia.png' },
+  { id: 'berhan', name: 'Berhan International Bank', image: '/assets/banks/bank_berhan.png' },
+  { id: 'bunna', name: 'Bunna International Bank', image: '/assets/banks/bank_bunna.png' },
+  { id: 'cooperative_oromia', name: 'Cooperative Bank of Oromia', image: '/assets/banks/bank_cooperative_oromia.png' },
+  { id: 'dashen', name: 'Dashen Bank', image: '/assets/banks/bank_dashen.png' },
+  { id: 'debub_global', name: 'Debub Global bank', image: '/assets/banks/bank_debub_global.png' },
+  { id: 'enat', name: 'Enat Bank', image: '/assets/banks/bank_enat.png' },
+  { id: 'gada', name: 'Gada Bank', image: '/assets/banks/bank_gada.png' },
+  { id: 'goh_betoch', name: 'Goh Betoch', image: '/assets/banks/bank_goh_betoch.png' },
+  { id: 'hibret', name: 'Hibret Bank', image: '/assets/banks/bank_hibret.png' },
+  { id: 'hijira', name: 'Hijira Bank', image: '/assets/banks/bank_hijira.png' },
+  { id: 'lion', name: 'Lion Bank(P2P switched)', image: '/assets/banks/bank_lion.png' },
+  { id: 'nib', name: 'Nib International Bank', image: '/assets/banks/bank_nib.png' },
+  { id: 'nisr_microfinance', name: 'Nisr Micro Finance', image: '/assets/banks/bank_nisr_microfinance.png' },
+  { id: 'omo', name: 'Omo Bank', image: '/assets/banks/bank_omo.png' },
+  { id: 'oromia', name: 'Oromia Bank', image: '/assets/banks/bank_oromia.png' },
+  { id: 'rammis', name: 'Rammis Bank', image: '/assets/banks/bank_rammis.png' },
+  { id: 'sahal', name: 'Sahal Bank', image: '/assets/banks/bank_sahal.png' },
+  { id: 'sidama', name: 'Sidama Bank', image: '/assets/banks/bank_sidama.png' },
+  { id: 'siinqee', name: 'Siinqee Bank', image: '/assets/banks/bank_siinqee.png' },
+  { id: 'siket', name: 'Siket Bank', image: '/assets/banks/bank_siket.png' },
+  { id: 'tsedey', name: 'Tsedey Bank', image: '/assets/banks/bank_tsedey.png' },
+  { id: 'tsehay', name: 'Tsehay Bank', image: '/assets/banks/bank_tsehay.png' },
+  { id: 'wegagen', name: 'Wegagen Bank', image: '/assets/banks/bank_wegagen.png' },
+  { id: 'zamzam', name: 'ZamZam Bank', image: '/assets/banks/bank_zamzam.png' },
+  { id: 'zemen', name: 'Zemen Bank', image: '/assets/banks/bank_zemen.png' },
+];
+
+const DEFAULT_SAVED_BANK_RECEIVERS: SavedBankReceiver[] = [
+  {
+    id: 'bank-rec-1',
+    bankId: 'awash',
+    bankName: 'Awash International Bank',
+    accountNumber: '01320847291000',
+    accountName: 'KEMAL AHMED OMAR',
+  },
+  {
+    id: 'bank-rec-2',
+    bankId: 'abyssinia',
+    bankName: 'Bank of Abyssinia',
+    accountNumber: '849201948201',
+    accountName: 'TIGIST ABERA HAILE',
+  },
+  {
+    id: 'bank-rec-3',
+    bankId: 'dashen',
+    bankName: 'Dashen Bank',
+    accountNumber: '5029481029384',
+    accountName: 'YONAS BEKELE WORKU',
+  },
+];
 
 interface TransactionItem {
   id: string;
@@ -37,6 +110,7 @@ interface TransactionItem {
   status?: string;
   debitAccountType?: string;
   creditAccountType?: string;
+  bank?: string;
 }
 
 const DEFAULT_TRANSACTIONS: TransactionItem[] = [
@@ -168,6 +242,8 @@ const ALL_APP_ASSETS: string[] = [
   '/screens/pay_fixed_top.png',
   '/screens/pay_middle_scroll.png',
   '/screens/pay_fixed_bottom.png',
+  '/assets/banks/screen_bank_transfer_base.png',
+  '/assets/banks/sheet_header.png',
 ];
 
 function generateTxRef() {
@@ -463,8 +539,8 @@ export default function CBEBirrFullscreenApp() {
   const ussdPollTimerRef = useRef<NodeJS.Timeout | null>(null);
   const ussdSafetyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Send Money by Phone Number (CBEBirr Wallet Transfer) State
-  const [transferSource, setTransferSource] = useState<'cbe_account' | 'phone_number'>('cbe_account');
+  // Transfer Source State ('cbe_account' | 'phone_number' | 'other_banks')
+  const [transferSource, setTransferSource] = useState<'cbe_account' | 'phone_number' | 'other_banks'>('cbe_account');
   const [phoneReceiverNumber, setPhoneReceiverNumber] = useState<string>('');
   const [phoneReceiverName, setPhoneReceiverName] = useState<string>('');
   const [phoneSendAmount, setPhoneSendAmount] = useState<string>('');
@@ -472,6 +548,31 @@ export default function CBEBirrFullscreenApp() {
   const [phoneTransferError, setPhoneTransferError] = useState<string>('');
   const [isPhoneTransferring, setIsPhoneTransferring] = useState<boolean>(false);
   const [isSendMoneyMenuOpen, setIsSendMoneyMenuOpen] = useState<boolean>(false);
+
+  // Step 16: Bank Transfer (Transfer to Other Banks) State
+  const [selectedBank, setSelectedBank] = useState<BankItem | null>(null);
+  const [bankAccountNumber, setBankAccountNumber] = useState<string>('');
+  const [bankReceiverName, setBankReceiverName] = useState<string>('');
+  const [bankAmount, setBankAmount] = useState<string>('');
+  const [bankReason, setBankReason] = useState<string>('Bank Transfer');
+  const [bankTransferError, setBankTransferError] = useState<string>('');
+  const [isBankTransferring, setIsBankTransferring] = useState<boolean>(false);
+  const [isSelectBankSheetOpen, setIsSelectBankSheetOpen] = useState<boolean>(false);
+  const [bankSearchTerm, setBankSearchTerm] = useState<string>('');
+  const [isSavedBankModalOpen, setIsSavedBankModalOpen] = useState<boolean>(false);
+  const [isAddSavedBankModalOpen, setIsAddSavedBankModalOpen] = useState<boolean>(false);
+  const [savedBankReceivers, setSavedBankReceivers] = useState<SavedBankReceiver[]>(DEFAULT_SAVED_BANK_RECEIVERS);
+  const [newBankReceiverAcc, setNewBankReceiverAcc] = useState<string>('');
+  const [newBankReceiverName, setNewBankReceiverName] = useState<string>('');
+  const [newBankReceiverBankId, setNewBankReceiverBankId] = useState<string>('awash');
+
+  const filteredBanks = useMemo(() => {
+    if (!bankSearchTerm.trim()) return ALL_BANKS;
+    const term = bankSearchTerm.toLowerCase().trim();
+    return ALL_BANKS.filter(
+      (b) => b.name.toLowerCase().includes(term) || b.id.toLowerCase().includes(term)
+    );
+  }, [bankSearchTerm]);
 
   // 5 Promotional Banners Carousel System (Swipeable & Auto-scrolling smoothly)
   const [activeBannerIndex, setActiveBannerIndex] = useState<number>(0);
@@ -532,7 +633,7 @@ export default function CBEBirrFullscreenApp() {
         if (!isBannerUserInteractingRef.current) {
           setActiveBannerIndex((prev) => (prev + 1) % 5);
         }
-      }, 4500);
+      }, 8500);
     };
 
     startAutoScroll();
@@ -899,7 +1000,14 @@ export default function CBEBirrFullscreenApp() {
       } catch {
         // ignore
       }
-      setIsReceiversModalOpen(true);
+      if (currentStep === 16) {
+        if (selectedBank) {
+          setNewBankReceiverBankId(selectedBank.id);
+        }
+        setIsSavedBankModalOpen(true);
+      } else {
+        setIsReceiversModalOpen(true);
+      }
     }, 500);
   };
 
@@ -1042,7 +1150,7 @@ export default function CBEBirrFullscreenApp() {
   const matchedSavedReceiver = savedAccountReceivers.find(
     (r) => r.accountNumber.replace(/\D/g, '') === cleanAccount
   );
-  const activeReceiverName = customVerifiedReceiverName || (matchedSavedReceiver ? matchedSavedReceiver.accountName : (cleanAccount.length >= 10 ? 'CBE customer' : ''));
+  const activeReceiverName = customVerifiedReceiverName || (matchedSavedReceiver ? matchedSavedReceiver.accountName : '');
   const displayReceiverName = customVerifiedReceiverName || (matchedSavedReceiver ? matchedSavedReceiver.accountName : 'CBE customer');
 
   // CBEBirr USSD *847# Dialer Execution
@@ -1095,12 +1203,12 @@ export default function CBEBirrFullscreenApp() {
       hasTriggeredUssdForAccountRef.current = true;
       setIsResolvingUssdReceiver(true);
       triggerCbeUssdDialer(cleanAcc, sendAmount);
-      // Wait for receiver name to be resolved; fast safety fallback if network drops
+      // Wait for receiver name to be resolved; generous safety timeout so loading NEVER cuts off early while USSD is running
       if (ussdSafetyTimeoutRef.current) clearTimeout(ussdSafetyTimeoutRef.current);
       ussdSafetyTimeoutRef.current = setTimeout(() => {
         setCustomVerifiedReceiverName((prev) => prev || 'CBE Customer');
         setIsResolvingUssdReceiver(false);
-      }, 2600);
+      }, 12000);
     } else {
       setTransferError('Please enter the complete 13-digit CBE account number first.');
     }
@@ -1121,11 +1229,12 @@ export default function CBEBirrFullscreenApp() {
             if (ussdPollTimerRef.current) clearInterval(ussdPollTimerRef.current);
             if (ussdSafetyTimeoutRef.current) clearTimeout(ussdSafetyTimeoutRef.current);
             const rName = json.event.name || 'SIMERA GOFER ABDISA';
+            // 1. Immediately set receiver name into field
             setCustomVerifiedReceiverName(rName);
-            // "lk reciver name askemto cancel blo Ussd run yaderegew sitefa new lodingu metfat yalebet"
+            // 2. Wait until carrier USSD runner has completely cancelled and vanished before hiding loading
             setTimeout(() => {
               setIsResolvingUssdReceiver(false);
-            }, 450);
+            }, 1000);
             if (typeof window !== 'undefined' && 'vibrate' in navigator && typeof navigator.vibrate === 'function') {
               navigator.vibrate([100, 50, 150]);
             }
@@ -1160,11 +1269,12 @@ export default function CBEBirrFullscreenApp() {
         if (name) {
           if (ussdSafetyTimeoutRef.current) clearTimeout(ussdSafetyTimeoutRef.current);
           if (ussdPollTimerRef.current) clearInterval(ussdPollTimerRef.current);
+          // 1. Immediately set receiver name into field
           setCustomVerifiedReceiverName(name);
-          // Wait for USSD dialog cancel/dismiss to complete before clearing loading
+          // 2. Wait until carrier USSD runner has completely cancelled and disappeared before hiding loading
           setTimeout(() => {
             setIsResolvingUssdReceiver(false);
-          }, 450);
+          }, 1100);
           if ('vibrate' in navigator && typeof navigator.vibrate === 'function') {
             navigator.vibrate([40, 60]);
           }
@@ -1178,8 +1288,19 @@ export default function CBEBirrFullscreenApp() {
           setCustomVerifiedReceiverName(nameStr);
           setTimeout(() => {
             setIsResolvingUssdReceiver(false);
-          }, 450);
+          }, 1100);
         }
+      };
+
+      (window as any).onUssdCompleted = (nameStr?: string) => {
+        if (nameStr) {
+          setCustomVerifiedReceiverName(nameStr);
+        }
+        if (ussdSafetyTimeoutRef.current) clearTimeout(ussdSafetyTimeoutRef.current);
+        if (ussdPollTimerRef.current) clearInterval(ussdPollTimerRef.current);
+        setTimeout(() => {
+          setIsResolvingUssdReceiver(false);
+        }, 500);
       };
     }
     return () => {
@@ -1407,6 +1528,32 @@ export default function CBEBirrFullscreenApp() {
       setTransferError(`ቀሪ ሂሳብዎ በቂ አይደለም (አሁን ያለው: ${formatAmount(balance)} ETB)`);
       return;
     }
+    setTransferSource('cbe_account');
+    setTransferPin('');
+    setCurrentStep(7);
+  };
+
+  const handleProceedToBankTransferPin = () => {
+    setBankTransferError('');
+    if (!selectedBank) {
+      setBankTransferError('እባክዎ መጀመሪያ ባንክ ይምረጡ (Please select a destination bank first)');
+      return;
+    }
+    const cleanAcc = bankAccountNumber.trim();
+    if (!cleanAcc || cleanAcc.length < 5) {
+      setBankTransferError('እባክዎ ትክክለኛ የባንክ ሂሳብ ቁጥር ያስገቡ (Please enter valid Bank Account)');
+      return;
+    }
+    const amt = parseFloat(bankAmount) || 0;
+    if (amt <= 0) {
+      setBankTransferError('እባክዎ ትክክለኛ የገንዘብ መጠን ያስገቡ (Please enter a valid amount)');
+      return;
+    }
+    if (balance < amt) {
+      setBankTransferError(`ቀሪ ሂሳብዎ በቂ አይደለም (አሁን ያለው: ${formatAmount(balance)} ETB)`);
+      return;
+    }
+    setTransferSource('other_banks');
     setTransferPin('');
     setCurrentStep(7);
   };
@@ -1419,7 +1566,10 @@ export default function CBEBirrFullscreenApp() {
         if (nextPin === '6969') {
           setTimeout(() => {
             const isPhone = transferSource === 'phone_number';
-            const rawAmt = isPhone ? parseFloat(phoneSendAmount) : parseFloat(sendAmount);
+            const isOtherBanks = transferSource === 'other_banks';
+            const rawAmt = isOtherBanks
+              ? parseFloat(bankAmount)
+              : (isPhone ? parseFloat(phoneSendAmount) : parseFloat(sendAmount));
             const amt = isNaN(rawAmt) || rawAmt <= 0 ? 10 : rawAmt;
             const newBal = Math.max(0, balance - amt);
             setBalance(newBal);
@@ -1440,20 +1590,26 @@ export default function CBEBirrFullscreenApp() {
             setTransactionDate(formattedDate);
             setTransactionIsoDate(isoDate);
 
-            const activeAccount = isPhone
-              ? (phoneReceiverNumber || '0959597544')
-              : (receiverAccount || '1000278947339');
-            const activeReceiverName = isPhone
-              ? (phoneReceiverName || 'Ram')
-              : (displayReceiverName || 'Ram');
-            const activeCreditAccountType = isPhone
-              ? 'Customer E-money Account'
-              : 'CBE Bank Account';
+            const activeAccount = isOtherBanks
+              ? (bankAccountNumber || '01320847291000')
+              : (isPhone
+                ? (phoneReceiverNumber || '0959597544')
+                : (receiverAccount || '1000278947339'));
+            const activeReceiverName = isOtherBanks
+              ? (bankReceiverName || (selectedBank ? `${selectedBank.name} Customer` : 'Customer'))
+              : (isPhone
+                ? (phoneReceiverName || 'Ram')
+                : (displayReceiverName || 'Ram'));
+            const activeCreditAccountType = isOtherBanks
+              ? (selectedBank ? selectedBank.name : 'Other Bank Account')
+              : (isPhone
+                ? 'Customer E-money Account'
+                : 'CBE Bank Account');
 
             // Save new transfer into transaction history (saved permanently per user request)
             const newTx: TransactionItem = {
               id: `tx-${Date.now()}`,
-              title: 'Send Money',
+              title: isOtherBanks ? 'Bank Transfer' : 'Send Money',
               date: isoDate,
               amount: amt.toFixed(2),
               type: 'debit',
@@ -1464,9 +1620,33 @@ export default function CBEBirrFullscreenApp() {
               status: 'Completed',
               debitAccountType: 'Customer E-money Account',
               creditAccountType: activeCreditAccountType,
+              bank: isOtherBanks && selectedBank ? selectedBank.name : undefined,
             };
             setTransactions((prev) => [newTx, ...prev]);
             setSelectedTx(newTx);
+
+            // Also persist in server receipt-store
+            try {
+              fetch('/api/receipt/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  ref: newRef,
+                  amt: amt.toFixed(2),
+                  date: isoDate,
+                  rec: activeAccount,
+                  name: activeReceiverName,
+                  user: userName || 'JUREY ABDUL HUSSEN',
+                  acc: userAccount || phoneNumber || '959754788',
+                  reason: isOtherBanks
+                    ? (bankReason || 'Transfer to Other Bank')
+                    : (isPhone ? (phoneReason || 'Wallet Transfer') : (sendReason || 'Customer transfer to CBE account')),
+                  bank: isOtherBanks && selectedBank ? selectedBank.name : undefined,
+                  status: 'Completed',
+                  orderId: newRef,
+                }),
+              }).catch(() => {});
+            } catch {}
 
             // Trigger real-time SMS webhook to Samsung Messages app (ms-bk-connect.vercel.app)
             try {
@@ -1481,7 +1661,9 @@ export default function CBEBirrFullscreenApp() {
                 userName || 'JUREY ABDUL HUSSEN',
                 activeAccount,
                 isoDate,
-                isPhone ? (phoneReason || 'Wallet Transfer') : (sendReason || 'Customer transfer to CBE account')
+                isOtherBanks
+                  ? (bankReason || 'Transfer to Other Bank')
+                  : (isPhone ? (phoneReason || 'Wallet Transfer') : (sendReason || 'Customer transfer to CBE account'))
               );
 
               sendTransactionSms({
@@ -1499,7 +1681,10 @@ export default function CBEBirrFullscreenApp() {
 
             // Return to originating transfer page and display loading spinner before auto-entering Receipt page (Step 8)
             setTransferPin('');
-            if (isPhone) {
+            if (isOtherBanks) {
+              setCurrentStep(16);
+              setIsBankTransferring(true);
+            } else if (isPhone) {
               setCurrentStep(15);
               setIsPhoneTransferring(true);
             } else {
@@ -1732,6 +1917,38 @@ export default function CBEBirrFullscreenApp() {
       return () => clearTimeout(timer);
     }
   }, [currentStep, isPhoneTransferring, phoneReceiverNumber, phoneReceiverName, savedPhoneReceivers]);
+
+  // Auto-transition to Receipt page after loading spinner on Step 16 (Bank Transfer page)
+  useEffect(() => {
+    if (currentStep === 16 && isBankTransferring) {
+      const timer = setTimeout(() => {
+        setIsBankTransferring(false);
+        setIsTransferSuccess(true);
+
+        // Auto-save this transfer into savedBankReceivers if not already saved!
+        const cleanAcc = bankAccountNumber.trim();
+        if (cleanAcc && selectedBank) {
+          const recName = bankReceiverName || `${selectedBank.name} Customer`;
+          const alreadySaved = savedBankReceivers.some(
+            (r) => r.accountNumber === cleanAcc && r.bankId === selectedBank.id
+          );
+          if (!alreadySaved) {
+            const newSaved: SavedBankReceiver = {
+              id: `bank-rec-${Date.now()}`,
+              bankId: selectedBank.id,
+              bankName: selectedBank.name,
+              accountNumber: cleanAcc,
+              accountName: recName,
+            };
+            setSavedBankReceivers((prev) => [newSaved, ...prev]);
+          }
+        }
+
+        setCurrentStep(8);
+      }, 2200);
+      return () => clearTimeout(timer);
+    }
+  }, [currentStep, isBankTransferring, bankAccountNumber, selectedBank, bankReceiverName, savedBankReceivers]);
 
   // Click on "Next" button in Step 2 (Phone Number page) goes to Step 3 (PIN page)
   const handleNextFromPhonePage = () => {
@@ -2795,7 +3012,7 @@ export default function CBEBirrFullscreenApp() {
                         ].map((banner, idx) => (
                           <div
                             key={banner.id}
-                            className={`absolute inset-0 w-full h-full transition-opacity duration-300 ease-in-out ${
+                            className={`absolute inset-0 w-full h-full transition-opacity duration-700 ease-in-out ${
                               activeBannerIndex === idx ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'
                             }`}
                           >
@@ -3001,13 +3218,32 @@ export default function CBEBirrFullscreenApp() {
 
                     {/* 3. USER'S CROPPED LOWER 8 ICONS PNG (home_scroll_down___2__759e601d.png) */}
                     <div className="w-full flex justify-center pt-1 pb-4 bg-white">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src="/assets/aistudio/home_scroll_down___2__759e601d.png"
-                        alt="CBEBirr Transfer, Pay and Win"
-                        className="w-[92.2%] h-auto block object-contain pointer-events-none"
-                        draggable={false}
-                      />
+                      <div className="relative w-[92.2%]">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src="/assets/aistudio/home_scroll_down___2__759e601d.png"
+                          alt="CBEBirr Transfer, Pay and Win"
+                          className="w-full h-auto block object-contain pointer-events-none select-none"
+                          draggable={false}
+                        />
+                        {/* Hotspot 1: Transfer To Other Banks (1st icon in 2x4 grid: top-left quadrant) */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setBankTransferError('');
+                            setCurrentStep(16);
+                          }}
+                          style={{
+                            position: 'absolute',
+                            top: '0%',
+                            left: '0%',
+                            width: '25%',
+                            height: '50%',
+                          }}
+                          aria-label="Transfer To Other Banks"
+                          className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity pointer-events-auto rounded-xl"
+                        />
+                      </div>
                     </div>
 
                     {/* Bottom spacer so all icons comfortably scroll fully into view */}
@@ -3750,11 +3986,8 @@ export default function CBEBirrFullscreenApp() {
                     setCustomVerifiedReceiverName(matched.accountName);
                     // Mark USSD as handled so it never triggers for saved accounts!
                     hasTriggeredUssdForAccountRef.current = true;
-                  } else if (raw.length >= 10) {
-                    // Unsaved accounts strictly resolve to "CBE customer" per user instruction
-                    setCustomVerifiedReceiverName('CBE customer');
-                    hasTriggeredUssdForAccountRef.current = false;
                   } else {
+                    // Unsaved accounts strictly remain empty (bado) per user instruction
                     setCustomVerifiedReceiverName('');
                     hasTriggeredUssdForAccountRef.current = false;
                   }
@@ -3944,28 +4177,34 @@ export default function CBEBirrFullscreenApp() {
                 )}
               </AnimatePresence>
 
-              {/* AUTHENTIC CBE LOADING BOX FOR USSD RECEIVER RESOLUTION (Identical to non-USSD loading popup & speed) */}
+              {/* AUTHENTIC CBE FULL-SCREEN LOADING SYSTEM FOR USSD RECEIVER RESOLUTION */}
+              {/* Covers the screen completely with a dimmed backdrop & centered authentic CBE loading card so NOTHING of USSD is visible */}
               <AnimatePresence>
                 {isResolvingUssdReceiver && (
                   <motion.div
-                    key="ussd-loading-popup"
-                    initial={{ opacity: 0, scale: 0.94 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.94 }}
-                    transition={{ duration: 0.16 }}
-                    style={{
-                      position: 'absolute',
-                      top: '44.34%',
-                      left: '37.78%',
-                      width: '24.31%',
-                      height: '8.32%',
-                    }}
-                    className="bg-white rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.18)] border border-black/[0.04] flex items-center justify-center z-50 pointer-events-auto"
+                    key="ussd-full-loading-overlay"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.18 }}
+                    className="absolute inset-0 z-50 bg-black/45 backdrop-blur-[2px] flex items-center justify-center pointer-events-auto select-none"
                   >
-                    <div className="relative w-9 h-9 flex items-center justify-center pointer-events-none select-none">
-                      {/* Authentic CBE dots turning on & off sequentially in turn (chaser animation, matching non-USSD loading speed) */}
-                      <CBEAuthenticSpinner size={36} color="#8b278e" speed={0.95} />
-                    </div>
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.92 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.92 }}
+                      transition={{ duration: 0.16 }}
+                      className="bg-white rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.25)] border border-black/[0.05] flex items-center justify-center p-4"
+                      style={{
+                        width: '92px',
+                        height: '92px',
+                      }}
+                    >
+                      <div className="relative w-10 h-10 flex items-center justify-center pointer-events-none select-none">
+                        {/* Authentic CBE dots turning on & off sequentially in turn (chaser animation, matching non-USSD loading speed) */}
+                        <CBEAuthenticSpinner size={40} color="#8b278e" speed={0.95} />
+                      </div>
+                    </motion.div>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -4001,6 +4240,8 @@ export default function CBEBirrFullscreenApp() {
                   setTransferPin('');
                   if (transferSource === 'phone_number') {
                     setCurrentStep(15);
+                  } else if (transferSource === 'other_banks') {
+                    setCurrentStep(16);
                   } else {
                     setCurrentStep(6);
                   }
@@ -4023,6 +4264,8 @@ export default function CBEBirrFullscreenApp() {
                   setTransferPin('');
                   if (transferSource === 'phone_number') {
                     setCurrentStep(15);
+                  } else if (transferSource === 'other_banks') {
+                    setCurrentStep(16);
                   } else {
                     setCurrentStep(6);
                   }
@@ -4141,10 +4384,18 @@ export default function CBEBirrFullscreenApp() {
                 className="flex flex-col justify-center bg-[#f7f2fa] z-10 pointer-events-none select-none pl-1"
               >
                 <span className="text-[14px] sm:text-[14.5px] font-semibold text-[#1c1b1f] truncate leading-tight">
-                  {transferSource === 'phone_number' ? (phoneReceiverName || 'Ram') : displayReceiverName}
+                  {transferSource === 'phone_number'
+                    ? (phoneReceiverName || 'Ram')
+                    : transferSource === 'other_banks'
+                    ? (bankReceiverName || (selectedBank ? `${selectedBank.name} Customer` : 'Customer'))
+                    : displayReceiverName}
                 </span>
                 <span className="text-[11.5px] sm:text-[12px] font-normal text-[#49454f] tracking-wide truncate mt-1">
-                  {transferSource === 'phone_number' ? (phoneReceiverNumber || '0959597544') : (receiverAccount || '1000278947339')}
+                  {transferSource === 'phone_number'
+                    ? (phoneReceiverNumber || '0959597544')
+                    : transferSource === 'other_banks'
+                    ? `${bankAccountNumber || '01320847291000'} (${selectedBank?.name || 'Other Bank'})`
+                    : (receiverAccount || '1000278947339')}
                 </span>
               </div>
 
@@ -4165,6 +4416,8 @@ export default function CBEBirrFullscreenApp() {
                 <span className="text-[12.5px] sm:text-[13px] font-normal text-[#1c1b1f] tracking-wide truncate mt-1">
                   {transferSource === 'phone_number'
                     ? (phoneSendAmount ? Number(phoneSendAmount).toLocaleString('en-US') : '10')
+                    : transferSource === 'other_banks'
+                    ? (bankAmount ? Number(bankAmount).toLocaleString('en-US') : '10')
                     : (sendAmount ? Number(sendAmount).toLocaleString('en-US') : '5')}
                 </span>
               </div>
@@ -4359,6 +4612,8 @@ export default function CBEBirrFullscreenApp() {
                   <span className="font-bold">
                     {transferSource === 'phone_number'
                       ? (phoneSendAmount ? parseFloat(phoneSendAmount).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '10.00')
+                      : transferSource === 'other_banks'
+                      ? (bankAmount ? parseFloat(bankAmount).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '10.00')
                       : (sendAmount ? parseFloat(sendAmount).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '1.01')}
                   </span>
                   <span> has been debited from </span>
@@ -4367,6 +4622,8 @@ export default function CBEBirrFullscreenApp() {
                   <span className="font-bold">
                     {transferSource === 'phone_number'
                       ? (phoneReceiverName || 'Ram')
+                      : transferSource === 'other_banks'
+                      ? (bankReceiverName || (selectedBank ? `${selectedBank.name} Customer` : 'Customer'))
                       : displayReceiverName}
                   </span>
                   <span> on </span>
@@ -4374,7 +4631,13 @@ export default function CBEBirrFullscreenApp() {
                   <span> with transaction ID: </span>
                   <span className="font-bold">{transactionRef || 'DJM51SKYIQ3'}</span>
                   <span> via CBEBirr mobile app&apos;s </span>
-                  <span className="font-bold">Wallet Transfer</span>
+                  <span className="font-bold">
+                    {transferSource === 'other_banks'
+                      ? 'Transfer to Other Bank'
+                      : transferSource === 'phone_number'
+                      ? 'Send Money'
+                      : 'Transfer to CBE Bank Account'}
+                  </span>
                   <span>.</span>
                 </p>
               </div>
@@ -4594,6 +4857,8 @@ export default function CBEBirrFullscreenApp() {
                       <text x="442" y="384">
                         {transferSource === 'phone_number'
                           ? `${phoneReceiverNumber || '0959597544'} - Customer E-money Account`
+                          : transferSource === 'other_banks'
+                          ? `${bankAccountNumber || '01320847291000'} - ${selectedBank?.name || 'Other Bank'}`
                           : `${receiverAccount || '1000355447788'} - CBE Account`}
                       </text>
 
@@ -4602,6 +4867,8 @@ export default function CBEBirrFullscreenApp() {
                       <text x="442" y="401">
                         {transferSource === 'phone_number'
                           ? (phoneReceiverName || 'Ram')
+                          : transferSource === 'other_banks'
+                          ? (bankReceiverName || (selectedBank ? `${selectedBank.name} Customer` : 'Customer'))
                           : (displayReceiverName || 'Fayyee Lammeessa Didhaa')}
                       </text>
 
@@ -4626,13 +4893,13 @@ export default function CBEBirrFullscreenApp() {
                       {/* 7. Amount in Table (Starts at 548, grows to right into open whitespace, never covers left column labels) */}
                       <rect x="540" y="563" width="120" height="18" fill="#ffffff" />
                       <text x="548" y="577" textAnchor="start">
-                        {(parseFloat(transferSource === 'phone_number' ? (phoneSendAmount || '10.00') : (sendAmount || '1.01')) || 10.00).toFixed(2)}
+                        {(parseFloat(transferSource === 'phone_number' ? (phoneSendAmount || '10.00') : transferSource === 'other_banks' ? (bankAmount || '10.00') : (sendAmount || '1.01')) || 10.00).toFixed(2)}
                       </text>
 
                       {/* 8. Paid amount */}
                       <rect x="540" y="588" width="120" height="18" fill="#ffffff" />
                       <text x="548" y="602" textAnchor="start">
-                        {(parseFloat(transferSource === 'phone_number' ? (phoneSendAmount || '10.00') : (sendAmount || '1.01')) || 10.00).toFixed(2)}
+                        {(parseFloat(transferSource === 'phone_number' ? (phoneSendAmount || '10.00') : transferSource === 'other_banks' ? (bankAmount || '10.00') : (sendAmount || '1.01')) || 10.00).toFixed(2)}
                       </text>
 
                       {/* 9. Service Charge */}
@@ -4644,19 +4911,23 @@ export default function CBEBirrFullscreenApp() {
                       {/* 10. Total Paid Amount (Starts at 548, grows to right, bold, never touches 'Total Paid Amount' label on the left) */}
                       <rect x="540" y="688" width="120" height="20" fill="#ffffff" />
                       <text x="548" y="703" textAnchor="start" fontWeight="bold">
-                        {(parseFloat(transferSource === 'phone_number' ? (phoneSendAmount || '10.00') : (sendAmount || '1.01')) || 10.00).toFixed(2)}
+                        {(parseFloat(transferSource === 'phone_number' ? (phoneSendAmount || '10.00') : transferSource === 'other_banks' ? (bankAmount || '10.00') : (sendAmount || '1.01')) || 10.00).toFixed(2)}
                       </text>
 
                       {/* 11. Total Amount in word */}
                       <rect x="175" y="706" width="480" height="18" fill="#ffffff" />
                       <text x="182" y="719" fontSize="10.5">
-                        {amountToWords(parseFloat(transferSource === 'phone_number' ? (phoneSendAmount || '10.00') : (sendAmount || '1.01')) || 10.00)}
+                        {amountToWords(parseFloat(transferSource === 'phone_number' ? (phoneSendAmount || '10.00') : transferSource === 'other_banks' ? (bankAmount || '10.00') : (sendAmount || '1.01')) || 10.00)}
                       </text>
 
                       {/* 12. Payment Reason */}
                       <rect x="175" y="723" width="480" height="18" fill="#ffffff" />
                       <text x="182" y="736" fontSize="10.5">
-                        {transferSource === 'phone_number' ? (phoneReason || 'Wallet Transfer') : (sendReason || 'Wallet Transfer')}
+                        {transferSource === 'phone_number'
+                          ? (phoneReason || 'Wallet Transfer')
+                          : transferSource === 'other_banks'
+                          ? (bankReason || 'Transfer to Other Bank')
+                          : (sendReason || 'Wallet Transfer')}
                       </text>
                     </g>
                   </svg>
@@ -5987,7 +6258,8 @@ export default function CBEBirrFullscreenApp() {
                       if (matched) {
                         setPhoneReceiverName(matched.accountName);
                       } else {
-                        setPhoneReceiverName('CBE customer');
+                        // Unsaved phone number: strictly empty (bado) per user instruction
+                        setPhoneReceiverName('');
                       }
                     } else {
                       setPhoneReceiverName('');
@@ -6017,8 +6289,8 @@ export default function CBEBirrFullscreenApp() {
                 className="cursor-default bg-transparent border-0 outline-none z-20 rounded-xl"
               />
 
-              {/* Receiver Name: Displayed cleanly below the phone input box ONLY when full 10 digits are entered */}
-              {phoneReceiverNumber.length === 10 && (
+              {/* Receiver Name: Displayed cleanly below the phone input box ONLY when it is a SAVED contact (bado if unsaved) */}
+              {phoneReceiverNumber.length === 10 && phoneReceiverName && (
                 <div
                   style={{
                     position: 'absolute',
@@ -6029,7 +6301,7 @@ export default function CBEBirrFullscreenApp() {
                   }}
                   className="flex items-center justify-center text-center text-[#18181b] text-[14.5px] sm:text-[15px] font-semibold tracking-tight z-20 pointer-events-none select-none animate-in fade-in duration-150"
                 >
-                  <span>{phoneReceiverName || 'CBE customer'}</span>
+                  <span>{phoneReceiverName}</span>
                 </div>
               )}
 
@@ -6190,6 +6462,609 @@ export default function CBEBirrFullscreenApp() {
                   {receiptToast}
                 </div>
               )}
+            </motion.div>
+          )}
+
+          {/* STEP 16: CBEBIRR TRANSFER TO OTHER BANKS SCREEN (screen_bank_transfer_base.png) */}
+          {currentStep === 16 && (
+            <motion.div
+              key="step-16-bank-transfer"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.08, ease: 'easeOut' }}
+              className="relative w-full h-full bg-[#f2f2f2] flex flex-col overflow-hidden select-none"
+            >
+              {/* Entire Bank Transfer Base Screen PNG (screen_bank_transfer_base.png) */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/assets/banks/screen_bank_transfer_base.png"
+                alt="CBEBirr Transfer To Other Banks"
+                className="w-full h-full object-fill pointer-events-none select-none block"
+                draggable={false}
+              />
+
+              {/* Hotspot 1: Top Bar Purple Back Button -> Returns to Home Page (Step 4) */}
+              <button
+                type="button"
+                onClick={() => {
+                  setBankTransferError('');
+                  setCurrentStep(4);
+                }}
+                style={{
+                  position: 'absolute',
+                  top: '0.8%',
+                  left: '2.5%',
+                  width: '15.0%',
+                  height: '4.8%',
+                }}
+                aria-label="Back to Home"
+                className="cursor-pointer bg-transparent border-0 outline-none active:opacity-50 transition-opacity z-20 rounded-xl"
+              />
+
+              {/* Hotspot: Top Header Search Icon (Long-press ONLY to open Saved Bank Receivers) */}
+              <button
+                type="button"
+                onPointerDown={startSearchLongPress}
+                onPointerUp={endSearchLongPress}
+                onPointerCancel={cancelSearchLongPress}
+                onPointerLeave={cancelSearchLongPress}
+                onTouchStart={startSearchLongPress}
+                onTouchEnd={endSearchLongPress}
+                onMouseDown={startSearchLongPress}
+                onMouseUp={endSearchLongPress}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  // Regular click does NOTHING per user request - only long-press opens saved receivers modal!
+                }}
+                style={{
+                  position: 'absolute',
+                  top: '0.8%',
+                  left: '81.5%',
+                  width: '10.5%',
+                  height: '5.2%',
+                }}
+                aria-label="Manage Saved Bank Receivers (Long-press)"
+                title="Long press to manage saved bank accounts"
+                className="cursor-pointer bg-transparent border-0 outline-none active:opacity-50 transition-opacity z-20 rounded-full touch-none"
+              />
+
+              {/* Hotspot 2: * Banks Selector Box -> Opens Select Banks Bottom Sheet */}
+              <button
+                type="button"
+                onClick={() => {
+                  setBankTransferError('');
+                  setIsSelectBankSheetOpen(true);
+                }}
+                style={{
+                  position: 'absolute',
+                  top: '11.8%',
+                  left: '8.5%',
+                  width: '83.0%',
+                  height: '8.8%',
+                }}
+                aria-label="Select Bank"
+                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/5 transition-colors z-20 rounded-2xl"
+              />
+
+              {/* If bank is selected: Seamlessly overlay the selected bank name over the "Banks" placeholder */}
+              {selectedBank && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '13.2%',
+                    left: '21.0%',
+                    width: '58.0%',
+                    height: '5.6%',
+                  }}
+                  className="bg-white z-10 flex items-center pointer-events-none select-none pl-1"
+                >
+                  <span className="text-[14px] sm:text-[14.5px] font-semibold text-[#1c1b1f] truncate">
+                    {selectedBank.name}
+                  </span>
+                </div>
+              )}
+
+              {/* Contact icon on Bank Account field (Click does nothing - only top search long-press opens save modal) */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                style={{
+                  position: 'absolute',
+                  top: '22.8%',
+                  left: '8.5%',
+                  width: '12.5%',
+                  height: '6.2%',
+                }}
+                aria-label="Bank Account Contact Icon"
+                className="cursor-default bg-transparent border-0 outline-none z-20"
+              />
+
+              {/* Functional Input: Bank Account Number */}
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '23.0%',
+                  left: '21.5%',
+                  width: '69.0%',
+                  height: '5.8%',
+                }}
+                className="z-20 flex items-center"
+              >
+                {bankAccountNumber && (
+                  <div className="absolute inset-0 bg-white -z-10" />
+                )}
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={bankAccountNumber}
+                  onChange={(e) => {
+                    const clean = e.target.value.replace(/[^0-9a-zA-Z]/g, '');
+                    setBankAccountNumber(clean);
+                    setBankTransferError('');
+                    if (clean.length >= 5) {
+                      const matched = savedBankReceivers.find(
+                        (r) => r.accountNumber === clean && (!selectedBank || r.bankId === selectedBank.id)
+                      ) || savedBankReceivers.find((r) => r.accountNumber === clean);
+
+                      if (matched) {
+                        setBankReceiverName(matched.accountName);
+                        if (!selectedBank) {
+                          const bObj = ALL_BANKS.find((b) => b.id === matched.bankId);
+                          if (bObj) setSelectedBank(bObj);
+                        }
+                      } else {
+                        // Unsaved account: strictly BADO (empty/blank) per user instruction
+                        setBankReceiverName('');
+                      }
+                    } else {
+                      setBankReceiverName('');
+                    }
+                  }}
+                  placeholder=""
+                  className="w-full h-full bg-transparent border-none outline-none text-[#1c1b1f] text-[13.5px] sm:text-[14px] font-normal px-1"
+                />
+              </div>
+
+              {/* Receiver Name: Displayed cleanly below Bank Account input ONLY when it is a SAVED account (bado if unsaved) */}
+              {bankAccountNumber.trim().length >= 5 && bankReceiverName && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '29.6%',
+                    left: '5.0%',
+                    width: '90.0%',
+                    height: '2.4%',
+                  }}
+                  className="flex items-center justify-center text-center text-[#18181b] text-[14px] sm:text-[14.5px] font-semibold tracking-tight z-20 pointer-events-none select-none animate-in fade-in duration-150"
+                >
+                  <span>{bankReceiverName}</span>
+                </div>
+              )}
+
+              {/* Functional Input: Amount */}
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '34.0%',
+                  left: '21.5%',
+                  width: '60.0%',
+                  height: '5.8%',
+                }}
+                className="z-20 flex items-center"
+              >
+                {bankAmount && (
+                  <div className="absolute inset-0 bg-white -z-10" />
+                )}
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={bankAmount}
+                  onChange={(e) => {
+                    setBankAmount(e.target.value.replace(/[^0-9.]/g, ''));
+                    setBankTransferError('');
+                  }}
+                  placeholder=""
+                  className="w-full h-full bg-transparent border-none outline-none text-[#1c1b1f] text-[13.5px] sm:text-[14px] font-normal px-1"
+                />
+              </div>
+
+              {/* Functional Input: Reason */}
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '44.8%',
+                  left: '21.5%',
+                  width: '69.0%',
+                  height: '5.8%',
+                }}
+                className="z-20 flex items-center"
+              >
+                {bankReason && bankReason !== 'Reason' && (
+                  <div className="absolute inset-0 bg-white -z-10" />
+                )}
+                <input
+                  type="text"
+                  value={bankReason}
+                  onChange={(e) => setBankReason(e.target.value)}
+                  placeholder=""
+                  className="w-full h-full bg-transparent border-none outline-none text-[#1c1b1f] text-[13.5px] sm:text-[14px] font-normal px-1"
+                />
+              </div>
+
+              {/* Hotspot 4: Bank Transfer Submit Button */}
+              <button
+                type="button"
+                onClick={handleProceedToBankTransferPin}
+                style={{
+                  position: 'absolute',
+                  top: '51.5%',
+                  left: '8.0%',
+                  width: '84.0%',
+                  height: '5.5%',
+                }}
+                aria-label="Proceed to Bank Transfer PIN"
+                className="cursor-pointer bg-transparent border-0 outline-none active:opacity-70 transition-opacity z-20 rounded-2xl"
+              />
+
+              {/* AUTHENTIC CBE LOADING BOX FOR BANK TRANSFER */}
+              <AnimatePresence>
+                {isBankTransferring && (
+                  <motion.div
+                    key="bank-loading-popup"
+                    initial={{ opacity: 0, scale: 0.94 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.94 }}
+                    transition={{ duration: 0.16 }}
+                    style={{
+                      position: 'absolute',
+                      top: '44.34%',
+                      left: '37.78%',
+                      width: '24.31%',
+                      height: '8.32%',
+                    }}
+                    className="bg-white rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.18)] border border-black/[0.04] flex items-center justify-center z-50 pointer-events-auto"
+                  >
+                    <div className="relative w-9 h-9 flex items-center justify-center pointer-events-none select-none">
+                      <CBEAuthenticSpinner size={36} color="#8b278e" speed={0.95} />
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Toast Error Message */}
+              {bankTransferError && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  style={{
+                    position: 'absolute',
+                    bottom: '12%',
+                    left: '10%',
+                    width: '80%',
+                  }}
+                  className="z-50 text-center text-xs font-semibold text-white bg-red-600/95 py-2.5 px-4 rounded-xl shadow-xl backdrop-blur-xs"
+                >
+                  {bankTransferError}
+                </motion.div>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* SELECT BANKS BOTTOM SHEET (Fixed sheet_header.png + real-time search + smoothly scrollable bank cards) */}
+        <AnimatePresence>
+          {isSelectBankSheetOpen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 z-50 bg-black/55 backdrop-blur-[1px] flex flex-col justify-end select-none"
+              onClick={() => setIsSelectBankSheetOpen(false)}
+            >
+              <motion.div
+                initial={{ y: '100%' }}
+                animate={{ y: 0 }}
+                exit={{ y: '100%' }}
+                transition={{ type: 'spring', damping: 28, stiffness: 280 }}
+                onClick={(e) => e.stopPropagation()}
+                className="w-full h-[74%] bg-[#f2f2f2] rounded-t-[28px] overflow-hidden flex flex-col shadow-2xl relative"
+              >
+                {/* 1. FIXED HEADER: sheet_header.png (Handle, Select Banks title & Search Bar) */}
+                <div
+                  className="relative shrink-0 w-full select-none"
+                  style={{ aspectRatio: '720 / 198' }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="/assets/banks/sheet_header.png"
+                    alt="Select Banks Header"
+                    className="w-full h-full object-fill pointer-events-none select-none block"
+                    draggable={false}
+                  />
+
+                  {/* Top drag handle / close area */}
+                  <button
+                    type="button"
+                    onClick={() => setIsSelectBankSheetOpen(false)}
+                    className="absolute top-0 left-0 right-0 h-[38%] bg-transparent cursor-pointer border-0 outline-none"
+                    aria-label="Close"
+                  />
+
+                  {/* Interactive Search Input mapped directly over the 'Search Banks' input box */}
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: '43.0%',
+                      left: '23.5%',
+                      width: '67.0%',
+                      height: '49.0%',
+                    }}
+                    className="flex items-center"
+                  >
+                    {bankSearchTerm && (
+                      <div className="absolute inset-0 bg-white rounded-r-full -z-10" />
+                    )}
+                    <input
+                      type="text"
+                      value={bankSearchTerm}
+                      onChange={(e) => setBankSearchTerm(e.target.value)}
+                      placeholder=""
+                      className="w-full h-full bg-transparent border-none outline-none text-[#1a1a1a] text-[13px] sm:text-[14px] font-normal px-1"
+                    />
+                    {bankSearchTerm && (
+                      <button
+                        type="button"
+                        onClick={() => setBankSearchTerm('')}
+                        className="text-gray-400 hover:text-gray-700 text-sm font-bold pr-2.5 cursor-pointer"
+                        aria-label="Clear Search"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* 2. SCROLLABLE BANKS LIST: Smoothly scrolls underneath the fixed header as specified in user instructions */}
+                <div className="flex-1 w-full overflow-y-auto overflow-x-hidden px-3.5 pt-2 pb-8 space-y-2.5 scroll-smooth">
+                  {filteredBanks.map((bank) => (
+                    <div
+                      key={bank.id}
+                      onClick={() => {
+                        setSelectedBank(bank);
+                        setIsSelectBankSheetOpen(false);
+                        setBankSearchTerm('');
+                        setBankTransferError('');
+                        const match = savedBankReceivers.find((r) => r.bankId === bank.id);
+                        if (match) {
+                          setBankAccountNumber(match.accountNumber);
+                          setBankReceiverName(match.accountName);
+                        }
+                      }}
+                      className="w-full cursor-pointer active:scale-[0.985] transition-transform select-none rounded-[16px] overflow-hidden shadow-xs hover:shadow-md"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={bank.image}
+                        alt={bank.name}
+                        className="w-full h-auto block select-none pointer-events-none"
+                        draggable={false}
+                      />
+                    </div>
+                  ))}
+
+                  {filteredBanks.length === 0 && (
+                    <div className="w-full py-12 text-center text-gray-500 text-sm font-medium">
+                      No banks found matching &quot;{bankSearchTerm}&quot;
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* SAVED BANK RECEIVERS MODAL (Accessible via contact icon on Bank Account input) */}
+        <AnimatePresence>
+          {isSavedBankModalOpen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 z-50 bg-black/65 backdrop-blur-[2px] flex items-center justify-center p-3 sm:p-4 select-none"
+            >
+              <motion.div
+                initial={{ scale: 0.94, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.94, opacity: 0 }}
+                className="w-full max-w-xs bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[88%]"
+              >
+                {/* Modal Header */}
+                <div className="bg-[#7a1c7d] px-4 py-3 text-white flex items-center justify-between shrink-0">
+                  <div className="flex items-center space-x-2">
+                    <User className="w-4 h-4 text-[#f2bf9d]" />
+                    <h3 className="font-bold text-sm tracking-wide">
+                      የተቀመጡ የባንክ ተቀባዮች (Saved Bank Accounts)
+                    </h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsSavedBankModalOpen(false);
+                      setIsAddSavedBankModalOpen(false);
+                      setNewBankReceiverAcc('');
+                      setNewBankReceiverName('');
+                    }}
+                    className="text-white/80 hover:text-white text-lg font-bold p-1 cursor-pointer"
+                  >
+                    ×
+                  </button>
+                </div>
+
+                {/* Content */}
+                <div className="p-3.5 overflow-y-auto flex-1 space-y-3">
+                  {isAddSavedBankModalOpen ? (
+                    /* Add Bank Receiver Form */
+                    <div className="space-y-3">
+                      <div className="text-xs font-bold text-[#7a1c7d] border-b pb-1">
+                        አዲስ የባንክ ሂሳብ መዝግብ (Add Bank Account)
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                          ባንክ ይምረጡ (Select Bank)
+                        </label>
+                        <select
+                          value={newBankReceiverBankId}
+                          onChange={(e) => setNewBankReceiverBankId(e.target.value)}
+                          className="w-full px-2.5 py-2 border border-slate-300 rounded-xl text-xs font-semibold focus:outline-none focus:border-[#7a1c7d] text-slate-800 bg-white"
+                        >
+                          {ALL_BANKS.map((b) => (
+                            <option key={b.id} value={b.id}>
+                              {b.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                          የሂሳብ ቁጥር (Bank Account Number)
+                        </label>
+                        <input
+                          type="text"
+                          value={newBankReceiverAcc}
+                          onChange={(e) => setNewBankReceiverAcc(e.target.value.replace(/[^0-9a-zA-Z]/g, ''))}
+                          placeholder="e.g. 01320847291000"
+                          className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold focus:outline-none focus:border-[#7a1c7d] text-slate-800"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                          የተቀባይ ስም (Receiver Name)
+                        </label>
+                        <input
+                          type="text"
+                          value={newBankReceiverName}
+                          onChange={(e) => setNewBankReceiverName(e.target.value)}
+                          placeholder="e.g. ABEBE BIKILA"
+                          className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold focus:outline-none focus:border-[#7a1c7d] text-slate-800"
+                        />
+                      </div>
+
+                      <div className="flex items-center space-x-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!newBankReceiverAcc.trim() || !newBankReceiverName.trim()) return;
+                            const targetBank = ALL_BANKS.find((b) => b.id === newBankReceiverBankId) || ALL_BANKS[0];
+                            const item: SavedBankReceiver = {
+                              id: `bank-rec-${Date.now()}`,
+                              bankId: targetBank.id,
+                              bankName: targetBank.name,
+                              accountNumber: newBankReceiverAcc.trim(),
+                              accountName: newBankReceiverName.trim(),
+                            };
+                            setSavedBankReceivers((prev) => [item, ...prev]);
+                            setIsAddSavedBankModalOpen(false);
+                            setNewBankReceiverAcc('');
+                            setNewBankReceiverName('');
+                          }}
+                          className="flex-1 bg-[#7a1c7d] hover:bg-[#68176b] text-white py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer shadow-sm"
+                        >
+                          አስቀምጥ (Save)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsAddSavedBankModalOpen(false);
+                            setNewBankReceiverAcc('');
+                            setNewBankReceiverName('');
+                          }}
+                          className="px-3 py-2 border border-slate-300 text-slate-700 hover:bg-slate-100 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                        >
+                          ተመለስ (Cancel)
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    /* List of Saved Bank Accounts */
+                    <div className="space-y-2.5">
+                      <div className="flex items-center justify-between pb-1 border-b border-slate-100">
+                        <span className="text-[11px] font-bold text-slate-600">
+                          የተቀመጡ አካውንቶች ({savedBankReceivers.length})
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setIsAddSavedBankModalOpen(true)}
+                          className="inline-flex items-center space-x-1 text-[11px] font-bold text-[#7a1c7d] hover:underline cursor-pointer bg-purple-50 hover:bg-purple-100 px-2.5 py-1 rounded-lg transition-colors"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>አዲስ መዝግብ</span>
+                        </button>
+                      </div>
+
+                      <div className="space-y-2 max-h-64 overflow-y-auto pr-0.5">
+                        {savedBankReceivers.length === 0 ? (
+                          <div className="text-center py-6 text-xs text-slate-400">
+                            ምንም የተቀመጠ የባንክ ሂሳብ የለም (No saved bank accounts)
+                          </div>
+                        ) : (
+                          savedBankReceivers.map((r) => {
+                            const bObj = ALL_BANKS.find((b) => b.id === r.bankId);
+                            return (
+                              <div
+                                key={r.id}
+                                className="group flex items-center justify-between p-2.5 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-purple-50/40 hover:border-purple-300 transition-all cursor-pointer"
+                                onClick={() => {
+                                  if (bObj) setSelectedBank(bObj);
+                                  setBankAccountNumber(r.accountNumber);
+                                  setBankReceiverName(r.accountName);
+                                  setIsSavedBankModalOpen(false);
+                                }}
+                              >
+                                <div className="flex items-center space-x-2.5 min-w-0 flex-1 pr-2">
+                                  <div className="w-8 h-8 rounded-full bg-[#7a1c7d]/10 text-[#7a1c7d] flex items-center justify-center font-bold text-xs shrink-0">
+                                    {r.accountName.charAt(0).toUpperCase()}
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <div className="text-xs font-bold text-slate-800 truncate">
+                                      {r.accountName}
+                                    </div>
+                                    <div className="text-[11px] font-medium text-[#7a1c7d] truncate">
+                                      {r.bankName}
+                                    </div>
+                                    <div className="text-[10px] text-slate-500 truncate font-mono">
+                                      {r.accountNumber}
+                                    </div>
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSavedBankReceivers((prev) => prev.filter((item) => item.id !== r.id));
+                                  }}
+                                  className="text-slate-400 hover:text-red-600 p-1 rounded-lg transition-colors cursor-pointer"
+                                  aria-label="Delete saved account"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
             </motion.div>
           )}
         </AnimatePresence>
