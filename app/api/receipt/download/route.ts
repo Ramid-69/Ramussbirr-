@@ -78,6 +78,7 @@ export async function GET(req: NextRequest) {
       rawAcc = rawAcc.slice(3);
     }
     const userAcc = rawAcc;
+    const bank = searchParams.get('bank') || (stored && stored.bank) || '';
     const reason = searchParams.get('reason') || (stored && stored.reason) || 'Wallet Transfer';
     const format = searchParams.get('format') || 'pdf';
     const inline = searchParams.get('inline') === '1' || searchParams.get('inline') === 'true';
@@ -90,7 +91,7 @@ export async function GET(req: NextRequest) {
     const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || 'localhost:3000';
     const proto = req.headers.get('x-forwarded-proto') || 'https';
     const origin = `${proto}://${host}`;
-    const qrTargetUrl = `${origin}/official-receipt?TID=${encodeURIComponent(ref)}&PH=${encodeURIComponent(userAcc)}`;
+    const qrTargetUrl = `${origin}/official-receipt?TID=${encodeURIComponent(ref)}&PH=${encodeURIComponent(userAcc)}${bank ? `&bank=${encodeURIComponent(bank)}` : ''}`;
 
     // Official VAT receipt QR code has NO center logo, matching authentic CBE invoice design
     const styledQrSvg = generateStyledQrSvg(qrTargetUrl, {
@@ -120,7 +121,7 @@ export async function GET(req: NextRequest) {
         <text x="884" y="736" class="val">${escapeXml(userAcc)} - ${escapeXml(user.toUpperCase())}</text>
 
         <!-- 2. Credit Account Value -->
-        <text x="884" y="768" class="val">${escapeXml(rec)} - ${rec.startsWith('0') ? 'MPESA' : 'CBE Account'}</text>
+        <text x="884" y="768" class="val">${escapeXml(rec)} - ${bank ? escapeXml(bank) + ' Account' : (rec.startsWith('0') ? 'MPESA' : 'CBE Account')}</text>
 
         <!-- 3. Receiver Name Value -->
         <text x="884" y="802" class="val">${escapeXml(recName)}</text>

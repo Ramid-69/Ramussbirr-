@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, Download, Share2, Printer, Search, Trash2, Edit2, Plus, User, ChevronRight, Receipt, MapPin, Phone, Info, HelpCircle, Fingerprint, WifiOff, CheckCircle2, MessageSquare, RefreshCw, Send, Check } from 'lucide-react';
 import CBEAuthenticSpinner from './CBEAuthenticSpinner';
@@ -465,8 +465,8 @@ export default function CBEBirrFullscreenApp() {
 
   // Send Money by Phone Number (CBEBirr Wallet Transfer) State
   const [transferSource, setTransferSource] = useState<'cbe_account' | 'phone_number'>('cbe_account');
-  const [phoneReceiverNumber, setPhoneReceiverNumber] = useState<string>('0959597544');
-  const [phoneReceiverName, setPhoneReceiverName] = useState<string>('Ram');
+  const [phoneReceiverNumber, setPhoneReceiverNumber] = useState<string>('');
+  const [phoneReceiverName, setPhoneReceiverName] = useState<string>('');
   const [phoneSendAmount, setPhoneSendAmount] = useState<string>('');
   const [phoneReason, setPhoneReason] = useState<string>('');
   const [phoneTransferError, setPhoneTransferError] = useState<string>('');
@@ -737,8 +737,8 @@ export default function CBEBirrFullscreenApp() {
   const lastStep10TxRef = useRef<string | null>(null);
 
   // Background non-UI SMS trigger strictly following CBEBirr format (does not block UI or add widgets)
-  const backgroundSendSms = (tx: TransactionItem) => {
-    const amtNum = typeof tx.amount === 'number' ? tx.amount : parseFloat(tx.amount) || 10;
+  const backgroundSendSms = useCallback((tx: TransactionItem) => {
+    const amtNum = typeof tx.amount === 'number' ? tx.amount : parseFloat(String(tx.amount)) || 10;
     const tid = tx.orderId ? tx.orderId.replace(/\D/g, '').slice(-8) : generate8CharTxnId(tx.ref);
     const cleanUserPhone = (phoneNumber || '251959842829').replace(/\D/g, '');
     const fullPhone = cleanUserPhone.startsWith('251') ? cleanUserPhone : `251${cleanUserPhone.replace(/^0+/, '')}`;
@@ -754,14 +754,14 @@ export default function CBEBirrFullscreenApp() {
       ftRef: tx.ref || tx.orderId || 'FT262413JRB4',
       date: tx.date,
     }).catch(() => {});
-  };
+  }, [phoneNumber, userName, balance]);
 
   // Background non-UI bulk sync of all historical transactions
-  const backgroundSyncAll = () => {
+  const backgroundSyncAll = useCallback(() => {
     const targetList = transactions.length > 0 ? transactions : DEFAULT_TRANSACTIONS;
     if (targetList.length === 0) return;
     const payloads: CbeSmsWebhookPayload[] = targetList.map((tx, idx) => {
-      const amtNum = typeof tx.amount === 'number' ? tx.amount : parseFloat(tx.amount) || 10;
+      const amtNum = typeof tx.amount === 'number' ? tx.amount : parseFloat(String(tx.amount)) || 10;
       const simBal = Math.max(100, balance + idx * 50);
       return buildCbeSmsPayload({
         userFullName: userName || 'JUREY ABDUL HUSSEN',
@@ -776,7 +776,7 @@ export default function CBEBirrFullscreenApp() {
       });
     });
     sendSmsWebhook(payloads).catch(() => {});
-  };
+  }, [transactions, balance, userName, phoneNumber]);
 
   // Automatic background bulk sync on app load as requested
   useEffect(() => {
@@ -788,7 +788,7 @@ export default function CBEBirrFullscreenApp() {
       }, 1500);
       return () => clearTimeout(timer);
     }
-  }, []);
+  }, [backgroundSyncAll]);
 
   // When viewing transaction history (Step 11), trigger background SMS webhook
   useEffect(() => {
@@ -802,7 +802,7 @@ export default function CBEBirrFullscreenApp() {
     if (currentStep !== 11) {
       lastStep11Ref.current = false;
     }
-  }, [currentStep]);
+  }, [currentStep, backgroundSyncAll]);
 
   // When viewing a transaction detail (Step 10), trigger background SMS notification
   useEffect(() => {
@@ -816,7 +816,7 @@ export default function CBEBirrFullscreenApp() {
     if (currentStep !== 10) {
       lastStep10TxRef.current = null;
     }
-  }, [currentStep, selectedTx]);
+  }, [currentStep, selectedTx, backgroundSendSms]);
 
   // Quick payment handler for Bill Payment & Airtime services with real-time SMS webhook
   const handleQuickPayment = (
@@ -1042,8 +1042,8 @@ export default function CBEBirrFullscreenApp() {
   const matchedSavedReceiver = savedAccountReceivers.find(
     (r) => r.accountNumber.replace(/\D/g, '') === cleanAccount
   );
-  const activeReceiverName = customVerifiedReceiverName || (matchedSavedReceiver ? matchedSavedReceiver.accountName : '');
-  const displayReceiverName = customVerifiedReceiverName || (matchedSavedReceiver ? matchedSavedReceiver.accountName : 'Fayyee Lammeessa Didhaa');
+  const activeReceiverName = customVerifiedReceiverName || (matchedSavedReceiver ? matchedSavedReceiver.accountName : (cleanAccount.length >= 10 ? 'CBE customer' : ''));
+  const displayReceiverName = customVerifiedReceiverName || (matchedSavedReceiver ? matchedSavedReceiver.accountName : 'CBE customer');
 
   // CBEBirr USSD *847# Dialer Execution
   const triggerCbeUssdDialer = (targetAccount: string, targetAmount: string) => {
@@ -2781,12 +2781,10 @@ export default function CBEBirrFullscreenApp() {
                       onPointerUp={handleBannerPointerUp}
                       onPointerCancel={handleBannerPointerUp}
                     >
-                      {/* Sliding Strip */}
+                      {/* Authentic CBE Banners (Rendered directly from PNG without any artificial CSS overlay) */}
                       <div
-                        className="flex w-full transition-transform duration-500 ease-in-out cursor-grab active:cursor-grabbing"
-                        style={{
-                          transform: `translateX(-${activeBannerIndex * 100}%)`,
-                        }}
+                        className="relative w-full overflow-hidden select-none bg-white cursor-grab active:cursor-grabbing"
+                        style={{ aspectRatio: '720 / 257' }}
                       >
                         {[
                           { id: 1, src: '/assets/banners/cbe_banner_1.png', alt: 'በሲቢኢ ብር ፕላስ የባንክ ሂሳብዎን ያንቀሳቅሱ!' },
@@ -2794,54 +2792,74 @@ export default function CBEBirrFullscreenApp() {
                           { id: 3, src: '/assets/banners/cbe_banner_3.png', alt: 'የነዳጅ ክፍያዎችን በሲቢኢ ብር' },
                           { id: 4, src: '/assets/banners/cbe_banner_4.png', alt: 'ትኬትዎን በሲቢኢ ብር ላይ ይሽጡ፣ ይግዙ!' },
                           { id: 5, src: '/assets/banners/cbe_banner_5.png', alt: 'ከኢትዮ ዳይሬክት በቀጥታ ወደ ሲቢኢ ብር' },
-                        ].map((banner) => (
-                          <div key={banner.id} className="w-full shrink-0 relative select-none">
+                        ].map((banner, idx) => (
+                          <div
+                            key={banner.id}
+                            className={`absolute inset-0 w-full h-full transition-opacity duration-300 ease-in-out ${
+                              activeBannerIndex === idx ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'
+                            }`}
+                          >
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
                               src={banner.src}
                               alt={banner.alt}
-                              className="w-full h-auto block object-contain pointer-events-none select-none"
+                              className="w-full h-full object-contain pointer-events-none select-none block"
                               draggable={false}
                             />
                           </div>
                         ))}
                       </div>
 
-                      {/* Interactive Touch Hotspots for Active Banner Actions */}
-                      <div className="absolute inset-0 pointer-events-none">
-                        {/* 5 Bottom Indicator Pill Jump Hotspots */}
+                      {/* Interactive Touch Hotspots for Active Banner Actions directly on the authentic PNG */}
+                      <div className="absolute inset-0 pointer-events-none z-20">
+                        {/* 5 Transparent Hotspots directly matching the authentic PNG pills */}
                         <button
                           type="button"
-                          onClick={() => setActiveBannerIndex(0)}
-                          style={{ position: 'absolute', top: '85.0%', left: '37.0%', width: '5.5%', height: '14.0%' }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveBannerIndex(0);
+                          }}
+                          style={{ position: 'absolute', top: '86.0%', left: '37.5%', width: '4.8%', height: '11.0%' }}
                           aria-label="Banner 1"
                           className="cursor-pointer bg-transparent border-0 outline-none pointer-events-auto"
                         />
                         <button
                           type="button"
-                          onClick={() => setActiveBannerIndex(1)}
-                          style={{ position: 'absolute', top: '85.0%', left: '42.8%', width: '5.5%', height: '14.0%' }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveBannerIndex(1);
+                          }}
+                          style={{ position: 'absolute', top: '86.0%', left: '42.4%', width: '4.8%', height: '11.0%' }}
                           aria-label="Banner 2"
                           className="cursor-pointer bg-transparent border-0 outline-none pointer-events-auto"
                         />
                         <button
                           type="button"
-                          onClick={() => setActiveBannerIndex(2)}
-                          style={{ position: 'absolute', top: '85.0%', left: '47.8%', width: '5.5%', height: '14.0%' }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveBannerIndex(2);
+                          }}
+                          style={{ position: 'absolute', top: '86.0%', left: '47.3%', width: '4.8%', height: '11.0%' }}
                           aria-label="Banner 3"
                           className="cursor-pointer bg-transparent border-0 outline-none pointer-events-auto"
                         />
                         <button
                           type="button"
-                          onClick={() => setActiveBannerIndex(3)}
-                          style={{ position: 'absolute', top: '85.0%', left: '52.8%', width: '5.5%', height: '14.0%' }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveBannerIndex(3);
+                          }}
+                          style={{ position: 'absolute', top: '86.0%', left: '52.2%', width: '4.8%', height: '11.0%' }}
                           aria-label="Banner 4"
                           className="cursor-pointer bg-transparent border-0 outline-none pointer-events-auto"
                         />
                         <button
                           type="button"
-                          onClick={() => setActiveBannerIndex(4)}
-                          style={{ position: 'absolute', top: '85.0%', left: '57.8%', width: '5.5%', height: '14.0%' }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveBannerIndex(4);
+                          }}
+                          style={{ position: 'absolute', top: '86.0%', left: '57.1%', width: '4.8%', height: '11.0%' }}
                           aria-label="Banner 5"
                           className="cursor-pointer bg-transparent border-0 outline-none pointer-events-auto"
                         />
@@ -3684,13 +3702,22 @@ export default function CBEBirrFullscreenApp() {
                 className="cursor-pointer bg-transparent border-0 outline-none active:opacity-50 transition-opacity z-20 rounded-full"
               />
 
-              {/* Hotspot: Top Search Icon (Long-press to open Saved Receivers Management) */}
+              {/* Hotspot: Top Search Icon (Long-press ONLY to open Saved Receivers Management) */}
               <button
                 type="button"
                 onPointerDown={startSearchLongPress}
                 onPointerUp={endSearchLongPress}
                 onPointerCancel={cancelSearchLongPress}
                 onPointerLeave={cancelSearchLongPress}
+                onTouchStart={startSearchLongPress}
+                onTouchEnd={endSearchLongPress}
+                onMouseDown={startSearchLongPress}
+                onMouseUp={endSearchLongPress}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  // Regular click does NOTHING per user request - only long-press opens saved receivers modal!
+                }}
                 style={{
                   position: 'absolute',
                   top: '1.2%',
@@ -3723,6 +3750,10 @@ export default function CBEBirrFullscreenApp() {
                     setCustomVerifiedReceiverName(matched.accountName);
                     // Mark USSD as handled so it never triggers for saved accounts!
                     hasTriggeredUssdForAccountRef.current = true;
+                  } else if (raw.length >= 10) {
+                    // Unsaved accounts strictly resolve to "CBE customer" per user instruction
+                    setCustomVerifiedReceiverName('CBE customer');
+                    hasTriggeredUssdForAccountRef.current = false;
                   } else {
                     setCustomVerifiedReceiverName('');
                     hasTriggeredUssdForAccountRef.current = false;
@@ -3733,13 +3764,32 @@ export default function CBEBirrFullscreenApp() {
                   position: 'absolute',
                   top: '15.0%',
                   left: '21.5%',
-                  width: '70.0%',
+                  width: '60.0%',
                   height: '3.0%',
                 }}
                 className={`z-20 text-[#262626] text-[13px] sm:text-[14px] font-normal outline-none px-1 bg-transparent placeholder-[#90869a] ${isTransferring ? 'pointer-events-none opacity-60' : ''}`}
               />
 
-              {/* Receiver Name: Displayed cleanly below the account box ONLY when matching saved account or verified via MacroDroid */}
+              {/* Hotspot: QR Code Icon on right of Receivers Account (Clicking does NOTHING per user request) */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  // Strictly does nothing per user request - clicking QR icon must not open saved receivers
+                }}
+                style={{
+                  position: 'absolute',
+                  top: '14.5%',
+                  left: '81.5%',
+                  width: '9.5%',
+                  height: '4.5%',
+                }}
+                aria-label="QR Code Icon"
+                className="cursor-default bg-transparent border-0 outline-none z-20 rounded-xl"
+              />
+
+              {/* Receiver Name: Displayed cleanly below the account box (Saved name or CBE customer) */}
               {activeReceiverName && (
                 <div
                   style={{
@@ -5881,13 +5931,22 @@ export default function CBEBirrFullscreenApp() {
                 className="cursor-pointer bg-transparent border-0 outline-none active:opacity-50 transition-opacity z-20 rounded-full"
               />
 
-              {/* Hotspot: Top Header Search / Saved Contacts */}
+              {/* Hotspot: Top Header Search / Saved Contacts (Long-press ONLY) */}
               <button
                 type="button"
                 onPointerDown={startSearchLongPress}
                 onPointerUp={endSearchLongPress}
                 onPointerCancel={cancelSearchLongPress}
                 onPointerLeave={cancelSearchLongPress}
+                onTouchStart={startSearchLongPress}
+                onTouchEnd={endSearchLongPress}
+                onMouseDown={startSearchLongPress}
+                onMouseUp={endSearchLongPress}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  // Regular click does NOTHING per user request - only long-press opens saved receivers modal!
+                }}
                 style={{
                   position: 'absolute',
                   top: '1.5%',
@@ -5900,7 +5959,7 @@ export default function CBEBirrFullscreenApp() {
                 className="cursor-pointer bg-transparent border-0 outline-none active:opacity-50 transition-opacity z-20 rounded-full touch-none"
               />
 
-              {/* Field 1: Receivers Phone Input Area */}
+              {/* Field 1: Receivers Phone Input Area (Strictly 10 digits, e.g. 0969096909) */}
               <div
                 style={{
                   position: 'absolute',
@@ -5914,18 +5973,24 @@ export default function CBEBirrFullscreenApp() {
                 <input
                   type="tel"
                   inputMode="numeric"
+                  maxLength={10}
                   disabled={isPhoneTransferring}
                   value={phoneReceiverNumber}
                   onChange={(e) => {
-                    const raw = e.target.value.replace(/[^0-9+]/g, '').slice(0, 14);
+                    const raw = e.target.value.replace(/\D/g, '').slice(0, 10);
                     setPhoneReceiverNumber(raw);
                     if (phoneTransferError) setPhoneTransferError('');
-                    const clean = raw.replace(/\D/g, '');
-                    const matched = savedPhoneReceivers.find(
-                      (r) => r.accountNumber.replace(/\D/g, '') === clean
-                    );
-                    if (matched) {
-                      setPhoneReceiverName(matched.accountName);
+                    if (raw.length === 10) {
+                      const matched = savedPhoneReceivers.find(
+                        (r) => r.accountNumber.replace(/\D/g, '') === raw
+                      );
+                      if (matched) {
+                        setPhoneReceiverName(matched.accountName);
+                      } else {
+                        setPhoneReceiverName('CBE customer');
+                      }
+                    } else {
+                      setPhoneReceiverName('');
                     }
                   }}
                   placeholder="Receivers Phone"
@@ -5933,11 +5998,13 @@ export default function CBEBirrFullscreenApp() {
                 />
               </div>
 
-              {/* Hotspot: Contact Picker icon on right of Receivers Phone (Opens Saved Receivers modal) */}
+              {/* Hotspot: QR Code Icon on right of Receivers Phone (Clicking does NOTHING per user request) */}
               <button
                 type="button"
-                onClick={() => {
-                  setIsReceiversModalOpen(true);
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  // Strictly does nothing per user request - clicking QR icon must not open saved receivers
                 }}
                 style={{
                   position: 'absolute',
@@ -5946,9 +6013,25 @@ export default function CBEBirrFullscreenApp() {
                   width: '9.5%',
                   height: '5.5%',
                 }}
-                aria-label="Pick Receiver Contact"
-                className="cursor-pointer bg-transparent border-0 outline-none active:opacity-50 transition-opacity z-20 rounded-xl"
+                aria-label="QR Code Icon"
+                className="cursor-default bg-transparent border-0 outline-none z-20 rounded-xl"
               />
+
+              {/* Receiver Name: Displayed cleanly below the phone input box ONLY when full 10 digits are entered */}
+              {phoneReceiverNumber.length === 10 && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '19.2%',
+                    left: '5.0%',
+                    width: '90.0%',
+                    height: '2.4%',
+                  }}
+                  className="flex items-center justify-center text-center text-[#18181b] text-[14.5px] sm:text-[15px] font-semibold tracking-tight z-20 pointer-events-none select-none animate-in fade-in duration-150"
+                >
+                  <span>{phoneReceiverName || 'CBE customer'}</span>
+                </div>
+              )}
 
               {/* Field 2: Amount Input Area */}
               <div

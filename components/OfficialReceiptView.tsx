@@ -76,6 +76,7 @@ function OfficialReceiptContent() {
   const accParam = searchParams.get('acc') || searchParams.get('PH') || searchParams.get('userAcc') || '0959754788';
   const dateParam = searchParams.get('date') || '22-10-2026 21:36:00';
   const reasonParam = searchParams.get('reason') || 'Wallet Transfer';
+  const bankParam = searchParams.get('bank') || searchParams.get('destBank') || '';
 
   const numericAmt = parseFloat(amtParam) || 1.01;
   const formattedAmt = numericAmt.toFixed(2);
@@ -86,18 +87,18 @@ function OfficialReceiptContent() {
 
   useEffect(() => {
     const currentUrl = typeof window !== 'undefined' ? window.location.href : '';
-    QRCode.toDataURL(currentUrl || `https://cbepay1.cbe.com.et/aureceipt?TID=${ref}&PH=${accParam}`, {
+    QRCode.toDataURL(currentUrl || `https://cbepay1.cbe.com.et/aureceipt?TID=${ref}&PH=${accParam}${bankParam ? `&bank=${encodeURIComponent(bankParam)}` : ''}`, {
       margin: 1,
       width: 240,
       errorCorrectionLevel: 'M',
     })
       .then((data) => setQrDataUrl(data))
       .catch(() => {});
-  }, [ref, accParam]);
+  }, [ref, accParam, bankParam]);
 
   const handleDownload = (format: 'pdf' | 'png') => {
     setDownloadToast(`Preparing ${format.toUpperCase()} receipt...`);
-    const downloadUrl = `/api/receipt/download?format=${format}&ref=${encodeURIComponent(ref)}&amt=${encodeURIComponent(formattedAmt)}&rec=${encodeURIComponent(recParam)}&name=${encodeURIComponent(nameParam)}&user=${encodeURIComponent(userParam)}&acc=${encodeURIComponent(accParam)}&date=${encodeURIComponent(dateParam)}&reason=${encodeURIComponent(reasonParam)}`;
+    const downloadUrl = `/api/receipt/download?format=${format}&ref=${encodeURIComponent(ref)}&amt=${encodeURIComponent(formattedAmt)}&rec=${encodeURIComponent(recParam)}&name=${encodeURIComponent(nameParam)}&user=${encodeURIComponent(userParam)}&acc=${encodeURIComponent(accParam)}&date=${encodeURIComponent(dateParam)}&reason=${encodeURIComponent(reasonParam)}${bankParam ? `&bank=${encodeURIComponent(bankParam)}` : ''}`;
 
     const link = document.createElement('a');
     link.href = downloadUrl;
@@ -280,7 +281,7 @@ function OfficialReceiptContent() {
               </div>
               <div className="flex justify-between border-b border-slate-100 pb-1">
                 <span className="font-semibold text-slate-900">Credit Account:</span>
-                <span className="font-mono">{recParam} - CBE Account</span>
+                <span className="font-mono">{recParam} - {bankParam ? `${bankParam} Account` : (recParam.length === 10 ? 'Customer E-money Account' : 'CBE Account')}</span>
               </div>
               <div className="flex justify-between border-b border-slate-100 pb-1">
                 <span className="font-semibold text-slate-900">Receiver Name:</span>

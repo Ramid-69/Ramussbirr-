@@ -10,6 +10,7 @@ export interface StoredReceipt {
   user: string;
   acc: string;
   reason: string;
+  bank?: string;
   status?: string;
   orderId?: string;
 }
