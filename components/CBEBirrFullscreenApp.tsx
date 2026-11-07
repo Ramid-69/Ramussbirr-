@@ -16,7 +16,7 @@ import {
   buildOfficialReceiptUrl,
 } from '@/lib/sms-webhook';
 
-type ScreenStep = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16;
+type ScreenStep = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17;
 
 interface SavedReceiver {
   id: string;
@@ -96,6 +96,73 @@ const DEFAULT_SAVED_BANK_RECEIVERS: SavedBankReceiver[] = [
     accountName: 'YONAS BEKELE WORKU',
   },
 ];
+
+export interface WalletItem {
+  id: string;
+  name: string;
+  image: string;
+}
+
+export interface SavedWalletReceiver {
+  id: string;
+  walletId: string;
+  walletName: string;
+  accountNumber: string;
+  accountName: string;
+}
+
+const ALL_WALLETS: WalletItem[] = [
+  { id: 'wallet_nisir', name: 'Nisir Micro Finance', image: '/assets/wallets/wallet_nisir.png' },
+  { id: 'wallet_halal_pay', name: 'Halal Pay', image: '/assets/wallets/wallet_halal_pay.png' },
+  { id: 'wallet_vision_fund', name: 'Vision Fund MF', image: '/assets/wallets/wallet_vision_fund.png' },
+  { id: 'wallet_yaya', name: 'Yaya Wallet', image: '/assets/wallets/wallet_yaya.png' },
+  { id: 'wallet_vitabirr', name: 'VitaBirr Financial Services SC', image: '/assets/wallets/wallet_vitabirr.png' },
+  { id: 'wallet_decsi', name: 'DECSI-Microfinance', image: '/assets/wallets/wallet_decsi.png' },
+  { id: 'wallet_hcash', name: 'H-CASH', image: '/assets/wallets/wallet_hcash.png' },
+  { id: 'wallet_sahay_pay', name: 'SAHAY PAY', image: '/assets/wallets/wallet_sahay_pay.png' },
+  { id: 'wallet_amigos_saccos', name: 'Amigos SACCOS Ltd', image: '/assets/wallets/wallet_amigos_saccos.png' },
+  { id: 'wallet_kacha_dfs', name: 'Kacha DFS', image: '/assets/wallets/wallet_kacha_dfs.png' },
+  { id: 'wallet_kaafi_mf', name: 'KAAFI Micro Finance', image: '/assets/wallets/wallet_kaafi_mf.png' },
+  { id: 'wallet_rays_mf', name: 'Rays Micro Finance', image: '/assets/wallets/wallet_rays_mf.png' },
+  { id: 'wallet_coopay_ebirr', name: 'Coopay E-Birr', image: '/assets/wallets/wallet_coopay_ebirr.png' },
+  { id: 'wallet_metemamen_mfi', name: 'Metemamen MFI', image: '/assets/wallets/wallet_metemamen_mfi.png' },
+  { id: 'wallet_dire_mf', name: 'DIRE Micro Finance', image: '/assets/wallets/wallet_dire_mf.png' },
+  { id: 'wallet_sahal_mfi', name: 'Sahal MFI', image: '/assets/wallets/wallet_sahal_mfi.png' },
+  { id: 'wallet_telebirr', name: 'TELEBIRR', image: '/assets/wallets/wallet_telebirr.png' },
+  { id: 'wallet_ahadu_ebirr', name: 'Ahadu E-Birr', image: '/assets/wallets/wallet_ahadu_ebirr.png' },
+  { id: 'wallet_nib_ebirr', name: 'NIB EBIRR', image: '/assets/wallets/wallet_nib_ebirr.png' },
+  { id: 'wallet_digaf_mf', name: 'Digaf Micro Credit Provider S.C', image: '/assets/wallets/wallet_digaf_mf.png' },
+  { id: 'wallet_wegagen_ebirr', name: 'Wegagen E-Birr', image: '/assets/wallets/wallet_wegagen_ebirr.png' },
+  { id: 'wallet_one_mf', name: 'One Micro Finance', image: '/assets/wallets/wallet_one_mf.png' },
+  { id: 'wallet_dedebit_mfi', name: 'Dedebit MFI', image: '/assets/wallets/wallet_dedebit_mfi.png' },
+  { id: 'wallet_mpesa', name: 'MPESA', image: '/assets/wallets/wallet_mpesa.png' },
+  { id: 'wallet_yehulu_saccos', name: 'Yehulu SACCOS', image: '/assets/wallets/wallet_yehulu_saccos.png' },
+];
+
+const DEFAULT_SAVED_WALLET_RECEIVERS: SavedWalletReceiver[] = [
+  {
+    id: 'wallet-rec-1',
+    walletId: 'wallet_telebirr',
+    walletName: 'TELEBIRR',
+    accountNumber: '0911223344',
+    accountName: 'ABDI KEBEDE TOLOSA',
+  },
+  {
+    id: 'wallet-rec-2',
+    walletId: 'wallet_mpesa',
+    walletName: 'MPESA',
+    accountNumber: '0711998877',
+    accountName: 'HELEN GIRMA ALEMU',
+  },
+  {
+    id: 'wallet-rec-3',
+    walletId: 'wallet_coopay_ebirr',
+    walletName: 'Coopay E-Birr',
+    accountNumber: '0922334455',
+    accountName: 'MOHAMMED ALI HASSAN',
+  },
+];
+
 
 interface TransactionItem {
   id: string;
@@ -244,6 +311,8 @@ const ALL_APP_ASSETS: string[] = [
   '/screens/pay_fixed_bottom.png',
   '/assets/banks/screen_bank_transfer_base.png',
   '/assets/banks/sheet_header.png',
+  '/assets/wallets/screen_wallet_transfer_base.png',
+  '/assets/wallets/sheet_header.png',
 ];
 
 function generateTxRef() {
@@ -539,8 +608,8 @@ export default function CBEBirrFullscreenApp() {
   const ussdPollTimerRef = useRef<NodeJS.Timeout | null>(null);
   const ussdSafetyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Transfer Source State ('cbe_account' | 'phone_number' | 'other_banks')
-  const [transferSource, setTransferSource] = useState<'cbe_account' | 'phone_number' | 'other_banks'>('cbe_account');
+  // Transfer Source State ('cbe_account' | 'phone_number' | 'other_banks' | 'other_wallets')
+  const [transferSource, setTransferSource] = useState<'cbe_account' | 'phone_number' | 'other_banks' | 'other_wallets'>('cbe_account');
   const [transferPin, setTransferPin] = useState<string>('');
   const [phoneReceiverNumber, setPhoneReceiverNumber] = useState<string>('');
   const [phoneReceiverName, setPhoneReceiverName] = useState<string>('');
@@ -574,6 +643,47 @@ export default function CBEBirrFullscreenApp() {
       (b) => b.name.toLowerCase().includes(term) || b.id.toLowerCase().includes(term)
     );
   }, [bankSearchTerm]);
+
+  // Step 17: Wallet Transfer (Transfer to Other Wallet & Micro Finance) State
+  const [selectedWallet, setSelectedWallet] = useState<WalletItem | null>(null);
+  const [walletAccountNumber, setWalletAccountNumber] = useState<string>('');
+  const [walletReceiverName, setWalletReceiverName] = useState<string>('');
+  const [walletAmount, setWalletAmount] = useState<string>('');
+  const [walletReason, setWalletReason] = useState<string>('');
+  const [walletTransferError, setWalletTransferError] = useState<string>('');
+  const [isWalletTransferring, setIsWalletTransferring] = useState<boolean>(false);
+  const [isSelectWalletSheetOpen, setIsSelectWalletSheetOpen] = useState<boolean>(false);
+  const [walletSearchTerm, setWalletSearchTerm] = useState<string>('');
+  const [isSavedWalletModalOpen, setIsSavedWalletModalOpen] = useState<boolean>(false);
+  const [isAddSavedWalletModalOpen, setIsAddSavedWalletModalOpen] = useState<boolean>(false);
+  const [savedWalletReceivers, setSavedWalletReceivers] = useState<SavedWalletReceiver[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('cbe_saved_wallet_receivers');
+        if (saved) return JSON.parse(saved);
+      } catch {}
+    }
+    return DEFAULT_SAVED_WALLET_RECEIVERS;
+  });
+  const [newWalletReceiverAcc, setNewWalletReceiverAcc] = useState<string>('');
+  const [newWalletReceiverName, setNewWalletReceiverName] = useState<string>('');
+  const [newWalletReceiverWalletId, setNewWalletReceiverWalletId] = useState<string>('wallet_telebirr');
+
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('cbe_saved_wallet_receivers', JSON.stringify(savedWalletReceivers));
+      }
+    } catch {}
+  }, [savedWalletReceivers]);
+
+  const filteredWallets = useMemo(() => {
+    if (!walletSearchTerm.trim()) return ALL_WALLETS;
+    const term = walletSearchTerm.toLowerCase().trim();
+    return ALL_WALLETS.filter(
+      (w) => w.name.toLowerCase().includes(term) || w.id.toLowerCase().includes(term)
+    );
+  }, [walletSearchTerm]);
 
   // 5 Promotional Banners Horizontal Sliding Carousel (Swipeable, Real-time Drag, Smooth Auto-slide)
   const [activeBannerIndex, setActiveBannerIndex] = useState<number>(0);
@@ -620,6 +730,19 @@ export default function CBEBirrFullscreenApp() {
     setTransferPin('');
     setTransferSource('other_banks');
     setCurrentStep(16);
+  }, []);
+
+  // Helper to open Other Wallet & Micro Finance Transfer page (Step 17) completely clean
+  const openOtherWalletsTransfer = useCallback(() => {
+    setWalletTransferError('');
+    setSelectedWallet(null);
+    setWalletAccountNumber('');
+    setWalletReceiverName('');
+    setWalletAmount('');
+    setWalletReason('');
+    setTransferPin('');
+    setTransferSource('other_wallets');
+    setCurrentStep(17);
   }, []);
 
   // Stable Viewport Height System: Prevents phone keyboard from compressing/squishing the app
@@ -1077,6 +1200,11 @@ export default function CBEBirrFullscreenApp() {
           setNewBankReceiverBankId(selectedBank.id);
         }
         setIsSavedBankModalOpen(true);
+      } else if (currentStep === 17) {
+        if (selectedWallet) {
+          setNewWalletReceiverWalletId(selectedWallet.id);
+        }
+        setIsSavedWalletModalOpen(true);
       } else {
         setIsReceiversModalOpen(true);
       }
@@ -1628,6 +1756,31 @@ export default function CBEBirrFullscreenApp() {
     setCurrentStep(7);
   };
 
+  const handleProceedToWalletTransferPin = () => {
+    setWalletTransferError('');
+    if (!selectedWallet) {
+      setWalletTransferError('እባክዎ መጀመሪያ ዋሌት ይምረጡ (Please select a destination wallet first)');
+      return;
+    }
+    const cleanAcc = walletAccountNumber.trim();
+    if (!cleanAcc || cleanAcc.length < 4) {
+      setWalletTransferError('እባክዎ ትክክለኛ የዋሌት ቁጥር ያስገቡ (Please enter valid Wallet Account)');
+      return;
+    }
+    const amt = parseFloat(walletAmount) || 0;
+    if (amt <= 0) {
+      setWalletTransferError('እባክዎ ትክክለኛ የገንዘብ መጠን ያስገቡ (Please enter a valid amount)');
+      return;
+    }
+    if (balance < amt) {
+      setWalletTransferError(`ቀሪ ሂሳብዎ በቂ አይደለም (አሁን ያለው: ${formatAmount(balance)} ETB)`);
+      return;
+    }
+    setTransferSource('other_wallets');
+    setTransferPin('');
+    setCurrentStep(7);
+  };
+
   const handleTransferKeypadClick = (val: string) => {
     if (transferPin.length < 4) {
       const nextPin = transferPin + val;
@@ -1637,9 +1790,12 @@ export default function CBEBirrFullscreenApp() {
           setTimeout(() => {
             const isPhone = transferSource === 'phone_number';
             const isOtherBanks = transferSource === 'other_banks';
+            const isOtherWallets = transferSource === 'other_wallets';
             const rawAmt = isOtherBanks
               ? parseFloat(bankAmount)
-              : (isPhone ? parseFloat(phoneSendAmount) : parseFloat(sendAmount));
+              : (isOtherWallets
+                ? parseFloat(walletAmount)
+                : (isPhone ? parseFloat(phoneSendAmount) : parseFloat(sendAmount)));
             const amt = isNaN(rawAmt) || rawAmt <= 0 ? 10 : rawAmt;
             const newBal = Math.max(0, balance - amt);
             setBalance(newBal);
@@ -1662,24 +1818,30 @@ export default function CBEBirrFullscreenApp() {
 
             const activeAccount = isOtherBanks
               ? (bankAccountNumber || '01320847291000')
-              : (isPhone
-                ? (phoneReceiverNumber || '0959597544')
-                : (receiverAccount || '1000278947339'));
+              : (isOtherWallets
+                ? (walletAccountNumber || '0911223344')
+                : (isPhone
+                  ? (phoneReceiverNumber || '0959597544')
+                  : (receiverAccount || '1000278947339')));
             const activeReceiverName = isOtherBanks
               ? (bankReceiverName || (selectedBank ? `${selectedBank.name} Customer` : 'Customer'))
-              : (isPhone
-                ? (phoneReceiverName || 'CBE customer')
-                : (displayReceiverName || 'CBE customer'));
+              : (isOtherWallets
+                ? (walletReceiverName || (selectedWallet ? `${selectedWallet.name} Customer` : 'Customer'))
+                : (isPhone
+                  ? (phoneReceiverName || 'CBE customer')
+                  : (displayReceiverName || 'CBE customer')));
             const activeCreditAccountType = isOtherBanks
               ? (selectedBank ? selectedBank.name : 'Other Bank Account')
-              : (isPhone
-                ? 'Customer E-money Account'
-                : 'CBE Bank Account');
+              : (isOtherWallets
+                ? (selectedWallet ? `${selectedWallet.name} Account` : 'Other Wallet Account')
+                : (isPhone
+                  ? 'Customer E-money Account'
+                  : 'CBE Bank Account'));
 
             // Save new transfer into transaction history (saved permanently per user request)
             const newTx: TransactionItem = {
               id: `tx-${Date.now()}`,
-              title: isOtherBanks ? 'Bank Transfer' : 'Send Money',
+              title: isOtherBanks ? 'Bank Transfer' : (isOtherWallets ? 'Wallet Transfer' : 'Send Money'),
               date: isoDate,
               amount: amt.toFixed(2),
               type: 'debit',
@@ -1690,7 +1852,7 @@ export default function CBEBirrFullscreenApp() {
               status: 'Completed',
               debitAccountType: 'Customer E-money Account',
               creditAccountType: activeCreditAccountType,
-              bank: isOtherBanks && selectedBank ? selectedBank.name : undefined,
+              bank: isOtherBanks && selectedBank ? selectedBank.name : (isOtherWallets && selectedWallet ? selectedWallet.name : undefined),
             };
             setTransactions((prev) => [newTx, ...prev]);
             setSelectedTx(newTx);
@@ -1710,8 +1872,10 @@ export default function CBEBirrFullscreenApp() {
                   acc: userAccount || phoneNumber || '959754788',
                   reason: isOtherBanks
                     ? (bankReason || 'Transfer to Other Bank')
-                    : (isPhone ? (phoneReason || 'Wallet Transfer') : (sendReason || 'Customer transfer to CBE account')),
-                  bank: isOtherBanks && selectedBank ? selectedBank.name : undefined,
+                    : (isOtherWallets
+                      ? (walletReason || 'Wallet Transfer')
+                      : (isPhone ? (phoneReason || 'Wallet Transfer') : (sendReason || 'Customer transfer to CBE account'))),
+                  bank: isOtherBanks && selectedBank ? selectedBank.name : (isOtherWallets && selectedWallet ? selectedWallet.name : undefined),
                   status: 'Completed',
                   orderId: newRef,
                 }),
@@ -1733,8 +1897,10 @@ export default function CBEBirrFullscreenApp() {
                 isoDate,
                 isOtherBanks
                   ? (bankReason || 'Transfer to Other Bank')
-                  : (isPhone ? (phoneReason || 'Wallet Transfer') : (sendReason || 'Customer transfer to CBE account')),
-                isOtherBanks && selectedBank ? selectedBank.name : undefined
+                  : (isOtherWallets
+                    ? (walletReason || 'Wallet Transfer')
+                    : (isPhone ? (phoneReason || 'Wallet Transfer') : (sendReason || 'Customer transfer to CBE account'))),
+                isOtherBanks && selectedBank ? selectedBank.name : (isOtherWallets && selectedWallet ? selectedWallet.name : undefined)
               );
 
               sendTransactionSms({
@@ -1750,8 +1916,10 @@ export default function CBEBirrFullscreenApp() {
                 date: now,
                 reason: isOtherBanks
                   ? (bankReason || 'Transfer to Other Bank')
-                  : (isPhone ? (phoneReason || 'Wallet Transfer') : (sendReason || 'Customer transfer to CBE account')),
-                bank: isOtherBanks && selectedBank ? selectedBank.name : undefined,
+                  : (isOtherWallets
+                    ? (walletReason || 'Wallet Transfer')
+                    : (isPhone ? (phoneReason || 'Wallet Transfer') : (sendReason || 'Customer transfer to CBE account'))),
+                bank: isOtherBanks && selectedBank ? selectedBank.name : (isOtherWallets && selectedWallet ? selectedWallet.name : undefined),
               }).catch(() => {});
             } catch {
               // Graceful error handling
@@ -1762,6 +1930,9 @@ export default function CBEBirrFullscreenApp() {
             if (isOtherBanks) {
               setCurrentStep(16);
               setIsBankTransferring(true);
+            } else if (isOtherWallets) {
+              setCurrentStep(17);
+              setIsWalletTransferring(true);
             } else if (isPhone) {
               setCurrentStep(15);
               setIsPhoneTransferring(true);
@@ -2027,6 +2198,38 @@ export default function CBEBirrFullscreenApp() {
       return () => clearTimeout(timer);
     }
   }, [currentStep, isBankTransferring, bankAccountNumber, selectedBank, bankReceiverName, savedBankReceivers]);
+
+  // Auto-transition to Receipt page after loading spinner on Step 17 (Wallet Transfer page)
+  useEffect(() => {
+    if (currentStep === 17 && isWalletTransferring) {
+      const timer = setTimeout(() => {
+        setIsWalletTransferring(false);
+        setIsTransferSuccess(true);
+
+        // Auto-save this transfer into savedWalletReceivers if not already saved!
+        const cleanAcc = walletAccountNumber.trim();
+        if (cleanAcc && selectedWallet) {
+          const recName = walletReceiverName || `${selectedWallet.name} Customer`;
+          const alreadySaved = savedWalletReceivers.some(
+            (r) => r.accountNumber === cleanAcc && r.walletId === selectedWallet.id
+          );
+          if (!alreadySaved) {
+            const newSaved: SavedWalletReceiver = {
+              id: `wallet-rec-${Date.now()}`,
+              walletId: selectedWallet.id,
+              walletName: selectedWallet.name,
+              accountNumber: cleanAcc,
+              accountName: recName,
+            };
+            setSavedWalletReceivers((prev) => [newSaved, ...prev]);
+          }
+        }
+
+        setCurrentStep(8);
+      }, 2200);
+      return () => clearTimeout(timer);
+    }
+  }, [currentStep, isWalletTransferring, walletAccountNumber, selectedWallet, walletReceiverName, savedWalletReceivers]);
 
   // Click on "Next" button in Step 2 (Phone Number page) goes to Step 3 (PIN page)
   const handleNextFromPhonePage = () => {
@@ -3359,6 +3562,23 @@ export default function CBEBirrFullscreenApp() {
                           aria-label="Transfer To Other Banks"
                           className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity pointer-events-auto rounded-xl"
                         />
+                        {/* Hotspot 2: Transfer To Other Wallet & Micro Finance (2nd icon in 2x4 grid) */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setWalletTransferError('');
+                            setCurrentStep(17);
+                          }}
+                          style={{
+                            position: 'absolute',
+                            top: '0%',
+                            left: '25%',
+                            width: '25%',
+                            height: '50%',
+                          }}
+                          aria-label="Transfer To Other Wallet & Micro Finance"
+                          className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity pointer-events-auto rounded-xl"
+                        />
                       </div>
                     </div>
 
@@ -4365,6 +4585,8 @@ export default function CBEBirrFullscreenApp() {
                     setCurrentStep(15);
                   } else if (transferSource === 'other_banks') {
                     setCurrentStep(16);
+                  } else if (transferSource === 'other_wallets') {
+                    setCurrentStep(17);
                   } else {
                     setCurrentStep(6);
                   }
@@ -4389,6 +4611,8 @@ export default function CBEBirrFullscreenApp() {
                     setCurrentStep(15);
                   } else if (transferSource === 'other_banks') {
                     setCurrentStep(16);
+                  } else if (transferSource === 'other_wallets') {
+                    setCurrentStep(17);
                   } else {
                     setCurrentStep(6);
                   }
@@ -4511,6 +4735,8 @@ export default function CBEBirrFullscreenApp() {
                     ? (phoneReceiverName || 'CBE customer')
                     : transferSource === 'other_banks'
                     ? (bankReceiverName || (selectedBank ? `${selectedBank.name} Customer` : 'Customer'))
+                    : transferSource === 'other_wallets'
+                    ? (walletReceiverName || (selectedWallet ? `${selectedWallet.name} Customer` : 'Customer'))
                     : displayReceiverName}
                 </span>
                 <span className="text-[11.5px] sm:text-[12px] font-normal text-[#49454f] tracking-wide truncate mt-1">
@@ -4518,6 +4744,8 @@ export default function CBEBirrFullscreenApp() {
                     ? (phoneReceiverNumber || '0959597544')
                     : transferSource === 'other_banks'
                     ? `${bankAccountNumber || '01320847291000'} (${selectedBank?.name || 'Other Bank'})`
+                    : transferSource === 'other_wallets'
+                    ? `${walletAccountNumber || '0911223344'} (${selectedWallet?.name || 'Other Wallet'})`
                     : (receiverAccount || '1000278947339')}
                 </span>
               </div>
@@ -4541,6 +4769,8 @@ export default function CBEBirrFullscreenApp() {
                     ? (phoneSendAmount ? Number(phoneSendAmount).toLocaleString('en-US') : '10')
                     : transferSource === 'other_banks'
                     ? (bankAmount ? Number(bankAmount).toLocaleString('en-US') : '10')
+                    : transferSource === 'other_wallets'
+                    ? (walletAmount ? Number(walletAmount).toLocaleString('en-US') : '10')
                     : (sendAmount ? Number(sendAmount).toLocaleString('en-US') : '5')}
                 </span>
               </div>
@@ -4737,6 +4967,8 @@ export default function CBEBirrFullscreenApp() {
                       ? (phoneSendAmount ? parseFloat(phoneSendAmount).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '10.00')
                       : transferSource === 'other_banks'
                       ? (bankAmount ? parseFloat(bankAmount).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '10.00')
+                      : transferSource === 'other_wallets'
+                      ? (walletAmount ? parseFloat(walletAmount).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '10.00')
                       : (sendAmount ? parseFloat(sendAmount).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '1.01')}
                   </span>
                   <span> has been debited from </span>
@@ -4747,6 +4979,8 @@ export default function CBEBirrFullscreenApp() {
                       ? (phoneReceiverName || 'CBE customer')
                       : transferSource === 'other_banks'
                       ? (bankReceiverName || (selectedBank ? `${selectedBank.name} Customer` : 'Customer'))
+                      : transferSource === 'other_wallets'
+                      ? (walletReceiverName || (selectedWallet ? `${selectedWallet.name} Customer` : 'Customer'))
                       : displayReceiverName}
                   </span>
                   <span> on </span>
@@ -4757,6 +4991,8 @@ export default function CBEBirrFullscreenApp() {
                   <span className="font-bold">
                     {transferSource === 'other_banks'
                       ? 'Transfer to Other Bank'
+                      : transferSource === 'other_wallets'
+                      ? (selectedWallet ? `Transfer to ${selectedWallet.name}` : 'Transfer to Other Wallet & Micro Finance')
                       : transferSource === 'phone_number'
                       ? 'Send Money'
                       : 'Transfer to CBE Bank Account'}
@@ -4834,6 +5070,12 @@ export default function CBEBirrFullscreenApp() {
                   setSendReason('');
                   setTransferPin('');
                   setTransferError('');
+                  setSelectedWallet(null);
+                  setWalletAccountNumber('');
+                  setWalletReceiverName('');
+                  setWalletAmount('');
+                  setWalletReason('');
+                  setWalletTransferError('');
                   setCurrentStep(4);
                 }}
                 style={{
@@ -4856,6 +5098,12 @@ export default function CBEBirrFullscreenApp() {
                   setSendReason('');
                   setTransferPin('');
                   setTransferError('');
+                  setSelectedWallet(null);
+                  setWalletAccountNumber('');
+                  setWalletReceiverName('');
+                  setWalletAmount('');
+                  setWalletReason('');
+                  setWalletTransferError('');
                   setCurrentStep(4);
                 }}
                 style={{
@@ -4982,6 +5230,8 @@ export default function CBEBirrFullscreenApp() {
                           ? `${phoneReceiverNumber || '0959597544'} - Customer E-money Account`
                           : transferSource === 'other_banks'
                           ? `${bankAccountNumber || '01320847291000'} - ${selectedBank?.name || 'Other Bank'}`
+                          : transferSource === 'other_wallets'
+                          ? `${walletAccountNumber || '0911223344'} - ${selectedWallet?.name || 'Wallet Account'}`
                           : `${receiverAccount || '1000355447788'} - CBE Account`}
                       </text>
 
@@ -4992,6 +5242,8 @@ export default function CBEBirrFullscreenApp() {
                           ? (phoneReceiverName || 'CBE customer')
                           : transferSource === 'other_banks'
                           ? (bankReceiverName || (selectedBank ? `${selectedBank.name} Customer` : 'Customer'))
+                          : transferSource === 'other_wallets'
+                          ? (walletReceiverName || (selectedWallet ? `${selectedWallet.name} Customer` : 'Customer'))
                           : (displayReceiverName || 'Fayyee Lammeessa Didhaa')}
                       </text>
 
@@ -5016,13 +5268,13 @@ export default function CBEBirrFullscreenApp() {
                       {/* 7. Amount in Table (Starts at 548, grows to right into open whitespace, never covers left column labels) */}
                       <rect x="540" y="563" width="120" height="18" fill="#ffffff" />
                       <text x="548" y="577" textAnchor="start">
-                        {(parseFloat(transferSource === 'phone_number' ? (phoneSendAmount || '10.00') : transferSource === 'other_banks' ? (bankAmount || '10.00') : (sendAmount || '1.01')) || 10.00).toFixed(2)}
+                        {(parseFloat(transferSource === 'phone_number' ? (phoneSendAmount || '10.00') : transferSource === 'other_banks' ? (bankAmount || '10.00') : transferSource === 'other_wallets' ? (walletAmount || '10.00') : (sendAmount || '1.01')) || 10.00).toFixed(2)}
                       </text>
 
                       {/* 8. Paid amount */}
                       <rect x="540" y="588" width="120" height="18" fill="#ffffff" />
                       <text x="548" y="602" textAnchor="start">
-                        {(parseFloat(transferSource === 'phone_number' ? (phoneSendAmount || '10.00') : transferSource === 'other_banks' ? (bankAmount || '10.00') : (sendAmount || '1.01')) || 10.00).toFixed(2)}
+                        {(parseFloat(transferSource === 'phone_number' ? (phoneSendAmount || '10.00') : transferSource === 'other_banks' ? (bankAmount || '10.00') : transferSource === 'other_wallets' ? (walletAmount || '10.00') : (sendAmount || '1.01')) || 10.00).toFixed(2)}
                       </text>
 
                       {/* 9. Service Charge */}
@@ -5034,13 +5286,13 @@ export default function CBEBirrFullscreenApp() {
                       {/* 10. Total Paid Amount (Starts at 548, grows to right, bold, never touches 'Total Paid Amount' label on the left) */}
                       <rect x="540" y="688" width="120" height="20" fill="#ffffff" />
                       <text x="548" y="703" textAnchor="start" fontWeight="bold">
-                        {(parseFloat(transferSource === 'phone_number' ? (phoneSendAmount || '10.00') : transferSource === 'other_banks' ? (bankAmount || '10.00') : (sendAmount || '1.01')) || 10.00).toFixed(2)}
+                        {(parseFloat(transferSource === 'phone_number' ? (phoneSendAmount || '10.00') : transferSource === 'other_banks' ? (bankAmount || '10.00') : transferSource === 'other_wallets' ? (walletAmount || '10.00') : (sendAmount || '1.01')) || 10.00).toFixed(2)}
                       </text>
 
                       {/* 11. Total Amount in word */}
                       <rect x="175" y="706" width="480" height="18" fill="#ffffff" />
                       <text x="182" y="719" fontSize="10.5">
-                        {amountToWords(parseFloat(transferSource === 'phone_number' ? (phoneSendAmount || '10.00') : transferSource === 'other_banks' ? (bankAmount || '10.00') : (sendAmount || '1.01')) || 10.00)}
+                        {amountToWords(parseFloat(transferSource === 'phone_number' ? (phoneSendAmount || '10.00') : transferSource === 'other_banks' ? (bankAmount || '10.00') : transferSource === 'other_wallets' ? (walletAmount || '10.00') : (sendAmount || '1.01')) || 10.00)}
                       </text>
 
                       {/* 12. Payment Reason */}
@@ -5050,6 +5302,8 @@ export default function CBEBirrFullscreenApp() {
                           ? (phoneReason || 'Wallet Transfer')
                           : transferSource === 'other_banks'
                           ? (bankReason || 'Transfer to Other Bank')
+                          : transferSource === 'other_wallets'
+                          ? (walletReason || 'Wallet Transfer')
                           : (sendReason || 'Wallet Transfer')}
                       </text>
                     </g>
@@ -5070,6 +5324,12 @@ export default function CBEBirrFullscreenApp() {
                     setSendReason('');
                     setTransferPin('');
                     setTransferError('');
+                    setSelectedWallet(null);
+                    setWalletAccountNumber('');
+                    setWalletReceiverName('');
+                    setWalletAmount('');
+                    setWalletReason('');
+                    setWalletTransferError('');
                     setCurrentStep(4);
                   }}
                   className="w-full py-2.5 px-4 bg-[#7a1c7d] hover:bg-[#68176b] active:scale-[0.98] text-white rounded-xl text-xs sm:text-[13px] font-bold flex items-center justify-center space-x-1.5 shadow-md transition-all cursor-pointer"
@@ -6889,6 +7149,303 @@ export default function CBEBirrFullscreenApp() {
               )}
             </motion.div>
           )}
+
+          {/* STEP 17: CBEBIRR TRANSFER TO OTHER WALLET & MICRO FINANCE SCREEN (screen_wallet_transfer_base.png) */}
+          {currentStep === 17 && (
+            <motion.div
+              key="step-17-wallet-transfer"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.08, ease: 'easeOut' }}
+              className="relative w-full h-full bg-[#f2f2f2] flex flex-col overflow-hidden select-none"
+            >
+              {/* Entire Wallet Transfer Base Screen PNG (screen_wallet_transfer_base.png) */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/assets/wallets/screen_wallet_transfer_base.png"
+                alt="CBEBirr Transfer To Other Wallet & Micro Finance"
+                className="w-full h-full object-fill pointer-events-none select-none block"
+                draggable={false}
+              />
+
+              {/* Hotspot 1: Top Bar Purple Back Button -> Returns to Home Page (Step 4) */}
+              <button
+                type="button"
+                onClick={() => {
+                  setWalletTransferError('');
+                  setSelectedWallet(null);
+                  setWalletAccountNumber('');
+                  setWalletReceiverName('');
+                  setWalletAmount('');
+                  setWalletReason('');
+                  setTransferPin('');
+                  setCurrentStep(4);
+                }}
+                style={{
+                  position: 'absolute',
+                  top: '0.8%',
+                  left: '2.5%',
+                  width: '15.0%',
+                  height: '4.8%',
+                }}
+                aria-label="Back to Home"
+                className="cursor-pointer bg-transparent border-0 outline-none active:opacity-50 transition-opacity z-20 rounded-xl"
+              />
+
+              {/* Hotspot: Top Header Search Icon (Long-press ONLY to open Saved Wallet Receivers) */}
+              <button
+                type="button"
+                onPointerDown={startSearchLongPress}
+                onPointerUp={endSearchLongPress}
+                onPointerCancel={cancelSearchLongPress}
+                onPointerLeave={cancelSearchLongPress}
+                onTouchStart={startSearchLongPress}
+                onTouchEnd={endSearchLongPress}
+                onMouseDown={startSearchLongPress}
+                onMouseUp={endSearchLongPress}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  // Regular click does NOTHING per user request - only long-press opens saved receivers modal!
+                }}
+                style={{
+                  position: 'absolute',
+                  top: '0.8%',
+                  left: '81.5%',
+                  width: '10.5%',
+                  height: '5.2%',
+                }}
+                aria-label="Manage Saved Wallet Receivers (Long-press)"
+                title="Long press to manage saved wallet accounts"
+                className="cursor-pointer bg-transparent border-0 outline-none active:opacity-50 transition-opacity z-20 rounded-full touch-none"
+              />
+
+              {/* Hotspot 2: * Wallets Selector Box -> Opens Select Wallets Bottom Sheet */}
+              <button
+                type="button"
+                onClick={() => {
+                  setWalletTransferError('');
+                  setIsSelectWalletSheetOpen(true);
+                }}
+                style={{
+                  position: 'absolute',
+                  top: '11.8%',
+                  left: '8.5%',
+                  width: '83.0%',
+                  height: '8.8%',
+                }}
+                aria-label="Select Wallet or Micro Finance"
+                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/5 transition-colors z-20 rounded-2xl"
+              />
+
+              {/* If wallet is selected: Seamlessly overlay the selected wallet name over the "Wallets" placeholder */}
+              {selectedWallet && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '13.2%',
+                    left: '21.0%',
+                    width: '58.0%',
+                    height: '5.6%',
+                  }}
+                  className="bg-white z-10 flex items-center pointer-events-none select-none pl-1"
+                >
+                  <span className="text-[14px] sm:text-[14.5px] font-semibold text-[#1c1b1f] truncate">
+                    {selectedWallet.name}
+                  </span>
+                </div>
+              )}
+
+              {/* Contact icon on Wallet Account field */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                style={{
+                  position: 'absolute',
+                  top: '22.8%',
+                  left: '8.5%',
+                  width: '12.5%',
+                  height: '6.2%',
+                }}
+                aria-label="Wallet Account Contact Icon"
+                className="cursor-default bg-transparent border-0 outline-none z-20"
+              />
+
+              {/* Functional Input: Wallet Account Number */}
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '23.0%',
+                  left: '21.5%',
+                  width: '69.0%',
+                  height: '5.8%',
+                }}
+                className="z-20 flex items-center"
+              >
+                {walletAccountNumber && (
+                  <div className="absolute inset-0 bg-white -z-10" />
+                )}
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={walletAccountNumber}
+                  onChange={(e) => {
+                    const clean = e.target.value.replace(/[^0-9a-zA-Z]/g, '');
+                    setWalletAccountNumber(clean);
+                    setWalletTransferError('');
+                    if (clean.length >= 5) {
+                      const matched = savedWalletReceivers.find(
+                        (r) => r.accountNumber === clean && (!selectedWallet || r.walletId === selectedWallet.id)
+                      ) || savedWalletReceivers.find((r) => r.accountNumber === clean);
+
+                      if (matched) {
+                        setWalletReceiverName(matched.accountName);
+                        if (!selectedWallet) {
+                          const wObj = ALL_WALLETS.find((w) => w.id === matched.walletId);
+                          if (wObj) setSelectedWallet(wObj);
+                        }
+                      } else {
+                        // Unsaved account: strictly BADO (empty/blank) per user instruction
+                        setWalletReceiverName('');
+                      }
+                    } else {
+                      setWalletReceiverName('');
+                    }
+                  }}
+                  placeholder=""
+                  className="w-full h-full bg-transparent border-none outline-none text-[#1c1b1f] text-[13.5px] sm:text-[14px] font-normal px-1"
+                />
+              </div>
+
+              {/* Receiver Name: Displayed cleanly below Wallet Account input ONLY when it is a SAVED account (bado if unsaved) */}
+              {walletAccountNumber.trim().length >= 5 && walletReceiverName && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '29.6%',
+                    left: '5.0%',
+                    width: '90.0%',
+                    height: '2.4%',
+                  }}
+                  className="flex items-center justify-center text-center text-[#18181b] text-[14px] sm:text-[14.5px] font-semibold tracking-tight z-20 pointer-events-none select-none animate-in fade-in duration-150"
+                >
+                  <span>{walletReceiverName}</span>
+                </div>
+              )}
+
+              {/* Functional Input: Amount */}
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '34.0%',
+                  left: '21.5%',
+                  width: '60.0%',
+                  height: '5.8%',
+                }}
+                className="z-20 flex items-center"
+              >
+                {walletAmount && (
+                  <div className="absolute inset-0 bg-white -z-10" />
+                )}
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={walletAmount}
+                  onChange={(e) => {
+                    setWalletAmount(e.target.value.replace(/[^0-9.]/g, ''));
+                    setWalletTransferError('');
+                  }}
+                  placeholder=""
+                  className="w-full h-full bg-transparent border-none outline-none text-[#1c1b1f] text-[13.5px] sm:text-[14px] font-normal px-1"
+                />
+              </div>
+
+              {/* Functional Input: Reason */}
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '44.8%',
+                  left: '21.5%',
+                  width: '69.0%',
+                  height: '5.8%',
+                }}
+                className="z-20 flex items-center"
+              >
+                {walletReason && walletReason !== 'Reason' && (
+                  <div className="absolute inset-0 bg-white -z-10" />
+                )}
+                <input
+                  type="text"
+                  value={walletReason}
+                  onChange={(e) => setWalletReason(e.target.value)}
+                  placeholder=""
+                  className="w-full h-full bg-transparent border-none outline-none text-[#1c1b1f] text-[13.5px] sm:text-[14px] font-normal px-1"
+                />
+              </div>
+
+              {/* Hotspot 4: Wallet Transfer Submit Button */}
+              <button
+                type="button"
+                onClick={handleProceedToWalletTransferPin}
+                style={{
+                  position: 'absolute',
+                  top: '50.5%',
+                  left: '7.8%',
+                  width: '84.4%',
+                  height: '5.5%',
+                }}
+                aria-label="Proceed to Wallet Transfer PIN"
+                className="cursor-pointer bg-transparent border-0 outline-none active:opacity-70 transition-opacity z-20 rounded-2xl"
+              />
+
+              {/* AUTHENTIC CBE LOADING BOX FOR WALLET TRANSFER */}
+              <AnimatePresence>
+                {isWalletTransferring && (
+                  <motion.div
+                    key="wallet-loading-popup"
+                    initial={{ opacity: 0, scale: 0.94 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.94 }}
+                    transition={{ duration: 0.16 }}
+                    style={{
+                      position: 'absolute',
+                      top: '44.34%',
+                      left: '37.78%',
+                      width: '24.31%',
+                      height: '8.32%',
+                    }}
+                    className="bg-white rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.18)] border border-black/[0.04] flex items-center justify-center z-50 pointer-events-auto"
+                  >
+                    <div className="relative w-9 h-9 flex items-center justify-center pointer-events-none select-none">
+                      <CBEAuthenticSpinner size={36} color="#8b278e" speed={0.95} />
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Toast Error Message */}
+              {walletTransferError && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  style={{
+                    position: 'absolute',
+                    bottom: '12%',
+                    left: '10%',
+                    width: '80%',
+                  }}
+                  className="z-50 text-center text-xs font-semibold text-white bg-red-600/95 py-2.5 px-4 rounded-xl shadow-xl backdrop-blur-xs"
+                >
+                  {walletTransferError}
+                </motion.div>
+              )}
+            </motion.div>
+          )}
         </AnimatePresence>
 
         {/* SELECT BANKS BOTTOM SHEET (Fixed sheet_header.png + real-time search + smoothly scrollable bank cards) */}
@@ -7179,6 +7736,321 @@ export default function CBEBirrFullscreenApp() {
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     setSavedBankReceivers((prev) => prev.filter((item) => item.id !== r.id));
+                                  }}
+                                  className="text-slate-400 hover:text-red-600 p-1 rounded-lg transition-colors cursor-pointer"
+                                  aria-label="Delete saved account"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* SELECT WALLETS BOTTOM SHEET (Fixed sheet_header.png + real-time search + smoothly scrollable wallet cards) */}
+        <AnimatePresence>
+          {isSelectWalletSheetOpen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 z-50 bg-black/55 backdrop-blur-[1px] flex flex-col justify-end select-none"
+              onClick={() => setIsSelectWalletSheetOpen(false)}
+            >
+              <motion.div
+                initial={{ y: '100%' }}
+                animate={{ y: 0 }}
+                exit={{ y: '100%' }}
+                transition={{ type: 'spring', damping: 28, stiffness: 280 }}
+                onClick={(e) => e.stopPropagation()}
+                className="w-full h-[74%] bg-[#f2f2f2] rounded-t-[28px] overflow-hidden flex flex-col shadow-2xl relative"
+              >
+                {/* 1. FIXED HEADER: sheet_header.png (Handle, Select Banks title & Search Bar) */}
+                <div
+                  className="relative shrink-0 w-full select-none"
+                  style={{ aspectRatio: '604 / 142' }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="/assets/wallets/sheet_header.png"
+                    alt="Select Banks Header"
+                    className="w-full h-full object-fill pointer-events-none select-none block"
+                    draggable={false}
+                  />
+
+                  {/* Top drag handle / close area */}
+                  <button
+                    type="button"
+                    onClick={() => setIsSelectWalletSheetOpen(false)}
+                    className="absolute top-0 left-0 right-0 h-[38%] bg-transparent cursor-pointer border-0 outline-none"
+                    aria-label="Close"
+                  />
+
+                  {/* Interactive Search Input mapped directly over the 'Search Banks' input box */}
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: '39.0%',
+                      left: '23.5%',
+                      width: '67.0%',
+                      height: '48.0%',
+                    }}
+                    className="flex items-center"
+                  >
+                    {walletSearchTerm && (
+                      <div className="absolute inset-0 bg-white rounded-r-full -z-10" />
+                    )}
+                    <input
+                      type="text"
+                      value={walletSearchTerm}
+                      onChange={(e) => setWalletSearchTerm(e.target.value)}
+                      placeholder=""
+                      className="w-full h-full bg-transparent border-none outline-none text-[#1a1a1a] text-[13px] sm:text-[14px] font-normal px-1"
+                    />
+                    {walletSearchTerm && (
+                      <button
+                        type="button"
+                        onClick={() => setWalletSearchTerm('')}
+                        className="text-gray-400 hover:text-gray-700 text-sm font-bold pr-2.5 cursor-pointer"
+                        aria-label="Clear Search"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* 2. SCROLLABLE WALLETS LIST: Smoothly scrolls underneath the fixed header starting right where the cards begin */}
+                <div className="flex-1 w-full overflow-y-auto overflow-x-hidden px-3.5 pt-2 pb-8 space-y-2.5 scroll-smooth">
+                  {filteredWallets.map((wallet) => (
+                    <div
+                      key={wallet.id}
+                      onClick={() => {
+                        setSelectedWallet(wallet);
+                        setIsSelectWalletSheetOpen(false);
+                        setWalletSearchTerm('');
+                        setWalletTransferError('');
+                        if (walletAccountNumber.trim().length >= 5) {
+                          const matched = savedWalletReceivers.find(
+                            (r) => r.accountNumber === walletAccountNumber.trim() && r.walletId === wallet.id
+                          );
+                          if (matched) {
+                            setWalletReceiverName(matched.accountName);
+                          }
+                        }
+                      }}
+                      className="w-full cursor-pointer active:scale-[0.985] transition-transform select-none rounded-[16px] overflow-hidden shadow-xs hover:shadow-md"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={wallet.image}
+                        alt={wallet.name}
+                        className="w-full h-auto block select-none pointer-events-none"
+                        draggable={false}
+                      />
+                    </div>
+                  ))}
+
+                  {filteredWallets.length === 0 && (
+                    <div className="w-full py-12 text-center text-gray-500 text-sm font-medium">
+                      No wallet or micro finance found matching &quot;{walletSearchTerm}&quot;
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* SAVED WALLET RECEIVERS MODAL */}
+        <AnimatePresence>
+          {isSavedWalletModalOpen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 z-50 bg-black/65 backdrop-blur-[2px] flex items-center justify-center p-3 sm:p-4 select-none"
+            >
+              <motion.div
+                initial={{ scale: 0.94, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.94, opacity: 0 }}
+                className="w-full max-w-xs bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[88%]"
+              >
+                {/* Modal Header */}
+                <div className="bg-[#7a1c7d] px-4 py-3 text-white flex items-center justify-between shrink-0">
+                  <div className="flex items-center space-x-2">
+                    <User className="w-4 h-4 text-[#f2bf9d]" />
+                    <h3 className="font-bold text-sm tracking-wide">
+                      የተቀመጡ ዋሌት ተቀባዮች (Saved Wallet Accounts)
+                    </h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsSavedWalletModalOpen(false);
+                      setIsAddSavedWalletModalOpen(false);
+                      setNewWalletReceiverAcc('');
+                      setNewWalletReceiverName('');
+                    }}
+                    className="text-white/80 hover:text-white text-lg font-bold p-1 cursor-pointer"
+                  >
+                    ×
+                  </button>
+                </div>
+
+                {/* Content */}
+                <div className="p-3.5 overflow-y-auto flex-1 space-y-3">
+                  {isAddSavedWalletModalOpen ? (
+                    /* Add Wallet Receiver Form */
+                    <div className="space-y-3">
+                      <div className="text-xs font-bold text-[#7a1c7d] border-b pb-1">
+                        አዲስ የዋሌት ሂሳብ መዝግብ (Add Wallet Account)
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                          ዋሌት ይምረጡ (Select Wallet / Microfinance)
+                        </label>
+                        <select
+                          value={newWalletReceiverWalletId}
+                          onChange={(e) => setNewWalletReceiverWalletId(e.target.value)}
+                          className="w-full px-2.5 py-2 border border-slate-300 rounded-xl text-xs font-semibold focus:outline-none focus:border-[#7a1c7d] text-slate-800 bg-white"
+                        >
+                          {ALL_WALLETS.map((w) => (
+                            <option key={w.id} value={w.id}>
+                              {w.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                          የሂሳብ ቁጥር (Wallet Account Number)
+                        </label>
+                        <input
+                          type="text"
+                          value={newWalletReceiverAcc}
+                          onChange={(e) => setNewWalletReceiverAcc(e.target.value.replace(/[^0-9a-zA-Z]/g, ''))}
+                          placeholder="e.g. 0911223344"
+                          className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold focus:outline-none focus:border-[#7a1c7d] text-slate-800"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                          የተቀባይ ስም (Receiver Name)
+                        </label>
+                        <input
+                          type="text"
+                          value={newWalletReceiverName}
+                          onChange={(e) => setNewWalletReceiverName(e.target.value)}
+                          placeholder="e.g. ABEBE BIKILA"
+                          className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold focus:outline-none focus:border-[#7a1c7d] text-slate-800"
+                        />
+                      </div>
+
+                      <div className="flex items-center space-x-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!newWalletReceiverAcc.trim() || !newWalletReceiverName.trim()) return;
+                            const targetWallet = ALL_WALLETS.find((w) => w.id === newWalletReceiverWalletId) || ALL_WALLETS[0];
+                            const item: SavedWalletReceiver = {
+                              id: `wallet-rec-${Date.now()}`,
+                              walletId: targetWallet.id,
+                              walletName: targetWallet.name,
+                              accountNumber: newWalletReceiverAcc.trim(),
+                              accountName: newWalletReceiverName.trim(),
+                            };
+                            setSavedWalletReceivers((prev) => [item, ...prev]);
+                            setIsAddSavedWalletModalOpen(false);
+                            setNewWalletReceiverAcc('');
+                            setNewWalletReceiverName('');
+                          }}
+                          className="flex-1 bg-[#7a1c7d] hover:bg-[#68176b] text-white py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer shadow-sm"
+                        >
+                          አስቀምጥ (Save)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsAddSavedWalletModalOpen(false);
+                            setNewWalletReceiverAcc('');
+                            setNewWalletReceiverName('');
+                          }}
+                          className="px-3 py-2 border border-slate-300 text-slate-700 hover:bg-slate-100 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                        >
+                          ተመለስ (Cancel)
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    /* List of Saved Wallet Accounts */
+                    <div className="space-y-2.5">
+                      <div className="flex items-center justify-between pb-1 border-b border-slate-100">
+                        <span className="text-[11px] font-bold text-slate-600">
+                          የተቀመጡ ዋሌቶች ({savedWalletReceivers.length})
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setIsAddSavedWalletModalOpen(true)}
+                          className="inline-flex items-center space-x-1 text-[11px] font-bold text-[#7a1c7d] hover:underline cursor-pointer bg-purple-50 hover:bg-purple-100 px-2.5 py-1 rounded-lg transition-colors"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>አዲስ መዝግብ</span>
+                        </button>
+                      </div>
+
+                      <div className="space-y-2 max-h-64 overflow-y-auto pr-0.5">
+                        {savedWalletReceivers.length === 0 ? (
+                          <div className="text-center py-6 text-xs text-slate-400">
+                            ምንም የተቀመጠ የዋሌት ሂሳብ የለም (No saved wallet accounts)
+                          </div>
+                        ) : (
+                          savedWalletReceivers.map((r) => {
+                            const wObj = ALL_WALLETS.find((w) => w.id === r.walletId);
+                            return (
+                              <div
+                                key={r.id}
+                                className="group flex items-center justify-between p-2.5 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-purple-50/40 hover:border-purple-300 transition-all cursor-pointer"
+                                onClick={() => {
+                                  if (wObj) setSelectedWallet(wObj);
+                                  setWalletAccountNumber(r.accountNumber);
+                                  setWalletReceiverName(r.accountName);
+                                  setIsSavedWalletModalOpen(false);
+                                }}
+                              >
+                                <div className="flex items-center space-x-2.5 min-w-0 flex-1 pr-2">
+                                  <div className="w-8 h-8 rounded-full bg-[#7a1c7d]/10 text-[#7a1c7d] flex items-center justify-center font-bold text-xs shrink-0">
+                                    {r.accountName.charAt(0).toUpperCase()}
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <div className="text-xs font-bold text-slate-800 truncate">
+                                      {r.accountName}
+                                    </div>
+                                    <div className="text-[11px] font-medium text-[#7a1c7d] truncate">
+                                      {r.walletName}
+                                    </div>
+                                    <div className="text-[10px] text-slate-500 truncate font-mono">
+                                      {r.accountNumber}
+                                    </div>
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSavedWalletReceivers((prev) => prev.filter((item) => item.id !== r.id));
                                   }}
                                   className="text-slate-400 hover:text-red-600 p-1 rounded-lg transition-colors cursor-pointer"
                                   aria-label="Delete saved account"
