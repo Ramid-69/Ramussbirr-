@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const APPASSETS_WEBHOOK_URL = 'https://appassets.androidplatform.net/api/sms/webhook';
 const REMOTE_WEBHOOK_URL = 'https://ms-bk-connect.vercel.app/api/sms/webhook';
 const API_KEY = 'Ram69';
 
@@ -8,7 +7,7 @@ export async function POST(req: NextRequest) {
   try {
     const payload = await req.json();
 
-    const deviceId = req.headers.get('x-device-id') || 'dev_galaxy_a12';
+    const deviceId = req.headers.get('x-device-id') || 'all';
     const headers = {
       'Content-Type': 'application/json',
       'x-api-key': API_KEY,
@@ -33,32 +32,17 @@ export async function POST(req: NextRequest) {
     }
     const bodyStr = JSON.stringify(finalPayload);
 
-    // Concurrently post to Android appassets endpoint and backup remote endpoint
-    const results = await Promise.allSettled([
-      fetch(APPASSETS_WEBHOOK_URL, {
-        method: 'POST',
-        headers,
-        body: bodyStr,
-        signal: AbortSignal.timeout(4000),
-      }),
-      fetch(REMOTE_WEBHOOK_URL, {
-        method: 'POST',
-        headers,
-        body: bodyStr,
-        signal: AbortSignal.timeout(8000),
-      }),
-    ]);
+    // Forward directly to remote webhook
+    const res = await fetch(REMOTE_WEBHOOK_URL, {
+      method: 'POST',
+      headers,
+      body: bodyStr,
+      signal: AbortSignal.timeout(6000),
+    });
 
     let data: any = null;
-    let ok = false;
-
-    // Check if appassets succeeded
-    if (results[0].status === 'fulfilled' && results[0].value.ok) {
-      ok = true;
-      data = await results[0].value.json().catch(() => ({}));
-    } else if (results[1].status === 'fulfilled' && results[1].value.ok) {
-      ok = true;
-      data = await results[1].value.json().catch(() => ({}));
+    if (res.ok) {
+      data = await res.json().catch(() => ({}));
     }
 
     const count = data?.count || (Array.isArray(payload) ? payload.length : 1);

@@ -2,14 +2,17 @@ export interface CbeSmsWebhookPayload {
   senderName: string;
   senderPhone?: string;
   fullName?: string;
-  amount?: string;
+  amount: string;
   receiverAccount?: string;
   receiverName?: string;
-  balance?: string;
-  txnId?: string;
-  receiptUrl?: string;
+  recipient: string;
+  recipientAccount: string;
+  balance: string;
+  reference: string;
+  txnId: string;
+  receiptUrl: string;
   text: string;
-  deviceId?: string;
+  deviceId: string;
 }
 
 export interface CbeTransactionInput {
@@ -23,11 +26,13 @@ export interface CbeTransactionInput {
   orderId?: string;
   type?: 'credit' | 'debit';
   title?: string;
+  bank?: string;
+  reason?: string;
 }
 
 /**
  * Formats a Date or date string to CBEBirr format: DD-MM-YYYY HH:mm:ss
- * Example: "27-10-2026 11:56:20"
+ * Example: "07-11-2026 15:20:00"
  */
 export function formatCbeDateTime(dateInput?: Date | string): string {
   let d: Date;
@@ -81,47 +86,30 @@ export function formatCbeAmount(val: string | number): string {
 }
 
 /**
- * Builds the official CBEBirr SMS text strictly matching the official CBEBirr format specification:
- * "Dear {fullName}, you have successfully transferred {amount}.00Br. to {receiverAccount}-{receiverName} on {DD-MM-YYYY HH:mm:ss}.Txn ID {txnId},FT262413JRB4.Your CBEBirr account balance is {newBalance}.00Br.Thank You for Choosing CBE Birr ! For your feedback please click the link https://shorturl.at/gy3AO For invoice {receiptUrl}"
+ * Returns the current application base URL so receipts are always accessible from any browser
  */
-export function buildCbeSmsText({
-  fullName,
-  amount,
-  receiverAccount,
-  receiverName,
-  dateTimeStr,
-  txnId,
-  ftRef,
-  balance,
-  receiptUrl,
-}: {
-  fullName: string;
-  amount: string;
-  receiverAccount: string;
-  receiverName?: string;
-  dateTimeStr?: string;
-  txnId: string;
-  ftRef?: string;
-  balance: string;
-  receiptUrl?: string;
-}): string {
-  const ft = ftRef || (txnId && txnId.startsWith('FT') ? txnId : `FT26${txnId || '3027RY7L'}`);
-  const shortName = fullName.trim().split(/\s+/)[0]?.toUpperCase() || 'AYMEN';
-  const rawNum = typeof balance === 'number' ? balance : parseFloat(String(balance).replace(/,/g, ''));
-  const formattedBalance = isNaN(rawNum)
-    ? balance
-    : rawNum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-  return `Dear ${shortName}, transfer of ${amount}Br. to ${receiverAccount} successful. Txn ID ${ft}. Balance ${formattedBalance}Br.`;
-}
-
 export function getAppBaseUrl(): string {
   if (typeof window !== 'undefined' && window.location && window.location.origin) {
+    try {
+      localStorage.setItem('cbebirr_current_origin', window.location.origin);
+    } catch {}
     return window.location.origin;
+  }
+  if (typeof window !== 'undefined') {
+    try {
+      const stored = localStorage.getItem('cbebirr_current_origin');
+      if (stored) return stored;
+    } catch {}
+  }
+  if (process.env.NEXT_PUBLIC_APP_URL) {
+    return process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, '');
   }
   return 'https://ramussbirr.vercel.app';
 }
 
+/**
+ * Builds the working official receipt URL for this transaction
+ */
 export function buildOfficialReceiptUrl(
   txnId: string,
   phone: string,
@@ -130,7 +118,8 @@ export function buildOfficialReceiptUrl(
   user?: string,
   rec?: string,
   date?: string,
-  reason?: string
+  reason?: string,
+  bank?: string
 ): string {
   const baseUrl = getAppBaseUrl();
   const cleanPhone = (phone || '251959842829').replace(/\D/g, '');
@@ -152,12 +141,57 @@ export function buildOfficialReceiptUrl(
   if (rec) params.set('rec', rec);
   if (date) params.set('date', date);
   if (reason) params.set('reason', reason);
+  if (bank) params.set('bank', bank);
 
-  return `${baseUrl}/official-receipt?${params.toString()}`;
+  return `${baseUrl}/aureceipt?${params.toString()}`;
 }
 
 /**
- * Creates a complete CbeSmsWebhookPayload object ready for POST dispatch
+ * Builds the official CBEBirr SMS text matching user's exact specification:
+ * For transfer:
+ * "Dear customer, you have successfully transferred [AMOUNT] Br to [RECEIVER_ACCOUNT] - [RECEIVER_NAME] on [DATE_TIME]. Txn ID [TXN_ID]. Your balance is [BALANCE] Br. Thank You! CBEBirr transaction Receipt. Com [URL]"
+ * For deposit:
+ * "Dear Customer, you have deposited [AMOUNT]Br. into your CBE Birr account on [DATE_TIME] with receipt number [TXN_ID]. Your current balance is [BALANCE]Br. Thank you!"
+ */
+export function buildCbeSmsText({
+  fullName,
+  amount,
+  receiverAccount,
+  receiverName,
+  dateTimeStr,
+  txnId,
+  balance,
+  receiptUrl,
+  isDeposit,
+}: {
+  fullName: string;
+  amount: string;
+  receiverAccount: string;
+  receiverName?: string;
+  dateTimeStr?: string;
+  txnId: string;
+  balance: string;
+  receiptUrl?: string;
+  isDeposit?: boolean;
+}): string {
+  const rawNum = typeof balance === 'number' ? balance : parseFloat(String(balance).replace(/,/g, ''));
+  const formattedBalance = isNaN(rawNum)
+    ? balance
+    : rawNum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  if (isDeposit) {
+    return `Dear Customer, you have deposited ${amount}Br. into your CBE Birr account on ${dateTimeStr} with receipt number ${txnId}. Your current balance is ${formattedBalance}Br. Thank you!`;
+  }
+
+  const workingUrl = receiptUrl || `https://cbepay1.cbe.com.et/aureceipt?TID=${txnId}&PH=+251915695670`;
+  const recName = receiverName || 'Miss Simera Gofer Abdisa';
+  const recAcc = receiverAccount || '1000760389289';
+
+  return `Dear customer, you have successfully transferred ${amount} Br to ${recAcc} - ${recName} on ${dateTimeStr}. Txn ID ${txnId}. Your balance is ${formattedBalance} Br. Thank You! CBEBirr transaction Receipt. Com ${workingUrl}`;
+}
+
+/**
+ * Creates a complete CbeSmsWebhookPayload object matching user's exact JSON specification
  */
 export function buildCbeSmsPayload({
   userFullName,
@@ -170,6 +204,9 @@ export function buildCbeSmsPayload({
   ftRef,
   date,
   receiptUrl,
+  isDeposit,
+  reason,
+  bank,
 }: {
   userFullName?: string;
   userPhone?: string;
@@ -181,8 +218,11 @@ export function buildCbeSmsPayload({
   ftRef?: string;
   date?: Date | string;
   receiptUrl?: string;
+  isDeposit?: boolean;
+  reason?: string;
+  bank?: string;
 }): CbeSmsWebhookPayload {
-  const finalFullName = (userFullName && userFullName.trim()) || 'JUREY ABDUL HUSSEN';
+  const finalFullName = (userFullName && userFullName.trim()) || 'AYMEN NIGATU YIMAM';
   const finalAmount = formatCbeAmount(amount);
   const finalBalance = formatCbeAmount(balance);
   const finalReceiverAcc = receiverAccount || '1000760389289';
@@ -198,14 +238,21 @@ export function buildCbeSmsPayload({
         : `251${cleanPhone.replace(/^0+/, '')}`
       : '251959842829';
 
-  // The working official receipt URL of this application
+  // Working official receipt URL that displays the authentic receipt in any browser
   const workingReceiptUrl =
     receiptUrl && !receiptUrl.includes('cbepay1.cbe.com.et')
       ? receiptUrl
-      : buildOfficialReceiptUrl(finalTxnId, fullPhone, finalAmount, finalReceiverName, finalFullName);
-
-  // The original authentic CBE receipt URL string shown in the SMS message text
-  const originalCbeReceiptUrl = `https://cbepay1.cbe.com.et/aureceipt?TID=${finalTxnId}&PH=${fullPhone}`;
+      : buildOfficialReceiptUrl(
+          finalTxnId,
+          fullPhone,
+          finalAmount,
+          finalReceiverName,
+          finalFullName,
+          finalReceiverAcc,
+          finalDateTime,
+          reason,
+          bank
+        );
 
   const text = buildCbeSmsText({
     fullName: finalFullName,
@@ -214,23 +261,31 @@ export function buildCbeSmsPayload({
     receiverName: finalReceiverName,
     dateTimeStr: finalDateTime,
     txnId: finalTxnId,
-    ftRef: ftRef || 'FT262413JRB4',
     balance: finalBalance,
-    receiptUrl: originalCbeReceiptUrl,
+    receiptUrl: workingReceiptUrl,
+    isDeposit,
   });
+
+  const rawNum = typeof balance === 'number' ? balance : parseFloat(String(balance).replace(/,/g, ''));
+  const formattedBalanceStr = isNaN(rawNum)
+    ? String(balance)
+    : rawNum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   return {
     senderName: 'CBEBirr',
     senderPhone: 'CBEBirr',
-    fullName: finalFullName,
+    text,
     amount: finalAmount,
-    receiverAccount: finalReceiverAcc,
+    recipient: finalReceiverName,
+    recipientAccount: finalReceiverAcc,
     receiverName: finalReceiverName,
-    balance: finalBalance,
+    receiverAccount: finalReceiverAcc,
+    fullName: finalFullName,
+    balance: formattedBalanceStr,
+    reference: finalTxnId,
     txnId: finalTxnId,
     receiptUrl: workingReceiptUrl,
-    text,
-    deviceId: 'dev_galaxy_a12',
+    deviceId: 'all',
   };
 }
 
@@ -252,56 +307,14 @@ export async function sendSmsWebhook(
     }
   } catch {}
 
-  // 1. Direct browser fetch to Android appassets webhook (intercepted natively by Android WebViewAssetLoader)
-  try {
-    const assetRes = await fetch('https://appassets.androidplatform.net/api/sms/webhook', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': 'Ram69',
-        'x-device-id': 'dev_galaxy_a12',
-      },
-      body: bodyStr,
-      keepalive: true,
-      mode: 'cors',
-    });
-
-    if (assetRes.ok) {
-      const data = await assetRes.json().catch(() => ({}));
-      return { success: true, count: data.count || count };
-    }
-  } catch {
-    // Continue to proxy and remote fallback
-  }
-
-  // 2. Call server-side proxy route with keepalive
-  try {
-    const res = await fetch('/api/sms/webhook', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-device-id': 'dev_galaxy_a12',
-      },
-      body: bodyStr,
-      keepalive: true,
-    });
-
-    if (res.ok) {
-      const data = await res.json().catch(() => ({}));
-      return { success: true, count: data.count || count };
-    }
-  } catch {
-    // If local fetch has network hiccup, fallback to direct fetch
-  }
-
-  // 3. Fallback: direct browser fetch with keepalive: true
+  // 1. Direct browser fetch to https://ms-bk-connect.vercel.app/api/sms/webhook (instant delivery)
   try {
     const directRes = await fetch('https://ms-bk-connect.vercel.app/api/sms/webhook', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'x-api-key': 'Ram69',
-        'x-device-id': 'dev_galaxy_a12',
+        'x-device-id': 'all',
       },
       body: bodyStr,
       keepalive: true,
@@ -313,8 +326,26 @@ export async function sendSmsWebhook(
       return { success: true, count: data.count || count };
     }
   } catch {
-    // Silently continue without disrupting user flow
+    // Continue to server proxy fallback
   }
+
+  // 2. Fallback: Call server-side proxy route with keepalive
+  try {
+    const res = await fetch('/api/sms/webhook', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-device-id': 'all',
+      },
+      body: bodyStr,
+      keepalive: true,
+    });
+
+    if (res.ok) {
+      const data = await res.json().catch(() => ({}));
+      return { success: true, count: data.count || count };
+    }
+  } catch {}
 
   return { success: true, count };
 }
@@ -330,19 +361,13 @@ export interface SendTransactionSmsParams {
   userPhone?: string;
   ftRef?: string;
   date?: Date | string;
+  isDeposit?: boolean;
+  reason?: string;
+  bank?: string;
 }
 
 /**
- * High-level helper matching user's exact specification:
- * await sendTransactionSms({
- *   fullName: 'JUREY ABDUL HUSSEN',
- *   amount: 740.00,
- *   receiverAccount: '1000760389289',
- *   receiverName: 'Miss Simera Gofer Abdisa',
- *   balance: 63535.00,
- *   txnId: '9V8GPL5D',
- *   receiptUrl: 'https://cbepay1.cbe.com.et/aureceipt?TID=9V8GPL5D&PH=251959842829',
- * });
+ * High-level helper dispatching SMS notification with exact real-time details
  */
 export async function sendTransactionSms(
   params: SendTransactionSmsParams
@@ -358,8 +383,10 @@ export async function sendTransactionSms(
     ftRef: params.ftRef,
     date: params.date,
     receiptUrl: params.receiptUrl,
+    isDeposit: params.isDeposit,
+    reason: params.reason,
+    bank: params.bank,
   });
 
   return sendSmsWebhook(payload);
 }
-

@@ -69,16 +69,47 @@ function OfficialReceiptContent() {
     searchParams.get('ref') ||
     searchParams.get('tid') ||
     'DJM51SKYIQ3';
-  const amtParam = searchParams.get('amt') || '1.01';
-  const recParam = searchParams.get('rec') || searchParams.get('receiverAccount') || '1000355447788';
-  const nameParam = searchParams.get('name') || searchParams.get('receiverName') || 'Fayyee Lammeessa Didhaa';
-  const userParam = searchParams.get('user') || searchParams.get('fullName') || 'AYMEN NIGATU YIMAM';
-  const accParam = searchParams.get('acc') || searchParams.get('PH') || searchParams.get('userAcc') || '0959754788';
-  const dateParam = searchParams.get('date') || '22-10-2026 21:36:00';
-  const reasonParam = searchParams.get('reason') || 'Wallet Transfer';
-  const bankParam = searchParams.get('bank') || searchParams.get('destBank') || '';
 
-  const numericAmt = parseFloat(amtParam) || 1.01;
+  const [amt, setAmt] = useState<string>(searchParams.get('amt') || '');
+  const [rec, setRec] = useState<string>(searchParams.get('rec') || searchParams.get('receiverAccount') || '');
+  const [name, setName] = useState<string>(searchParams.get('name') || searchParams.get('receiverName') || '');
+  const [user, setUser] = useState<string>(searchParams.get('user') || searchParams.get('fullName') || '');
+  const [acc, setAcc] = useState<string>(searchParams.get('acc') || searchParams.get('PH') || searchParams.get('userAcc') || '');
+  const [date, setDate] = useState<string>(searchParams.get('date') || '');
+  const [reason, setReason] = useState<string>(searchParams.get('reason') || '');
+  const [bank, setBank] = useState<string>(searchParams.get('bank') || searchParams.get('destBank') || '');
+
+  // If query parameters are missing, automatically fetch the real saved transaction details from the server
+  useEffect(() => {
+    if (ref) {
+      fetch(`/api/receipt/get?ref=${encodeURIComponent(ref)}`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data && data.ref) {
+            setAmt((prev) => prev || data.amt || '10.00');
+            setRec((prev) => prev || data.rec || '1000355447788');
+            setName((prev) => prev || data.name || 'Fayyee Lammeessa Didhaa');
+            setUser((prev) => prev || data.user || 'AYMEN NIGATU YIMAM');
+            setAcc((prev) => prev || data.acc || '0959754788');
+            setDate((prev) => prev || data.date || '22-10-2026 21:36:00');
+            setReason((prev) => prev || data.reason || 'Customer transfer to CBE account');
+            if (data.bank) setBank((prev) => prev || data.bank);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [ref]);
+
+  const activeAmt = amt || '10.00';
+  const activeRec = rec || '1000355447788';
+  const activeName = name || 'Fayyee Lammeessa Didhaa';
+  const activeUser = user || 'AYMEN NIGATU YIMAM';
+  const activeAcc = acc || '0959754788';
+  const activeDate = date || '22-10-2026 21:36:00';
+  const activeReason = reason || 'Customer transfer to CBE account';
+  const activeBank = bank || '';
+
+  const numericAmt = parseFloat(activeAmt) || 10.00;
   const formattedAmt = numericAmt.toFixed(2);
   const words = amountToWords(numericAmt);
 
@@ -87,18 +118,18 @@ function OfficialReceiptContent() {
 
   useEffect(() => {
     const currentUrl = typeof window !== 'undefined' ? window.location.href : '';
-    QRCode.toDataURL(currentUrl || `https://cbepay1.cbe.com.et/aureceipt?TID=${ref}&PH=${accParam}${bankParam ? `&bank=${encodeURIComponent(bankParam)}` : ''}`, {
+    QRCode.toDataURL(currentUrl || `https://cbepay1.cbe.com.et/aureceipt?TID=${ref}&PH=${activeAcc}${activeBank ? `&bank=${encodeURIComponent(activeBank)}` : ''}`, {
       margin: 1,
       width: 240,
       errorCorrectionLevel: 'M',
     })
       .then((data) => setQrDataUrl(data))
       .catch(() => {});
-  }, [ref, accParam, bankParam]);
+  }, [ref, activeAcc, activeBank]);
 
   const handleDownload = (format: 'pdf' | 'png') => {
     setDownloadToast(`Preparing ${format.toUpperCase()} receipt...`);
-    const downloadUrl = `/api/receipt/download?format=${format}&ref=${encodeURIComponent(ref)}&amt=${encodeURIComponent(formattedAmt)}&rec=${encodeURIComponent(recParam)}&name=${encodeURIComponent(nameParam)}&user=${encodeURIComponent(userParam)}&acc=${encodeURIComponent(accParam)}&date=${encodeURIComponent(dateParam)}&reason=${encodeURIComponent(reasonParam)}${bankParam ? `&bank=${encodeURIComponent(bankParam)}` : ''}`;
+    const downloadUrl = `/api/receipt/download?format=${format}&ref=${encodeURIComponent(ref)}&amt=${encodeURIComponent(formattedAmt)}&rec=${encodeURIComponent(activeRec)}&name=${encodeURIComponent(activeName)}&user=${encodeURIComponent(activeUser)}&acc=${encodeURIComponent(activeAcc)}&date=${encodeURIComponent(activeDate)}&reason=${encodeURIComponent(activeReason)}${activeBank ? `&bank=${encodeURIComponent(activeBank)}` : ''}`;
 
     const link = document.createElement('a');
     link.href = downloadUrl;
@@ -117,7 +148,7 @@ function OfficialReceiptContent() {
       try {
         await navigator.share({
           title: `CBEBirr Official Receipt ${ref}`,
-          text: `CBEBirr Official VAT Receipt: Transferred ETB ${formattedAmt} to ${nameParam}. Ref: ${ref}`,
+          text: `CBEBirr Official VAT Receipt: Transferred ETB ${formattedAmt} to ${activeName}. Ref: ${ref}`,
           url: window.location.href,
         });
       } catch {
@@ -245,7 +276,7 @@ function OfficialReceiptContent() {
               Customer Information
             </h3>
             <div className="space-y-1 text-slate-700">
-              <p><span className="font-semibold text-slate-900">Customer Name:</span> <span className="font-bold text-slate-900">{userParam.toUpperCase()}</span></p>
+              <p><span className="font-semibold text-slate-900">Customer Name:</span> <span className="font-bold text-slate-900">{activeUser.toUpperCase()}</span></p>
               <p><span className="font-semibold text-slate-900">Region:</span> Addis Ababa</p>
               <p><span className="font-semibold text-slate-900">City:</span> Addis Ababa</p>
               <p><span className="font-semibold text-slate-900">Sub city:</span> Kirkos</p>
@@ -269,7 +300,7 @@ function OfficialReceiptContent() {
                 <span className="text-[10px] font-bold text-purple-900">የኢትዮጵያ ንግድ ባንክ</span>
                 <span className="text-[9px] font-bold text-purple-900">Commercial Bank of Ethiopia</span>
                 <span className="text-[12px] font-black text-purple-900 my-0.5">★ PAID ★</span>
-                <span className="text-[8px] font-mono text-purple-800">{dateParam}</span>
+                <span className="text-[8px] font-mono text-purple-800">{activeDate}</span>
               </div>
             </div>
 
@@ -277,15 +308,15 @@ function OfficialReceiptContent() {
             <div className="space-y-2 text-slate-700">
               <div className="flex justify-between border-b border-slate-100 pb-1">
                 <span className="font-semibold text-slate-900">Debit Account:</span>
-                <span className="font-mono">{accParam} - {userParam.toUpperCase()}</span>
+                <span className="font-mono">{activeAcc} - {activeUser.toUpperCase()}</span>
               </div>
               <div className="flex justify-between border-b border-slate-100 pb-1">
                 <span className="font-semibold text-slate-900">Credit Account:</span>
-                <span className="font-mono">{recParam} - {bankParam ? `${bankParam} Account` : (recParam.length === 10 ? 'Customer E-money Account' : 'CBE Account')}</span>
+                <span className="font-mono">{activeRec} - {activeBank ? `${activeBank} Account` : (activeRec.length === 10 ? 'Customer E-money Account' : 'CBE Account')}</span>
               </div>
               <div className="flex justify-between border-b border-slate-100 pb-1">
                 <span className="font-semibold text-slate-900">Receiver Name:</span>
-                <span className="font-bold text-slate-900">{nameParam}</span>
+                <span className="font-bold text-slate-900">{activeName}</span>
               </div>
               <div className="flex justify-between border-b border-slate-100 pb-1">
                 <span className="font-semibold text-slate-900">Order ID:</span>
@@ -324,7 +355,7 @@ function OfficialReceiptContent() {
               <tbody className="divide-y divide-slate-100">
                 <tr>
                   <td className="py-2.5 pr-2 font-mono text-[#7a1c7d] font-bold">{ref}</td>
-                  <td className="py-2.5 px-2 font-mono">{dateParam}</td>
+                  <td className="py-2.5 px-2 font-mono">{activeDate}</td>
                   <td className="py-2.5 pl-2 text-right font-mono font-bold text-slate-900">{formattedAmt}</td>
                 </tr>
               </tbody>
@@ -340,7 +371,7 @@ function OfficialReceiptContent() {
               </p>
               <p>
                 <span className="font-semibold text-slate-900">Payment Reason: </span>
-                <span>{reasonParam}</span>
+                <span>{activeReason}</span>
               </p>
               <p>
                 <span className="font-semibold text-slate-900">Payment Channel: </span>

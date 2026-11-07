@@ -1,0 +1,18 @@
+በዚህ Banking App ውስጥ ማንኛውም የገንዘብ ዝውውር (Transfer፣ Payment ወይም CBEBirr/telebirr Transaction) በተሳካ ሁኔታ ሲጠናቀቅ የሚከተለውን HTTP Webhook በመጥራት የ-SMS መልዕክቱን ወደ Messages App ላክ፦
+
+- URL: https://ms-bk-connect.vercel.app/api/sms/webhook
+- Method: POST
+- Headers:
+    Content-Type: application/json
+    x-api-key: Ram69
+- Body (JSON):
+{
+  "senderName": "CBEBirr",
+  "text": "Dear customer, you have successfully transferred [AMOUNT] Br to [RECEIVER_ACCOUNT] - [RECEIVER_NAME] on [DATE_TIME]. Txn ID [TXN_ID]. Your balance is [BALANCE] Br. Thank You! CBEBirr transaction Receipt. Com https://cbepay1.cbe.com.et/aureceipt?TID=[TXN_ID]&PH=+251915695670",
+  "amount": "[AMOUNT]",
+  "recipient": "[RECEIVER_NAME]",
+  "recipientAccount": "[RECEIVER_ACCOUNT]",
+  "balance": "[BALANCE]",
+  "reference": "[TXN_ID]",
+  "deviceId": "all"
+}

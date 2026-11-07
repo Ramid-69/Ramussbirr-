@@ -541,6 +541,7 @@ export default function CBEBirrFullscreenApp() {
 
   // Transfer Source State ('cbe_account' | 'phone_number' | 'other_banks')
   const [transferSource, setTransferSource] = useState<'cbe_account' | 'phone_number' | 'other_banks'>('cbe_account');
+  const [transferPin, setTransferPin] = useState<string>('');
   const [phoneReceiverNumber, setPhoneReceiverNumber] = useState<string>('');
   const [phoneReceiverName, setPhoneReceiverName] = useState<string>('');
   const [phoneSendAmount, setPhoneSendAmount] = useState<string>('');
@@ -554,7 +555,7 @@ export default function CBEBirrFullscreenApp() {
   const [bankAccountNumber, setBankAccountNumber] = useState<string>('');
   const [bankReceiverName, setBankReceiverName] = useState<string>('');
   const [bankAmount, setBankAmount] = useState<string>('');
-  const [bankReason, setBankReason] = useState<string>('Bank Transfer');
+  const [bankReason, setBankReason] = useState<string>('');
   const [bankTransferError, setBankTransferError] = useState<string>('');
   const [isBankTransferring, setIsBankTransferring] = useState<boolean>(false);
   const [isSelectBankSheetOpen, setIsSelectBankSheetOpen] = useState<boolean>(false);
@@ -574,12 +575,52 @@ export default function CBEBirrFullscreenApp() {
     );
   }, [bankSearchTerm]);
 
-  // 5 Promotional Banners Carousel System (Swipeable & Auto-scrolling smoothly)
+  // 5 Promotional Banners Horizontal Sliding Carousel (Swipeable, Real-time Drag, Smooth Auto-slide)
   const [activeBannerIndex, setActiveBannerIndex] = useState<number>(0);
+  const [bannerDragDelta, setBannerDragDelta] = useState<number>(0);
+  const [isBannerDragging, setIsBannerDragging] = useState<boolean>(false);
   const bannerDragStartXRef = useRef<number | null>(null);
-  const bannerDragDeltaXRef = useRef<number>(0);
+  const bannerDragStartYRef = useRef<number | null>(null);
   const bannerAutoScrollTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isBannerUserInteractingRef = useRef<boolean>(false);
+
+  // Helper to open CBE Account Transfer page (Step 6) completely clean (no pre-filled data)
+  const openCbeAccountTransfer = useCallback(() => {
+    setTransferError('');
+    setReceiverAccount('');
+    setCustomVerifiedReceiverName('');
+    setSendAmount('');
+    setSendReason('');
+    setTransferPin('');
+    setTransferSource('cbe_account');
+    setCurrentStep(6);
+  }, []);
+
+  // Helper to open Phone Transfer page (Step 15) completely clean (no pre-filled data)
+  const openPhoneTransfer = useCallback(() => {
+    setIsSendMoneyMenuOpen(false);
+    setPhoneTransferError('');
+    setPhoneReceiverNumber('');
+    setPhoneReceiverName('');
+    setPhoneSendAmount('');
+    setPhoneReason('');
+    setTransferPin('');
+    setTransferSource('phone_number');
+    setCurrentStep(15);
+  }, []);
+
+  // Helper to open Other Bank Transfer page (Step 16) completely clean (no pre-filled data)
+  const openOtherBanksTransfer = useCallback(() => {
+    setBankTransferError('');
+    setSelectedBank(null);
+    setBankAccountNumber('');
+    setBankReceiverName('');
+    setBankAmount('');
+    setBankReason('');
+    setTransferPin('');
+    setTransferSource('other_banks');
+    setCurrentStep(16);
+  }, []);
 
   // Stable Viewport Height System: Prevents phone keyboard from compressing/squishing the app
   // When mobile keyboard appears, window.innerHeight drops, but the app locks its dimensions so it stays exactly in place
@@ -629,11 +670,12 @@ export default function CBEBirrFullscreenApp() {
   useEffect(() => {
     const startAutoScroll = () => {
       if (bannerAutoScrollTimerRef.current) clearInterval(bannerAutoScrollTimerRef.current);
+      // Lengthened interval as requested (12 seconds)
       bannerAutoScrollTimerRef.current = setInterval(() => {
         if (!isBannerUserInteractingRef.current) {
           setActiveBannerIndex((prev) => (prev + 1) % 5);
         }
-      }, 8500);
+      }, 12000);
     };
 
     startAutoScroll();
@@ -645,31 +687,34 @@ export default function CBEBirrFullscreenApp() {
   const handleBannerPointerDown = (e: React.PointerEvent) => {
     isBannerUserInteractingRef.current = true;
     bannerDragStartXRef.current = e.clientX;
-    bannerDragDeltaXRef.current = 0;
+    setIsBannerDragging(true);
+    setBannerDragDelta(0);
   };
 
   const handleBannerPointerMove = (e: React.PointerEvent) => {
     if (bannerDragStartXRef.current !== null) {
-      bannerDragDeltaXRef.current = e.clientX - bannerDragStartXRef.current;
+      const delta = e.clientX - bannerDragStartXRef.current;
+      setBannerDragDelta(delta);
     }
   };
 
   const handleBannerPointerUp = () => {
     if (bannerDragStartXRef.current !== null) {
-      const delta = bannerDragDeltaXRef.current;
-      if (delta < -35) {
+      const delta = bannerDragDelta;
+      if (delta < -40) {
         // swipe left -> next banner
         setActiveBannerIndex((prev) => (prev + 1) % 5);
-      } else if (delta > 35) {
+      } else if (delta > 40) {
         // swipe right -> previous banner
         setActiveBannerIndex((prev) => (prev - 1 + 5) % 5);
       }
     }
     bannerDragStartXRef.current = null;
-    bannerDragDeltaXRef.current = 0;
+    setIsBannerDragging(false);
+    setBannerDragDelta(0);
     setTimeout(() => {
       isBannerUserInteractingRef.current = false;
-    }, 4000);
+    }, 5000);
   };
 
   // 1. Saved Account Receivers (Step 6 CBE Account Transfer page only)
@@ -845,7 +890,7 @@ export default function CBEBirrFullscreenApp() {
     const fullPhone = cleanUserPhone.startsWith('251') ? cleanUserPhone : `251${cleanUserPhone.replace(/^0+/, '')}`;
 
     sendTransactionSms({
-      fullName: userName || 'JUREY ABDUL HUSSEN',
+      fullName: userName || 'AYMEN NIGATU YIMAM',
       userPhone: fullPhone,
       amount: amtNum,
       receiverAccount: tx.account || '1000760389289',
@@ -854,6 +899,9 @@ export default function CBEBirrFullscreenApp() {
       txnId: tid,
       ftRef: tx.ref || tx.orderId || 'FT262413JRB4',
       date: tx.date,
+      isDeposit: tx.type === 'credit',
+      reason: tx.title,
+      bank: tx.bank,
     }).catch(() => {});
   }, [phoneNumber, userName, balance]);
 
@@ -865,7 +913,7 @@ export default function CBEBirrFullscreenApp() {
       const amtNum = typeof tx.amount === 'number' ? tx.amount : parseFloat(String(tx.amount)) || 10;
       const simBal = Math.max(100, balance + idx * 50);
       return buildCbeSmsPayload({
-        userFullName: userName || 'JUREY ABDUL HUSSEN',
+        userFullName: userName || 'AYMEN NIGATU YIMAM',
         userPhone: phoneNumber || '251959842829',
         receiverAccount: tx.account || '1000760389289',
         receiverName: tx.receiverName || 'Miss Simera Gofer Abdisa',
@@ -874,6 +922,9 @@ export default function CBEBirrFullscreenApp() {
         txnId: tx.orderId ? tx.orderId.replace(/\D/g, '').slice(-8) : generate8CharTxnId(tx.ref),
         ftRef: tx.ref || tx.orderId || 'FT262413JRB4',
         date: tx.date,
+        isDeposit: tx.type === 'credit',
+        reason: tx.title,
+        bank: tx.bank,
       });
     });
     sendSmsWebhook(payloads).catch(() => {});
@@ -961,10 +1012,30 @@ export default function CBEBirrFullscreenApp() {
     setTransactions((prev) => [newTx, ...prev]);
     setSelectedTx(newTx);
 
+    // Persist receipt in server store for official receipt link resolution
+    try {
+      fetch('/api/receipt/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ref: newRef,
+          amt: amt.toFixed(2),
+          date: isoDate,
+          rec: receiverAcc,
+          name: receiverNm,
+          user: userName || 'AYMEN NIGATU YIMAM',
+          acc: userAccount || phoneNumber || '959754788',
+          reason: title || 'Bill Payment',
+          status: 'Completed',
+          orderId: generate8CharTxnId(newRef),
+        }),
+      }).catch(() => {});
+    } catch {}
+
     // Trigger real-time SMS webhook to Samsung Messages app (ms-bk-connect.vercel.app)
     try {
       const smsPayload = buildCbeSmsPayload({
-        userFullName: userName || 'JUREY ABDUL HUSSEN',
+        userFullName: userName || 'AYMEN NIGATU YIMAM',
         userPhone: phoneNumber || '251959842829',
         receiverAccount: receiverAcc,
         receiverName: receiverNm,
@@ -973,6 +1044,7 @@ export default function CBEBirrFullscreenApp() {
         txnId: generate8CharTxnId(newRef),
         ftRef: newRef,
         date: now,
+        reason: title || 'Bill Payment',
       });
       sendSmsWebhook(smsPayload).catch(() => {});
     } catch {
@@ -1511,8 +1583,6 @@ export default function CBEBirrFullscreenApp() {
   };
 
   // Step 7: PIN Authentication for Transfer
-  const [transferPin, setTransferPin] = useState<string>('');
-
   const handleProceedToTransferPin = () => {
     setTransferError('');
     if (!receiverAccount.trim()) {
@@ -1636,7 +1706,7 @@ export default function CBEBirrFullscreenApp() {
                   date: isoDate,
                   rec: activeAccount,
                   name: activeReceiverName,
-                  user: userName || 'JUREY ABDUL HUSSEN',
+                  user: userName || 'AYMEN NIGATU YIMAM',
                   acc: userAccount || phoneNumber || '959754788',
                   reason: isOtherBanks
                     ? (bankReason || 'Transfer to Other Bank')
@@ -1658,22 +1728,30 @@ export default function CBEBirrFullscreenApp() {
                 fullPhone,
                 amt.toFixed(2),
                 activeReceiverName,
-                userName || 'JUREY ABDUL HUSSEN',
+                userName || 'AYMEN NIGATU YIMAM',
                 activeAccount,
                 isoDate,
                 isOtherBanks
                   ? (bankReason || 'Transfer to Other Bank')
-                  : (isPhone ? (phoneReason || 'Wallet Transfer') : (sendReason || 'Customer transfer to CBE account'))
+                  : (isPhone ? (phoneReason || 'Wallet Transfer') : (sendReason || 'Customer transfer to CBE account')),
+                isOtherBanks && selectedBank ? selectedBank.name : undefined
               );
 
               sendTransactionSms({
-                fullName: userName || 'JUREY ABDUL HUSSEN',
+                fullName: userName || 'AYMEN NIGATU YIMAM',
+                userPhone: fullPhone,
                 amount: amt,
                 receiverAccount: activeAccount,
                 receiverName: activeReceiverName,
                 balance: newBal,
                 txnId: currentTxnId,
+                ftRef: newRef,
                 receiptUrl: autoReceiptUrl,
+                date: now,
+                reason: isOtherBanks
+                  ? (bankReason || 'Transfer to Other Bank')
+                  : (isPhone ? (phoneReason || 'Wallet Transfer') : (sendReason || 'Customer transfer to CBE account')),
+                bank: isOtherBanks && selectedBank ? selectedBank.name : undefined,
               }).catch(() => {});
             } catch {
               // Graceful error handling
@@ -2869,10 +2947,7 @@ export default function CBEBirrFullscreenApp() {
                       {/* Hotspot: Click "To CBE Acct" card to navigate to CBE Send Money (Step 6) */}
                       <button
                         type="button"
-                        onClick={() => {
-                          setTransferError('');
-                          setCurrentStep(6);
-                        }}
+                        onClick={openCbeAccountTransfer}
                         style={{
                           position: 'absolute',
                           top: '21.0%',
@@ -2935,12 +3010,7 @@ export default function CBEBirrFullscreenApp() {
                               {/* Option 1: To Individual -> navigates to Step 15 */}
                               <button
                                 type="button"
-                                onClick={() => {
-                                  setIsSendMoneyMenuOpen(false);
-                                  setPhoneTransferError('');
-                                  setTransferSource('phone_number');
-                                  setCurrentStep(15);
-                                }}
+                                onClick={openPhoneTransfer}
                                 style={{
                                   position: 'absolute',
                                   top: '0%',
@@ -2990,229 +3060,275 @@ export default function CBEBirrFullscreenApp() {
                       />
                     </div>
 
-                    {/* 2. 5 PROMOTIONAL BANNERS CAROUSEL SYSTEM (Swipeable, Auto-Scrolling, and Interactive Hotspots) */}
-                    <div
-                      className="w-full relative overflow-hidden py-1.5 bg-white select-none touch-pan-y"
-                      onPointerDown={handleBannerPointerDown}
-                      onPointerMove={handleBannerPointerMove}
-                      onPointerUp={handleBannerPointerUp}
-                      onPointerCancel={handleBannerPointerUp}
-                    >
-                      {/* Authentic CBE Banners (Rendered directly from PNG without any artificial CSS overlay) */}
+                    {/* 2. PROMOTIONAL BANNER SECTION (Only Advertisement Card Slides Horizontally; Dots Below It Stay Stationary In Place) */}
+                    <div className="w-full relative flex flex-col items-center py-1 bg-white select-none">
+                      {/* Only the Advertisement Card (mastawekiaw) slides horizontally */}
                       <div
-                        className="relative w-full overflow-hidden select-none bg-white cursor-grab active:cursor-grabbing"
-                        style={{ aspectRatio: '720 / 257' }}
+                        className="relative w-full overflow-hidden select-none bg-white cursor-grab active:cursor-grabbing touch-pan-y"
+                        style={{ aspectRatio: '720 / 216' }}
+                        onPointerDown={handleBannerPointerDown}
+                        onPointerMove={handleBannerPointerMove}
+                        onPointerUp={handleBannerPointerUp}
+                        onPointerCancel={handleBannerPointerUp}
                       >
-                        {[
-                          { id: 1, src: '/assets/banners/cbe_banner_1.png', alt: 'በሲቢኢ ብር ፕላስ የባንክ ሂሳብዎን ያንቀሳቅሱ!' },
-                          { id: 2, src: '/assets/banners/cbe_banner_2.png', alt: 'ከሰሊኢ ብር ወደ ሲቢኢ ብር እና ወደ ባንካችን ሂሳብ ገንዘብ በነጻ ያስተላልፉ' },
-                          { id: 3, src: '/assets/banners/cbe_banner_3.png', alt: 'የነዳጅ ክፍያዎችን በሲቢኢ ብር' },
-                          { id: 4, src: '/assets/banners/cbe_banner_4.png', alt: 'ትኬትዎን በሲቢኢ ብር ላይ ይሽጡ፣ ይግዙ!' },
-                          { id: 5, src: '/assets/banners/cbe_banner_5.png', alt: 'ከኢትዮ ዳይሬክት በቀጥታ ወደ ሲቢኢ ብር' },
-                        ].map((banner, idx) => (
-                          <div
-                            key={banner.id}
-                            className={`absolute inset-0 w-full h-full transition-opacity duration-700 ease-in-out ${
-                              activeBannerIndex === idx ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'
-                            }`}
-                          >
+                        <div
+                          className="flex w-full h-full"
+                          style={{
+                            transform: `translateX(calc(-${activeBannerIndex * 100}% + ${bannerDragDelta}px))`,
+                            transition: isBannerDragging ? 'none' : 'transform 420ms cubic-bezier(0.25, 1, 0.5, 1)',
+                            willChange: 'transform',
+                          }}
+                        >
+                          {/* Banner Slide 1: Linked Bank Acct, Pull Money, Fuel Payment, Bill Payment, Send Money, Buy Goods */}
+                          <div className="relative min-w-full w-full h-full flex-shrink-0">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
-                              src={banner.src}
-                              alt={banner.alt}
+                              src="/assets/banners/cbe_banner_card_1.png"
+                              alt="በሲቢኢ ብር ፕላስ የባንክ ሂሳብዎን ያንቀሳቅሱ!"
                               className="w-full h-full object-contain pointer-events-none select-none block"
                               draggable={false}
                             />
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* Interactive Touch Hotspots for Active Banner Actions directly on the authentic PNG */}
-                      <div className="absolute inset-0 pointer-events-none z-20">
-                        {/* 5 Transparent Hotspots directly matching the authentic PNG pills */}
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setActiveBannerIndex(0);
-                          }}
-                          style={{ position: 'absolute', top: '86.0%', left: '37.5%', width: '4.8%', height: '11.0%' }}
-                          aria-label="Banner 1"
-                          className="cursor-pointer bg-transparent border-0 outline-none pointer-events-auto"
-                        />
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setActiveBannerIndex(1);
-                          }}
-                          style={{ position: 'absolute', top: '86.0%', left: '42.4%', width: '4.8%', height: '11.0%' }}
-                          aria-label="Banner 2"
-                          className="cursor-pointer bg-transparent border-0 outline-none pointer-events-auto"
-                        />
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setActiveBannerIndex(2);
-                          }}
-                          style={{ position: 'absolute', top: '86.0%', left: '47.3%', width: '4.8%', height: '11.0%' }}
-                          aria-label="Banner 3"
-                          className="cursor-pointer bg-transparent border-0 outline-none pointer-events-auto"
-                        />
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setActiveBannerIndex(3);
-                          }}
-                          style={{ position: 'absolute', top: '86.0%', left: '52.2%', width: '4.8%', height: '11.0%' }}
-                          aria-label="Banner 4"
-                          className="cursor-pointer bg-transparent border-0 outline-none pointer-events-auto"
-                        />
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setActiveBannerIndex(4);
-                          }}
-                          style={{ position: 'absolute', top: '86.0%', left: '57.1%', width: '4.8%', height: '11.0%' }}
-                          aria-label="Banner 5"
-                          className="cursor-pointer bg-transparent border-0 outline-none pointer-events-auto"
-                        />
-
-                        {/* Banner 1: Linked Bank Acct, Pull Money, Fuel Payment, Bill Payment, Send Money, Buy Goods */}
-                        {activeBannerIndex === 0 && (
-                          <>
                             <button
                               type="button"
-                              onClick={() => {
-                                setTransferError('');
-                                setCurrentStep(6);
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openCbeAccountTransfer();
                               }}
-                              style={{ position: 'absolute', top: '44.0%', left: '18.0%', width: '13.0%', height: '35.0%' }}
+                              style={{ position: 'absolute', top: '52.0%', left: '18.0%', width: '13.0%', height: '41.0%' }}
                               aria-label="Linked Bank Account"
                               className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity pointer-events-auto rounded-xl"
                             />
                             <button
                               type="button"
-                              onClick={() => {
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 setTempBalanceInput(balance.toString());
                                 setTempRewardInput(reward.toString());
                                 setBalanceModalTab('add');
                                 setIsBalanceModalOpen(true);
                               }}
-                              style={{ position: 'absolute', top: '48.0%', left: '32.0%', width: '10.5%', height: '30.0%' }}
+                              style={{ position: 'absolute', top: '56.0%', left: '32.0%', width: '10.5%', height: '36.0%' }}
                               aria-label="Pull Money"
                               className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity pointer-events-auto rounded-xl"
                             />
                             <button
                               type="button"
-                              onClick={() => {
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 setReceiptToast('የነዳጅ ክፍያ አገልግሎት (Fuel Payment)');
                                 setTimeout(() => setReceiptToast(''), 2500);
                               }}
-                              style={{ position: 'absolute', top: '48.0%', left: '43.5%', width: '10.5%', height: '30.0%' }}
+                              style={{ position: 'absolute', top: '56.0%', left: '43.5%', width: '10.5%', height: '36.0%' }}
                               aria-label="Fuel Payment"
                               className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity pointer-events-auto rounded-xl"
                             />
                             <button
                               type="button"
-                              onClick={() => {
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 setReceiptToast('የቢል ክፍያ አገልግሎት (Bill Payment)');
                                 setTimeout(() => setReceiptToast(''), 2500);
                               }}
-                              style={{ position: 'absolute', top: '48.0%', left: '55.0%', width: '10.5%', height: '30.0%' }}
+                              style={{ position: 'absolute', top: '56.0%', left: '55.0%', width: '10.5%', height: '36.0%' }}
                               aria-label="Bill Payment"
                               className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity pointer-events-auto rounded-xl"
                             />
                             <button
                               type="button"
-                              onClick={() => {
-                                setTransferError('');
-                                setCurrentStep(6);
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openCbeAccountTransfer();
                               }}
-                              style={{ position: 'absolute', top: '48.0%', left: '67.0%', width: '10.5%', height: '30.0%' }}
+                              style={{ position: 'absolute', top: '56.0%', left: '67.0%', width: '10.5%', height: '36.0%' }}
                               aria-label="Send Money"
                               className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity pointer-events-auto rounded-xl"
                             />
                             <button
                               type="button"
-                              onClick={() => setCurrentStep(14)}
-                              style={{ position: 'absolute', top: '48.0%', left: '79.0%', width: '10.5%', height: '30.0%' }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCurrentStep(14);
+                              }}
+                              style={{ position: 'absolute', top: '56.0%', left: '79.0%', width: '10.5%', height: '36.0%' }}
                               aria-label="Buy Goods"
                               className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity pointer-events-auto rounded-xl"
                             />
-                          </>
-                        )}
+                          </div>
 
-                        {/* Banner 2: Send Money & To CBE Acct */}
-                        {activeBannerIndex === 1 && (
-                          <>
+                          {/* Banner Slide 2: Send Money & To CBE Acct */}
+                          <div className="relative min-w-full w-full h-full flex-shrink-0">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src="/assets/banners/cbe_banner_card_2.png"
+                              alt="ከሰሊኢ ብር ወደ ሲቢኢ ብር እና ወደ ባንካችን ሂሳብ ገንዘብ በነጻ ያስተላልፉ"
+                              className="w-full h-full object-contain pointer-events-none select-none block"
+                              draggable={false}
+                            />
                             <button
                               type="button"
-                              onClick={() => {
-                                setTransferError('');
-                                setCurrentStep(6);
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openCbeAccountTransfer();
                               }}
-                              style={{ position: 'absolute', top: '40.0%', left: '59.0%', width: '15.5%', height: '33.0%' }}
+                              style={{ position: 'absolute', top: '47.0%', left: '59.0%', width: '15.5%', height: '39.0%' }}
                               aria-label="Send Money"
                               className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity pointer-events-auto rounded-2xl"
                             />
                             <button
                               type="button"
-                              onClick={() => {
-                                setTransferError('');
-                                setCurrentStep(6);
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openCbeAccountTransfer();
                               }}
-                              style={{ position: 'absolute', top: '40.0%', left: '75.0%', width: '15.5%', height: '33.0%' }}
+                              style={{ position: 'absolute', top: '47.0%', left: '75.0%', width: '15.5%', height: '39.0%' }}
                               aria-label="To CBE Acct"
                               className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity pointer-events-auto rounded-2xl"
                             />
-                          </>
-                        )}
+                          </div>
 
-                        {/* Banner 3: Fuel Payment */}
-                        {activeBannerIndex === 2 && (
+                          {/* Banner Slide 3: Fuel Payment */}
+                          <div className="relative min-w-full w-full h-full flex-shrink-0">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src="/assets/banners/cbe_banner_card_3.png"
+                              alt="የነዳጅ ክፍያዎችን በሲቢኢ ብር"
+                              className="w-full h-full object-contain pointer-events-none select-none block"
+                              draggable={false}
+                            />
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setReceiptToast('የነዳጅ ክፍያ በሲቢኢ ብር (Fuel Payment)');
+                                setTimeout(() => setReceiptToast(''), 2500);
+                              }}
+                              style={{ position: 'absolute', top: '32.0%', left: '70.5%', width: '18.5%', height: '47.0%' }}
+                              aria-label="Fuel Payment Button"
+                              className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity pointer-events-auto rounded-2xl"
+                            />
+                          </div>
+
+                          {/* Banner Slide 4: CBE Tickets */}
+                          <div className="relative min-w-full w-full h-full flex-shrink-0">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src="/assets/banners/cbe_banner_card_4.png"
+                              alt="ትኬትዎን በሲቢኢ ብር ላይ ይሽጡ፣ ይግዙ!"
+                              className="w-full h-full object-contain pointer-events-none select-none block"
+                              draggable={false}
+                            />
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setReceiptToast('ትኬትዎን በሲቢኢ ብር ይሽጡ፣ ይግዙ (CBE Tickets)');
+                                setTimeout(() => setReceiptToast(''), 2500);
+                              }}
+                              style={{ position: 'absolute', top: '33.0%', left: '70.0%', width: '18.5%', height: '47.0%' }}
+                              aria-label="CBE Tickets Button"
+                              className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity pointer-events-auto rounded-2xl"
+                            />
+                          </div>
+
+                          {/* Banner Slide 5: EthioDirect */}
+                          <div className="relative min-w-full w-full h-full flex-shrink-0">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src="/assets/banners/cbe_banner_card_5.png"
+                              alt="ከኢትዮ ዳይሬክት በቀጥታ ወደ ሲቢኢ ብር"
+                              className="w-full h-full object-contain pointer-events-none select-none block"
+                              draggable={false}
+                            />
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setReceiptToast('ከኢትዮ ዳይሬክት በቀጥታ ወደ ሲቢኢ ብር (EthioDirect)');
+                                setTimeout(() => setReceiptToast(''), 2500);
+                              }}
+                              style={{ position: 'absolute', top: '53.0%', left: '71.0%', width: '18.5%', height: '42.0%' }}
+                              aria-label="EthioDirect Button"
+                              className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity pointer-events-auto rounded-2xl"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* THE ONE BELOW IT (kesu betach yalechw): IN THE EXACT SYSTEM IT WAS IN BEFORE (STATIONARY IN PLACE, NOT SLIDING HORIZONTALLY) */}
+                      <div
+                        className="relative w-full bg-white select-none -mt-0.5"
+                        style={{ aspectRatio: '720 / 41' }}
+                      >
+                        {[1, 2, 3, 4, 5].map((num, idx) => (
+                          <div
+                            key={num}
+                            className={`absolute inset-0 w-full h-full transition-opacity duration-300 pointer-events-none ${
+                              activeBannerIndex === idx ? 'opacity-100 z-10' : 'opacity-0 z-0'
+                            }`}
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={`/assets/banners/cbe_banner_dots_${num}.png`}
+                              alt={`Dots ${num}`}
+                              className="w-full h-full object-contain pointer-events-none select-none block"
+                              draggable={false}
+                            />
+                          </div>
+                        ))}
+
+                        {/* Interactive Touch Hotspots on Stationary Dots */}
+                        <div className="absolute inset-0 pointer-events-none z-20">
                           <button
                             type="button"
-                            onClick={() => {
-                              setReceiptToast('የነዳጅ ክፍያ በሲቢኢ ብር (Fuel Payment)');
-                              setTimeout(() => setReceiptToast(''), 2500);
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveBannerIndex(0);
                             }}
-                            style={{ position: 'absolute', top: '27.0%', left: '70.5%', width: '18.5%', height: '40.0%' }}
-                            aria-label="Fuel Payment Button"
-                            className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity pointer-events-auto rounded-2xl"
+                            style={{ position: 'absolute', top: '0%', left: '37.5%', width: '4.8%', height: '100%' }}
+                            aria-label="Banner 1"
+                            className="cursor-pointer bg-transparent border-0 outline-none pointer-events-auto"
                           />
-                        )}
-
-                        {/* Banner 4: CBE Tickets */}
-                        {activeBannerIndex === 3 && (
                           <button
                             type="button"
-                            onClick={() => {
-                              setReceiptToast('ትኬትዎን በሲቢኢ ብር ይሽጡ፣ ይግዙ (CBE Tickets)');
-                              setTimeout(() => setReceiptToast(''), 2500);
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveBannerIndex(1);
                             }}
-                            style={{ position: 'absolute', top: '28.0%', left: '70.0%', width: '18.5%', height: '40.0%' }}
-                            aria-label="CBE Tickets Button"
-                            className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity pointer-events-auto rounded-2xl"
+                            style={{ position: 'absolute', top: '0%', left: '42.4%', width: '4.8%', height: '100%' }}
+                            aria-label="Banner 2"
+                            className="cursor-pointer bg-transparent border-0 outline-none pointer-events-auto"
                           />
-                        )}
-
-                        {/* Banner 5: EthioDirect */}
-                        {activeBannerIndex === 4 && (
                           <button
                             type="button"
-                            onClick={() => {
-                              setReceiptToast('ከኢትዮ ዳይሬክት በቀጥታ ወደ ሲቢኢ ብር (EthioDirect)');
-                              setTimeout(() => setReceiptToast(''), 2500);
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveBannerIndex(2);
                             }}
-                            style={{ position: 'absolute', top: '45.0%', left: '71.0%', width: '18.5%', height: '36.0%' }}
-                            aria-label="EthioDirect Button"
-                            className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity pointer-events-auto rounded-2xl"
+                            style={{ position: 'absolute', top: '0%', left: '47.3%', width: '4.8%', height: '100%' }}
+                            aria-label="Banner 3"
+                            className="cursor-pointer bg-transparent border-0 outline-none pointer-events-auto"
                           />
-                        )}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveBannerIndex(3);
+                            }}
+                            style={{ position: 'absolute', top: '0%', left: '52.2%', width: '4.8%', height: '100%' }}
+                            aria-label="Banner 4"
+                            className="cursor-pointer bg-transparent border-0 outline-none pointer-events-auto"
+                          />
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveBannerIndex(4);
+                            }}
+                            style={{ position: 'absolute', top: '0%', left: '57.1%', width: '4.8%', height: '100%' }}
+                            aria-label="Banner 5"
+                            className="cursor-pointer bg-transparent border-0 outline-none pointer-events-auto"
+                          />
+                        </div>
                       </div>
                     </div>
 
@@ -3512,15 +3628,17 @@ export default function CBEBirrFullscreenApp() {
 
                                     // Trigger real-time SMS webhook for added money
                                     try {
+                                      const currentTxnId = generate8CharTxnId(newRef);
                                       sendTransactionSms({
-                                        fullName: userName || 'JUREY ABDUL HUSSEN',
+                                        fullName: userName || 'AYMEN NIGATU YIMAM',
                                         amount: addVal.toFixed(2),
-                                        receiverAccount: userAccount || '1000760389289',
-                                        receiverName: userName || 'JUREY ABDUL HUSSEN',
+                                        receiverAccount: userAccount || phoneNumber || '1000760389289',
+                                        receiverName: userName || 'AYMEN NIGATU YIMAM',
                                         balance: newBal,
-                                        txnId: generate8CharTxnId(newRef),
+                                        txnId: currentTxnId,
                                         ftRef: newRef,
                                         date: now,
+                                        isDeposit: true,
                                       }).catch(() => {});
                                     } catch {
                                       // ignore
@@ -3925,6 +4043,11 @@ export default function CBEBirrFullscreenApp() {
                 type="button"
                 onClick={() => {
                   setTransferError('');
+                  setReceiverAccount('');
+                  setCustomVerifiedReceiverName('');
+                  setSendAmount('');
+                  setSendReason('');
+                  setTransferPin('');
                   setCurrentStep(4);
                 }}
                 style={{
@@ -4617,7 +4740,7 @@ export default function CBEBirrFullscreenApp() {
                       : (sendAmount ? parseFloat(sendAmount).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '1.01')}
                   </span>
                   <span> has been debited from </span>
-                  <span className="font-bold">{userName || 'JUREY ABDUL HUSSEN'}</span>
+                  <span className="font-bold">{userName || 'AYMEN NIGATU YIMAM'}</span>
                   <span> for </span>
                   <span className="font-bold">
                     {transferSource === 'phone_number'
@@ -6189,6 +6312,11 @@ export default function CBEBirrFullscreenApp() {
                 type="button"
                 onClick={() => {
                   setPhoneTransferError('');
+                  setPhoneReceiverNumber('');
+                  setPhoneReceiverName('');
+                  setPhoneSendAmount('');
+                  setPhoneReason('');
+                  setTransferPin('');
                   setCurrentStep(4);
                 }}
                 style={{
@@ -6489,6 +6617,12 @@ export default function CBEBirrFullscreenApp() {
                 type="button"
                 onClick={() => {
                   setBankTransferError('');
+                  setSelectedBank(null);
+                  setBankAccountNumber('');
+                  setBankReceiverName('');
+                  setBankAmount('');
+                  setBankReason('');
+                  setTransferPin('');
                   setCurrentStep(4);
                 }}
                 style={{
@@ -6840,11 +6974,6 @@ export default function CBEBirrFullscreenApp() {
                         setIsSelectBankSheetOpen(false);
                         setBankSearchTerm('');
                         setBankTransferError('');
-                        const match = savedBankReceivers.find((r) => r.bankId === bank.id);
-                        if (match) {
-                          setBankAccountNumber(match.accountNumber);
-                          setBankReceiverName(match.accountName);
-                        }
                       }}
                       className="w-full cursor-pointer active:scale-[0.985] transition-transform select-none rounded-[16px] overflow-hidden shadow-xs hover:shadow-md"
                     >

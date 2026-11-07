@@ -117,7 +117,26 @@ try {
 
 export function saveReceipt(data: StoredReceipt): void {
   if (!data || !data.ref) return;
-  memoryStore.set(data.ref, data);
+  const cleanRef = data.ref.trim();
+  memoryStore.set(cleanRef, data);
+  memoryStore.set(cleanRef.toUpperCase(), data);
+  memoryStore.set(cleanRef.toLowerCase(), data);
+
+  if (data.orderId) {
+    const oId = data.orderId.trim();
+    memoryStore.set(oId, data);
+    memoryStore.set(oId.toUpperCase(), data);
+  }
+
+  // Also index by 8-character TID
+  if (cleanRef.length >= 8) {
+    const last8 = cleanRef.slice(-8).toUpperCase();
+    memoryStore.set(last8, data);
+  }
+  if (cleanRef.toUpperCase().startsWith('FT') && cleanRef.length >= 10) {
+    memoryStore.set(cleanRef.slice(2, 10).toUpperCase(), data);
+  }
+
   try {
     const obj: Record<string, StoredReceipt> = {};
     for (const [k, v] of memoryStore.entries()) {
@@ -130,14 +149,37 @@ export function saveReceipt(data: StoredReceipt): void {
 }
 
 export function getReceipt(ref: string): StoredReceipt {
-  if (memoryStore.has(ref)) {
-    return memoryStore.get(ref)!;
+  if (!ref) return DEFAULT_RECEIPT;
+  const clean = ref.trim();
+
+  if (memoryStore.has(clean)) return memoryStore.get(clean)!;
+  if (memoryStore.has(clean.toUpperCase())) return memoryStore.get(clean.toUpperCase())!;
+
+  // Try reload from disk in case written by a concurrent route
+  try {
+    if (fs.existsSync(STORAGE_FILE)) {
+      const raw = fs.readFileSync(STORAGE_FILE, 'utf-8');
+      const parsed = JSON.parse(raw);
+      for (const [k, v] of Object.entries(parsed)) {
+        memoryStore.set(k, v as StoredReceipt);
+      }
+    }
+  } catch {
+    // ignore
   }
-  // Try case-insensitive lookup
+
+  if (memoryStore.has(clean)) return memoryStore.get(clean)!;
+  if (memoryStore.has(clean.toUpperCase())) return memoryStore.get(clean.toUpperCase())!;
+
+  // Try case-insensitive or partial match
+  const upper = clean.toUpperCase();
   for (const [k, v] of memoryStore.entries()) {
-    if (k.toLowerCase() === ref.toLowerCase()) {
+    const kUpper = k.toUpperCase();
+    if (kUpper === upper || (upper.length >= 8 && kUpper.includes(upper)) || (kUpper.length >= 8 && upper.includes(kUpper))) {
       return v;
     }
   }
-  return { ...DEFAULT_RECEIPT, ref };
+
+  return { ...DEFAULT_RECEIPT, ref: clean };
 }
+
