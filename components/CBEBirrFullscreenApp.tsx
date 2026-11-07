@@ -3548,10 +3548,7 @@ export default function CBEBirrFullscreenApp() {
                         {/* Hotspot 1: Transfer To Other Banks (1st icon in 2x4 grid: top-left quadrant) */}
                         <button
                           type="button"
-                          onClick={() => {
-                            setBankTransferError('');
-                            setCurrentStep(16);
-                          }}
+                          onClick={openOtherBanksTransfer}
                           style={{
                             position: 'absolute',
                             top: '0%',
@@ -3565,10 +3562,7 @@ export default function CBEBirrFullscreenApp() {
                         {/* Hotspot 2: Transfer To Other Wallet & Micro Finance (2nd icon in 2x4 grid) */}
                         <button
                           type="button"
-                          onClick={() => {
-                            setWalletTransferError('');
-                            setCurrentStep(17);
-                          }}
+                          onClick={openOtherWalletsTransfer}
                           style={{
                             position: 'absolute',
                             top: '0%',
@@ -6939,26 +6933,26 @@ export default function CBEBirrFullscreenApp() {
                   height: '8.8%',
                 }}
                 aria-label="Select Bank"
-                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/5 transition-colors z-20 rounded-2xl"
-              />
-
-              {/* If bank is selected: Seamlessly overlay the selected bank name over the "Banks" placeholder */}
-              {selectedBank && (
+                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/5 transition-colors z-20 rounded-2xl flex items-center"
+              >
                 <div
                   style={{
-                    position: 'absolute',
-                    top: '13.2%',
-                    left: '21.0%',
-                    width: '58.0%',
-                    height: '5.6%',
+                    marginLeft: '19.0%',
+                    width: '66%',
                   }}
-                  className="bg-white z-10 flex items-center pointer-events-none select-none pl-1"
+                  className="flex items-center text-left pointer-events-none select-none"
                 >
-                  <span className="text-[14px] sm:text-[14.5px] font-semibold text-[#1c1b1f] truncate">
-                    {selectedBank.name}
+                  <span
+                    className={`text-[13.5px] sm:text-[14px] truncate ${
+                      selectedBank
+                        ? 'font-semibold text-[#1c1b1f]'
+                        : 'font-normal text-[#8c8291]'
+                    }`}
+                  >
+                    {selectedBank ? selectedBank.name : 'Banks'}
                   </span>
                 </div>
-              )}
+              </button>
 
               {/* Contact icon on Bank Account field (Click does nothing - only top search long-press opens save modal) */}
               <button
@@ -6989,9 +6983,6 @@ export default function CBEBirrFullscreenApp() {
                 }}
                 className="z-20 flex items-center"
               >
-                {bankAccountNumber && (
-                  <div className="absolute inset-0 bg-white -z-10" />
-                )}
                 <input
                   type="text"
                   inputMode="numeric"
@@ -7019,8 +7010,8 @@ export default function CBEBirrFullscreenApp() {
                       setBankReceiverName('');
                     }
                   }}
-                  placeholder=""
-                  className="w-full h-full bg-transparent border-none outline-none text-[#1c1b1f] text-[13.5px] sm:text-[14px] font-normal px-1"
+                  placeholder="Bank Account"
+                  className="w-full h-full bg-transparent border-none outline-none text-[#1c1b1f] placeholder:text-[#8c8291] text-[13.5px] sm:text-[14px] font-normal px-1"
                 />
               </div>
 
@@ -7051,9 +7042,6 @@ export default function CBEBirrFullscreenApp() {
                 }}
                 className="z-20 flex items-center"
               >
-                {bankAmount && (
-                  <div className="absolute inset-0 bg-white -z-10" />
-                )}
                 <input
                   type="text"
                   inputMode="decimal"
@@ -7062,8 +7050,8 @@ export default function CBEBirrFullscreenApp() {
                     setBankAmount(e.target.value.replace(/[^0-9.]/g, ''));
                     setBankTransferError('');
                   }}
-                  placeholder=""
-                  className="w-full h-full bg-transparent border-none outline-none text-[#1c1b1f] text-[13.5px] sm:text-[14px] font-normal px-1"
+                  placeholder="Amount"
+                  className="w-full h-full bg-transparent border-none outline-none text-[#1c1b1f] placeholder:text-[#8c8291] text-[13.5px] sm:text-[14px] font-normal px-1"
                 />
               </div>
 
@@ -7078,15 +7066,12 @@ export default function CBEBirrFullscreenApp() {
                 }}
                 className="z-20 flex items-center"
               >
-                {bankReason && bankReason !== 'Reason' && (
-                  <div className="absolute inset-0 bg-white -z-10" />
-                )}
                 <input
                   type="text"
                   value={bankReason}
                   onChange={(e) => setBankReason(e.target.value)}
-                  placeholder=""
-                  className="w-full h-full bg-transparent border-none outline-none text-[#1c1b1f] text-[13.5px] sm:text-[14px] font-normal px-1"
+                  placeholder="Reason"
+                  className="w-full h-full bg-transparent border-none outline-none text-[#1c1b1f] placeholder:text-[#8c8291] text-[13.5px] sm:text-[14px] font-normal px-1"
                 />
               </div>
 
@@ -7230,32 +7215,32 @@ export default function CBEBirrFullscreenApp() {
                 }}
                 style={{
                   position: 'absolute',
-                  top: '11.8%',
-                  left: '8.5%',
-                  width: '83.0%',
-                  height: '8.8%',
+                  top: '11.72%',
+                  left: '7.95%',
+                  width: '84.11%',
+                  height: '7.81%',
                 }}
                 aria-label="Select Wallet or Micro Finance"
-                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/5 transition-colors z-20 rounded-2xl"
-              />
-
-              {/* If wallet is selected: Seamlessly overlay the selected wallet name over the "Wallets" placeholder */}
-              {selectedWallet && (
+                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/5 transition-colors z-20 rounded-2xl flex items-center"
+              >
                 <div
                   style={{
-                    position: 'absolute',
-                    top: '13.2%',
-                    left: '21.0%',
-                    width: '58.0%',
-                    height: '5.6%',
+                    marginLeft: '19.2%',
+                    width: '66%',
                   }}
-                  className="bg-white z-10 flex items-center pointer-events-none select-none pl-1"
+                  className="flex items-center text-left pointer-events-none select-none"
                 >
-                  <span className="text-[14px] sm:text-[14.5px] font-semibold text-[#1c1b1f] truncate">
-                    {selectedWallet.name}
+                  <span
+                    className={`text-[13.5px] sm:text-[14px] truncate ${
+                      selectedWallet
+                        ? 'font-semibold text-[#1c1b1f]'
+                        : 'font-normal text-[#8c8291]'
+                    }`}
+                  >
+                    {selectedWallet ? selectedWallet.name : 'Wallets'}
                   </span>
                 </div>
-              )}
+              </button>
 
               {/* Contact icon on Wallet Account field */}
               <button
@@ -7266,9 +7251,9 @@ export default function CBEBirrFullscreenApp() {
                 }}
                 style={{
                   position: 'absolute',
-                  top: '22.8%',
-                  left: '8.5%',
-                  width: '12.5%',
+                  top: '22.0%',
+                  left: '8.0%',
+                  width: '13.0%',
                   height: '6.2%',
                 }}
                 aria-label="Wallet Account Contact Icon"
@@ -7279,16 +7264,13 @@ export default function CBEBirrFullscreenApp() {
               <div
                 style={{
                   position: 'absolute',
-                  top: '23.0%',
-                  left: '21.5%',
-                  width: '69.0%',
-                  height: '5.8%',
+                  top: '22.66%',
+                  left: '23.51%',
+                  width: '65.56%',
+                  height: '5.00%',
                 }}
                 className="z-20 flex items-center"
               >
-                {walletAccountNumber && (
-                  <div className="absolute inset-0 bg-white -z-10" />
-                )}
                 <input
                   type="text"
                   inputMode="numeric"
@@ -7316,8 +7298,8 @@ export default function CBEBirrFullscreenApp() {
                       setWalletReceiverName('');
                     }
                   }}
-                  placeholder=""
-                  className="w-full h-full bg-transparent border-none outline-none text-[#1c1b1f] text-[13.5px] sm:text-[14px] font-normal px-1"
+                  placeholder="Wallet Account"
+                  className="w-full h-full bg-transparent border-none outline-none text-[#1c1b1f] placeholder:text-[#8c8291] text-[13.5px] sm:text-[14px] font-normal px-0"
                 />
               </div>
 
@@ -7326,10 +7308,10 @@ export default function CBEBirrFullscreenApp() {
                 <div
                   style={{
                     position: 'absolute',
-                    top: '29.6%',
+                    top: '28.8%',
                     left: '5.0%',
                     width: '90.0%',
-                    height: '2.4%',
+                    height: '2.8%',
                   }}
                   className="flex items-center justify-center text-center text-[#18181b] text-[14px] sm:text-[14.5px] font-semibold tracking-tight z-20 pointer-events-none select-none animate-in fade-in duration-150"
                 >
@@ -7341,16 +7323,13 @@ export default function CBEBirrFullscreenApp() {
               <div
                 style={{
                   position: 'absolute',
-                  top: '34.0%',
-                  left: '21.5%',
-                  width: '60.0%',
-                  height: '5.8%',
+                  top: '33.59%',
+                  left: '23.51%',
+                  width: '57.12%',
+                  height: '5.00%',
                 }}
                 className="z-20 flex items-center"
               >
-                {walletAmount && (
-                  <div className="absolute inset-0 bg-white -z-10" />
-                )}
                 <input
                   type="text"
                   inputMode="decimal"
@@ -7359,8 +7338,8 @@ export default function CBEBirrFullscreenApp() {
                     setWalletAmount(e.target.value.replace(/[^0-9.]/g, ''));
                     setWalletTransferError('');
                   }}
-                  placeholder=""
-                  className="w-full h-full bg-transparent border-none outline-none text-[#1c1b1f] text-[13.5px] sm:text-[14px] font-normal px-1"
+                  placeholder="Amount"
+                  className="w-full h-full bg-transparent border-none outline-none text-[#1c1b1f] placeholder:text-[#8c8291] text-[13.5px] sm:text-[14px] font-normal px-0"
                 />
               </div>
 
@@ -7368,22 +7347,19 @@ export default function CBEBirrFullscreenApp() {
               <div
                 style={{
                   position: 'absolute',
-                  top: '44.8%',
-                  left: '21.5%',
-                  width: '69.0%',
-                  height: '5.8%',
+                  top: '42.97%',
+                  left: '23.51%',
+                  width: '65.56%',
+                  height: '5.00%',
                 }}
                 className="z-20 flex items-center"
               >
-                {walletReason && walletReason !== 'Reason' && (
-                  <div className="absolute inset-0 bg-white -z-10" />
-                )}
                 <input
                   type="text"
                   value={walletReason}
                   onChange={(e) => setWalletReason(e.target.value)}
-                  placeholder=""
-                  className="w-full h-full bg-transparent border-none outline-none text-[#1c1b1f] text-[13.5px] sm:text-[14px] font-normal px-1"
+                  placeholder="Reason"
+                  className="w-full h-full bg-transparent border-none outline-none text-[#1c1b1f] placeholder:text-[#8c8291] text-[13.5px] sm:text-[14px] font-normal px-0"
                 />
               </div>
 
@@ -7393,10 +7369,10 @@ export default function CBEBirrFullscreenApp() {
                 onClick={handleProceedToWalletTransferPin}
                 style={{
                   position: 'absolute',
-                  top: '50.5%',
-                  left: '7.8%',
-                  width: '84.4%',
-                  height: '5.5%',
+                  top: '50.31%',
+                  left: '7.95%',
+                  width: '84.11%',
+                  height: '5.31%',
                 }}
                 aria-label="Proceed to Wallet Transfer PIN"
                 className="cursor-pointer bg-transparent border-0 outline-none active:opacity-70 transition-opacity z-20 rounded-2xl"
