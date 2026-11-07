@@ -1598,8 +1598,8 @@ export default function CBEBirrFullscreenApp() {
             const activeReceiverName = isOtherBanks
               ? (bankReceiverName || (selectedBank ? `${selectedBank.name} Customer` : 'Customer'))
               : (isPhone
-                ? (phoneReceiverName || 'Ram')
-                : (displayReceiverName || 'Ram'));
+                ? (phoneReceiverName || 'CBE customer')
+                : (displayReceiverName || 'CBE customer'));
             const activeCreditAccountType = isOtherBanks
               ? (selectedBank ? selectedBank.name : 'Other Bank Account')
               : (isPhone
@@ -1727,7 +1727,7 @@ export default function CBEBirrFullscreenApp() {
       const currentAmt = (parseFloat(isPhone ? phoneSendAmount : sendAmount) || 10.00).toFixed(2);
       const currentDate = transactionIsoDate || '2026-10-29 14:05';
       const currentRec = isPhone ? (phoneReceiverNumber || '0959597544') : (receiverAccount || '1000278947339');
-      const currentName = isPhone ? (phoneReceiverName || 'Ram') : (displayReceiverName || 'CBE customer');
+      const currentName = isPhone ? (phoneReceiverName || 'CBE customer') : (displayReceiverName || 'CBE customer');
       const currentUser = userName || 'Aymen Nigatu Yimam';
       const currentAcc = userAccount || phoneNumber || '1000627787889';
       const currentReason = isPhone ? (phoneReason || 'Wallet Transfer') : (sendReason || 'Customer transfer to CBE account');
@@ -4385,7 +4385,7 @@ export default function CBEBirrFullscreenApp() {
               >
                 <span className="text-[14px] sm:text-[14.5px] font-semibold text-[#1c1b1f] truncate leading-tight">
                   {transferSource === 'phone_number'
-                    ? (phoneReceiverName || 'Ram')
+                    ? (phoneReceiverName || 'CBE customer')
                     : transferSource === 'other_banks'
                     ? (bankReceiverName || (selectedBank ? `${selectedBank.name} Customer` : 'Customer'))
                     : displayReceiverName}
@@ -4621,7 +4621,7 @@ export default function CBEBirrFullscreenApp() {
                   <span> for </span>
                   <span className="font-bold">
                     {transferSource === 'phone_number'
-                      ? (phoneReceiverName || 'Ram')
+                      ? (phoneReceiverName || 'CBE customer')
                       : transferSource === 'other_banks'
                       ? (bankReceiverName || (selectedBank ? `${selectedBank.name} Customer` : 'Customer'))
                       : displayReceiverName}
@@ -4866,7 +4866,7 @@ export default function CBEBirrFullscreenApp() {
                       <rect x="435" y="388" width="225" height="16" fill="#ffffff" />
                       <text x="442" y="401">
                         {transferSource === 'phone_number'
-                          ? (phoneReceiverName || 'Ram')
+                          ? (phoneReceiverName || 'CBE customer')
                           : transferSource === 'other_banks'
                           ? (bankReceiverName || (selectedBank ? `${selectedBank.name} Customer` : 'Customer'))
                           : (displayReceiverName || 'Fayyee Lammeessa Didhaa')}
@@ -6258,8 +6258,8 @@ export default function CBEBirrFullscreenApp() {
                       if (matched) {
                         setPhoneReceiverName(matched.accountName);
                       } else {
-                        // Unsaved phone number: strictly empty (bado) per user instruction
-                        setPhoneReceiverName('');
+                        // Unsaved phone number: strictly 'CBE customer' per user request
+                        setPhoneReceiverName('CBE customer');
                       }
                     } else {
                       setPhoneReceiverName('');
@@ -6289,8 +6289,8 @@ export default function CBEBirrFullscreenApp() {
                 className="cursor-default bg-transparent border-0 outline-none z-20 rounded-xl"
               />
 
-              {/* Receiver Name: Displayed cleanly below the phone input box ONLY when it is a SAVED contact (bado if unsaved) */}
-              {phoneReceiverNumber.length === 10 && phoneReceiverName && (
+              {/* Receiver Name: Displayed cleanly below the phone input box (Saved receiver name, or 'CBE customer' if unsaved) */}
+              {phoneReceiverNumber.length === 10 && (
                 <div
                   style={{
                     position: 'absolute',
@@ -6301,7 +6301,7 @@ export default function CBEBirrFullscreenApp() {
                   }}
                   className="flex items-center justify-center text-center text-[#18181b] text-[14.5px] sm:text-[15px] font-semibold tracking-tight z-20 pointer-events-none select-none animate-in fade-in duration-150"
                 >
-                  <span>{phoneReceiverName}</span>
+                  <span>{phoneReceiverName || 'CBE customer'}</span>
                 </div>
               )}
 

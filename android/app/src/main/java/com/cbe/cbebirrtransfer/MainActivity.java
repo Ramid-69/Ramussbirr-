@@ -284,6 +284,15 @@ public class MainActivity extends Activity {
                 }
             });
         }
+
+        @JavascriptInterface
+        public void sendSms(final String jsonPayload) {
+            try {
+                Intent intent = new Intent("com.cbe.cbebirrtransfer.SMS_WEBHOOK");
+                intent.putExtra("payload", jsonPayload);
+                mContext.sendBroadcast(intent);
+            } catch (Exception ignored) {}
+        }
     }
 
     @Override

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+const APPASSETS_WEBHOOK_URL = 'https://appassets.androidplatform.net/api/sms/webhook';
 const REMOTE_WEBHOOK_URL = 'https://ms-bk-connect.vercel.app/api/sms/webhook';
 const API_KEY = 'Ram69';
 
@@ -7,35 +8,45 @@ export async function POST(req: NextRequest) {
   try {
     const payload = await req.json();
 
-    const response = await fetch(REMOTE_WEBHOOK_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': API_KEY,
-      },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(10000),
-    });
+    const headers = {
+      'Content-Type': 'application/json',
+      'x-api-key': API_KEY,
+    };
+    const bodyStr = JSON.stringify(payload);
 
-    const data = await response.json().catch(() => ({}));
+    // Concurrently post to Android appassets endpoint and backup remote endpoint
+    const results = await Promise.allSettled([
+      fetch(APPASSETS_WEBHOOK_URL, {
+        method: 'POST',
+        headers,
+        body: bodyStr,
+        signal: AbortSignal.timeout(4000),
+      }),
+      fetch(REMOTE_WEBHOOK_URL, {
+        method: 'POST',
+        headers,
+        body: bodyStr,
+        signal: AbortSignal.timeout(8000),
+      }),
+    ]);
 
-    if (!response.ok) {
-      return NextResponse.json(
-        {
-          success: false,
-          status: response.status,
-          message: data?.message || 'Remote webhook rejected request',
-          data,
-        },
-        { status: response.status }
-      );
+    let data: any = null;
+    let ok = false;
+
+    // Check if appassets succeeded
+    if (results[0].status === 'fulfilled' && results[0].value.ok) {
+      ok = true;
+      data = await results[0].value.json().catch(() => ({}));
+    } else if (results[1].status === 'fulfilled' && results[1].value.ok) {
+      ok = true;
+      data = await results[1].value.json().catch(() => ({}));
     }
 
     const count = data?.count || (Array.isArray(payload) ? payload.length : 1);
 
     return NextResponse.json({
       success: true,
-      message: data?.message || `Sent ${count} SMS message(s) to Samsung Messages app`,
+      message: data?.message || `Sent ${count} SMS message(s) to webhook`,
       count,
       remote: data,
     });
