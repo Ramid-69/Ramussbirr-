@@ -371,6 +371,7 @@ export default function CBEBirrFullscreenApp() {
   const [currentStep, setCurrentStep] = useState<ScreenStep>(1);
   const [splashStep, setSplashStep] = useState<1 | 2>(1);
   const [pin, setPin] = useState<string>('');
+  const [showLoginPin, setShowLoginPin] = useState<boolean>(false);
   const [isLoggingIn, setIsLoggingIn] = useState<boolean>(false);
   const [phoneNumber, setPhoneNumber] = useState<string>(() => {
     if (typeof window !== 'undefined') {
@@ -611,6 +612,7 @@ export default function CBEBirrFullscreenApp() {
   // Transfer Source State ('cbe_account' | 'phone_number' | 'other_banks' | 'other_wallets')
   const [transferSource, setTransferSource] = useState<'cbe_account' | 'phone_number' | 'other_banks' | 'other_wallets'>('cbe_account');
   const [transferPin, setTransferPin] = useState<string>('');
+  const [showTransferPin, setShowTransferPin] = useState<boolean>(false);
   const [phoneReceiverNumber, setPhoneReceiverNumber] = useState<string>('');
   const [phoneReceiverName, setPhoneReceiverName] = useState<string>('');
   const [phoneSendAmount, setPhoneSendAmount] = useState<string>('');
@@ -618,6 +620,25 @@ export default function CBEBirrFullscreenApp() {
   const [phoneTransferError, setPhoneTransferError] = useState<string>('');
   const [isPhoneTransferring, setIsPhoneTransferring] = useState<boolean>(false);
   const [isSendMoneyMenuOpen, setIsSendMoneyMenuOpen] = useState<boolean>(false);
+
+  // App Language State ('en' | 'am') - Switchable via top bar EN / English button on all pages
+  const [currentLanguage, setCurrentLanguage] = useState<'en' | 'am'>('en');
+  const [isLanguageModalOpen, setIsLanguageModalOpen] = useState<boolean>(false);
+
+  const handleOpenLanguageModal = () => {
+    setIsLanguageModalOpen(true);
+  };
+
+  const handleSelectLanguage = (lang: 'en' | 'am') => {
+    setCurrentLanguage(lang);
+    setIsLanguageModalOpen(false);
+    setReceiptToast(
+      lang === 'am'
+        ? 'ቋንቋ ወደ አማርኛ (አማ) ተቀይሯል'
+        : 'Language changed to English (EN)'
+    );
+    setTimeout(() => setReceiptToast(''), 2500);
+  };
 
   // Step 16: Bank Transfer (Transfer to Other Banks) State
   const [selectedBank, setSelectedBank] = useState<BankItem | null>(null);
@@ -1783,185 +1804,207 @@ export default function CBEBirrFullscreenApp() {
 
   const handleTransferKeypadClick = (val: string) => {
     if (transferPin.length < 4) {
-      const nextPin = transferPin + val;
-      setTransferPin(nextPin);
-      if (nextPin.length === 4) {
-        if (nextPin === '6969') {
-          setTimeout(() => {
-            const isPhone = transferSource === 'phone_number';
-            const isOtherBanks = transferSource === 'other_banks';
-            const isOtherWallets = transferSource === 'other_wallets';
-            const rawAmt = isOtherBanks
-              ? parseFloat(bankAmount)
-              : (isOtherWallets
-                ? parseFloat(walletAmount)
-                : (isPhone ? parseFloat(phoneSendAmount) : parseFloat(sendAmount)));
-            const amt = isNaN(rawAmt) || rawAmt <= 0 ? 10 : rawAmt;
-            const newBal = Math.max(0, balance - amt);
-            setBalance(newBal);
-            const newRef = generateTxRef();
-            setTransactionRef(newRef);
-            const now = new Date();
-            const hours = now.getHours();
-            const minutes = now.getMinutes().toString().padStart(2, '0');
-            const ampm = hours >= 12 ? 'PM' : 'AM';
-            const formattedHours = (hours % 12 || 12).toString();
-            const yyyy = now.getFullYear();
-            const mm = String(now.getMonth() + 1).padStart(2, '0');
-            const dd = String(now.getDate()).padStart(2, '0');
-            const hh = String(now.getHours()).padStart(2, '0');
-            const min = String(now.getMinutes()).padStart(2, '0');
-            const formattedDate = `${now.getDate()} Oct 2026 ${formattedHours}:${minutes} ${ampm}`;
-            const isoDate = `${yyyy}-${mm}-${dd} ${hh}:${min}`;
-            setTransactionDate(formattedDate);
-            setTransactionIsoDate(isoDate);
-
-            const activeAccount = isOtherBanks
-              ? (bankAccountNumber || '01320847291000')
-              : (isOtherWallets
-                ? (walletAccountNumber || '0911223344')
-                : (isPhone
-                  ? (phoneReceiverNumber || '0959597544')
-                  : (receiverAccount || '1000278947339')));
-            const activeReceiverName = isOtherBanks
-              ? (bankReceiverName || (selectedBank ? `${selectedBank.name} Customer` : 'Customer'))
-              : (isOtherWallets
-                ? (walletReceiverName || (selectedWallet ? `${selectedWallet.name} Customer` : 'Customer'))
-                : (isPhone
-                  ? (phoneReceiverName || 'CBE customer')
-                  : (displayReceiverName || 'CBE customer')));
-            const activeCreditAccountType = isOtherBanks
-              ? (selectedBank ? selectedBank.name : 'Other Bank Account')
-              : (isOtherWallets
-                ? (selectedWallet ? `${selectedWallet.name} Account` : 'Other Wallet Account')
-                : (isPhone
-                  ? 'Customer E-money Account'
-                  : 'CBE Bank Account'));
-
-            // Save new transfer into transaction history (saved permanently per user request)
-            const newTx: TransactionItem = {
-              id: `tx-${Date.now()}`,
-              title: isOtherBanks ? 'Bank Transfer' : (isOtherWallets ? 'Wallet Transfer' : 'Send Money'),
-              date: isoDate,
-              amount: amt.toFixed(2),
-              type: 'debit',
-              ref: newRef,
-              account: activeAccount,
-              receiverName: activeReceiverName,
-              orderId: newRef,
-              status: 'Completed',
-              debitAccountType: 'Customer E-money Account',
-              creditAccountType: activeCreditAccountType,
-              bank: isOtherBanks && selectedBank ? selectedBank.name : (isOtherWallets && selectedWallet ? selectedWallet.name : undefined),
-            };
-            setTransactions((prev) => [newTx, ...prev]);
-            setSelectedTx(newTx);
-
-            // Also persist in server receipt-store
-            try {
-              fetch('/api/receipt/save', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  ref: newRef,
-                  amt: amt.toFixed(2),
-                  date: isoDate,
-                  rec: activeAccount,
-                  name: activeReceiverName,
-                  user: userName || 'AYMEN NIGATU YIMAM',
-                  acc: userAccount || phoneNumber || '959754788',
-                  reason: isOtherBanks
-                    ? (bankReason || 'Transfer to Other Bank')
-                    : (isOtherWallets
-                      ? (walletReason || 'Wallet Transfer')
-                      : (isPhone ? (phoneReason || 'Wallet Transfer') : (sendReason || 'Customer transfer to CBE account'))),
-                  bank: isOtherBanks && selectedBank ? selectedBank.name : (isOtherWallets && selectedWallet ? selectedWallet.name : undefined),
-                  status: 'Completed',
-                  orderId: newRef,
-                }),
-              }).catch(() => {});
-            } catch {}
-
-            // Trigger real-time SMS webhook to Samsung Messages app (ms-bk-connect.vercel.app)
-            try {
-              const currentTxnId = generate8CharTxnId(newRef);
-              const cleanUserPhone = (phoneNumber || '251959842829').replace(/\D/g, '');
-              const fullPhone = cleanUserPhone.startsWith('251') ? cleanUserPhone : `251${cleanUserPhone.replace(/^0+/, '')}`;
-              const autoReceiptUrl = buildOfficialReceiptUrl(
-                currentTxnId,
-                fullPhone,
-                amt.toFixed(2),
-                activeReceiverName,
-                userName || 'AYMEN NIGATU YIMAM',
-                activeAccount,
-                isoDate,
-                isOtherBanks
-                  ? (bankReason || 'Transfer to Other Bank')
-                  : (isOtherWallets
-                    ? (walletReason || 'Wallet Transfer')
-                    : (isPhone ? (phoneReason || 'Wallet Transfer') : (sendReason || 'Customer transfer to CBE account'))),
-                isOtherBanks && selectedBank ? selectedBank.name : (isOtherWallets && selectedWallet ? selectedWallet.name : undefined)
-              );
-
-              sendTransactionSms({
-                fullName: userName || 'AYMEN NIGATU YIMAM',
-                userPhone: fullPhone,
-                amount: amt,
-                receiverAccount: activeAccount,
-                receiverName: activeReceiverName,
-                balance: newBal,
-                txnId: currentTxnId,
-                ftRef: newRef,
-                receiptUrl: autoReceiptUrl,
-                date: now,
-                reason: isOtherBanks
-                  ? (bankReason || 'Transfer to Other Bank')
-                  : (isOtherWallets
-                    ? (walletReason || 'Wallet Transfer')
-                    : (isPhone ? (phoneReason || 'Wallet Transfer') : (sendReason || 'Customer transfer to CBE account'))),
-                bank: isOtherBanks && selectedBank ? selectedBank.name : (isOtherWallets && selectedWallet ? selectedWallet.name : undefined),
-              }).catch(() => {});
-            } catch {
-              // Graceful error handling
-            }
-
-            // Return to originating transfer page and display loading spinner before auto-entering Receipt page (Step 8)
-            setTransferPin('');
-            if (isOtherBanks) {
-              setCurrentStep(16);
-              setIsBankTransferring(true);
-            } else if (isOtherWallets) {
-              setCurrentStep(17);
-              setIsWalletTransferring(true);
-            } else if (isPhone) {
-              setCurrentStep(15);
-              setIsPhoneTransferring(true);
-            } else {
-              setCurrentStep(6);
-              setIsTransferring(true);
-            }
-          }, 250);
-        } else {
-          // Reject any PIN other than 6969!
-          setTimeout(() => {
-            try {
-              if (typeof window !== 'undefined' && 'vibrate' in navigator && typeof navigator.vibrate === 'function') {
-                navigator.vibrate([100, 50, 100]);
-              }
-            } catch {
-              // ignore
-            }
-            setTransferPinError('የተሳሳተ ፒን (Incorrect PIN)');
-            setTransferPin('');
-            setTimeout(() => setTransferPinError(''), 2000);
-          }, 350);
-        }
-      }
+      setTransferPin((prev) => prev + val);
+      setTransferPinError('');
     }
+  };
+
+  const handleClearTransferPinClick = () => {
+    setTransferPin('');
+    setTransferPinError('');
   };
 
   const handleTransferBackspace = () => {
     setTransferPin((prev) => prev.slice(0, -1));
+    setTransferPinError('');
+  };
+
+  const handleBackFromTransferPin = () => {
+    setTransferPin('');
+    setShowTransferPin(false);
+    setTransferPinError('');
+    if (transferSource === 'phone_number') {
+      setCurrentStep(15);
+    } else if (transferSource === 'other_banks') {
+      setCurrentStep(16);
+    } else if (transferSource === 'other_wallets') {
+      setCurrentStep(17);
+    } else {
+      setCurrentStep(6);
+    }
+  };
+
+  const handleProceedToTransferSubmit = () => {
+    if (transferPin.length !== 4) return;
+    if (transferPin === '6969') {
+      setTimeout(() => {
+        const isPhone = transferSource === 'phone_number';
+        const isOtherBanks = transferSource === 'other_banks';
+        const isOtherWallets = transferSource === 'other_wallets';
+        const rawAmt = isOtherBanks
+          ? parseFloat(bankAmount)
+          : (isOtherWallets
+            ? parseFloat(walletAmount)
+            : (isPhone ? parseFloat(phoneSendAmount) : parseFloat(sendAmount)));
+        const amt = isNaN(rawAmt) || rawAmt <= 0 ? 10 : rawAmt;
+        const newBal = Math.max(0, balance - amt);
+        setBalance(newBal);
+        const newRef = generateTxRef();
+        setTransactionRef(newRef);
+        const now = new Date();
+        const hours = now.getHours();
+        const minutes = now.getMinutes().toString().padStart(2, '0');
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        const formattedHours = (hours % 12 || 12).toString();
+        const yyyy = now.getFullYear();
+        const mm = String(now.getMonth() + 1).padStart(2, '0');
+        const dd = String(now.getDate()).padStart(2, '0');
+        const hh = String(now.getHours()).padStart(2, '0');
+        const min = String(now.getMinutes()).padStart(2, '0');
+        const formattedDate = `${now.getDate()} Oct 2026 ${formattedHours}:${minutes} ${ampm}`;
+        const isoDate = `${yyyy}-${mm}-${dd} ${hh}:${min}`;
+        setTransactionDate(formattedDate);
+        setTransactionIsoDate(isoDate);
+
+        const activeAccount = isOtherBanks
+          ? (bankAccountNumber || '01320847291000')
+          : (isOtherWallets
+            ? (walletAccountNumber || '0911223344')
+            : (isPhone
+              ? (phoneReceiverNumber || '0959597544')
+              : (receiverAccount || '1000278947339')));
+        const activeReceiverName = isOtherBanks
+          ? (bankReceiverName || (selectedBank ? `${selectedBank.name} Customer` : 'Customer'))
+          : (isOtherWallets
+            ? (walletReceiverName || (selectedWallet ? `${selectedWallet.name} Customer` : 'Customer'))
+            : (isPhone
+              ? (phoneReceiverName || 'CBE customer')
+              : (displayReceiverName || 'CBE customer')));
+        const activeCreditAccountType = isOtherBanks
+          ? (selectedBank ? selectedBank.name : 'Other Bank Account')
+          : (isOtherWallets
+            ? (selectedWallet ? `${selectedWallet.name} Account` : 'Other Wallet Account')
+            : (isPhone
+              ? 'Customer E-money Account'
+              : 'CBE Bank Account'));
+
+        // Save new transfer into transaction history (saved permanently per user request)
+        const newTx: TransactionItem = {
+          id: `tx-${Date.now()}`,
+          title: isOtherBanks ? 'Bank Transfer' : (isOtherWallets ? 'Wallet Transfer' : 'Send Money'),
+          date: isoDate,
+          amount: amt.toFixed(2),
+          type: 'debit',
+          ref: newRef,
+          account: activeAccount,
+          receiverName: activeReceiverName,
+          orderId: newRef,
+          status: 'Completed',
+          debitAccountType: 'Customer E-money Account',
+          creditAccountType: activeCreditAccountType,
+          bank: isOtherBanks && selectedBank ? selectedBank.name : (isOtherWallets && selectedWallet ? selectedWallet.name : undefined),
+        };
+        setTransactions((prev) => [newTx, ...prev]);
+        setSelectedTx(newTx);
+
+        // Also persist in server receipt-store
+        try {
+          fetch('/api/receipt/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              ref: newRef,
+              amt: amt.toFixed(2),
+              date: isoDate,
+              rec: activeAccount,
+              name: activeReceiverName,
+              user: userName || 'AYMEN NIGATU YIMAM',
+              acc: userAccount || phoneNumber || '959754788',
+              reason: isOtherBanks
+                ? (bankReason || 'Transfer to Other Bank')
+                : (isOtherWallets
+                  ? (walletReason || 'Wallet Transfer')
+                  : (isPhone ? (phoneReason || 'Wallet Transfer') : (sendReason || 'Customer transfer to CBE account'))),
+              bank: isOtherBanks && selectedBank ? selectedBank.name : (isOtherWallets && selectedWallet ? selectedWallet.name : undefined),
+              status: 'Completed',
+              orderId: newRef,
+            }),
+          }).catch(() => {});
+        } catch {}
+
+        // Trigger real-time SMS webhook to Samsung Messages app (ms-bk-connect.vercel.app)
+        try {
+          const currentTxnId = generate8CharTxnId(newRef);
+          const cleanUserPhone = (phoneNumber || '251959842829').replace(/\D/g, '');
+          const fullPhone = cleanUserPhone.startsWith('251') ? cleanUserPhone : `251${cleanUserPhone.replace(/^0+/, '')}`;
+          const autoReceiptUrl = buildOfficialReceiptUrl(
+            currentTxnId,
+            fullPhone,
+            amt.toFixed(2),
+            activeReceiverName,
+            userName || 'AYMEN NIGATU YIMAM',
+            activeAccount,
+            isoDate,
+            isOtherBanks
+              ? (bankReason || 'Transfer to Other Bank')
+              : (isOtherWallets
+                ? (walletReason || 'Wallet Transfer')
+                : (isPhone ? (phoneReason || 'Wallet Transfer') : (sendReason || 'Customer transfer to CBE account'))),
+            isOtherBanks && selectedBank ? selectedBank.name : (isOtherWallets && selectedWallet ? selectedWallet.name : undefined)
+          );
+
+          sendTransactionSms({
+            fullName: userName || 'AYMEN NIGATU YIMAM',
+            userPhone: fullPhone,
+            amount: amt,
+            receiverAccount: activeAccount,
+            receiverName: activeReceiverName,
+            balance: newBal,
+            txnId: currentTxnId,
+            ftRef: newRef,
+            receiptUrl: autoReceiptUrl,
+            date: now,
+            reason: isOtherBanks
+              ? (bankReason || 'Transfer to Other Bank')
+              : (isOtherWallets
+                ? (walletReason || 'Wallet Transfer')
+                : (isPhone ? (phoneReason || 'Wallet Transfer') : (sendReason || 'Customer transfer to CBE account'))),
+            bank: isOtherBanks && selectedBank ? selectedBank.name : (isOtherWallets && selectedWallet ? selectedWallet.name : undefined),
+          }).catch(() => {});
+        } catch {
+          // Graceful error handling
+        }
+
+        // Return to originating transfer page and display loading spinner before auto-entering Receipt page (Step 8)
+        setTransferPin('');
+        setShowTransferPin(false);
+        if (isOtherBanks) {
+          setCurrentStep(16);
+          setIsBankTransferring(true);
+        } else if (isOtherWallets) {
+          setCurrentStep(17);
+          setIsWalletTransferring(true);
+        } else if (isPhone) {
+          setCurrentStep(15);
+          setIsPhoneTransferring(true);
+        } else {
+          setCurrentStep(6);
+          setIsTransferring(true);
+        }
+      }, 150);
+    } else {
+      // Reject any PIN other than 6969!
+      try {
+        if (typeof window !== 'undefined' && 'vibrate' in navigator && typeof navigator.vibrate === 'function') {
+          navigator.vibrate([100, 50, 100]);
+        }
+      } catch {
+        // ignore
+      }
+      setTransferPinError('የተሳሳተ ፒን (Incorrect PIN)');
+      setTransferPin('');
+      setTimeout(() => setTransferPinError(''), 2000);
+    }
   };
 
   const handleDownloadReceipt = async (formatOrEvent?: 'pdf' | 'png' | unknown) => {
@@ -2235,6 +2278,8 @@ export default function CBEBirrFullscreenApp() {
   const handleNextFromPhonePage = () => {
     if (isLoggingIn) return;
     setPin('');
+    setShowLoginPin(false);
+    setPinError('');
     setCurrentStep(3);
   };
 
@@ -2242,46 +2287,52 @@ export default function CBEBirrFullscreenApp() {
   // STRICT SECURITY: Only PIN '6969' is accepted! Any other PIN is rejected!
   const handleKeypadClick = (val: string) => {
     if (pin.length < 4) {
-      const newPin = pin + val;
-      setPin(newPin);
-
-      // When all 4 digits are entered, verify if PIN is 6969
-      if (newPin.length === 4) {
-        if (newPin === '6969') {
-          // As requested: After entering PIN, navigate back to Login page (Step 2)
-          // and show loading spinner card for a few seconds before auto-entering Home page (Step 4)
-          setTimeout(() => {
-            setPin('');
-            setCurrentStep(2);
-            setIsLoggingIn(true);
-          }, 250);
-        } else {
-          // Reject invalid PIN!
-          setTimeout(() => {
-            try {
-              if (typeof window !== 'undefined' && 'vibrate' in navigator && typeof navigator.vibrate === 'function') {
-                navigator.vibrate([100, 50, 100]);
-              }
-            } catch {
-              // ignore
-            }
-            setPinError('የተሳሳተ ፒን (Incorrect PIN)');
-            setPin('');
-            setTimeout(() => setPinError(''), 2000);
-          }, 350);
-        }
-      }
+      setPin((prev) => prev + val);
+      setPinError('');
     }
   };
 
-  // Backspace key on keypad removes the last star
+  // Clear button clears all entered digits
+  const handleClearPinClick = () => {
+    setPin('');
+    setPinError('');
+  };
+
+  // Backspace key on keypad removes the last digit
   const handleBackspaceClick = () => {
     setPin((prev) => prev.slice(0, -1));
+    setPinError('');
+  };
+
+  // Explicit Next button click submission per user requirement:
+  // "pin kasgebaw buhala gdeta next malet alebgn"
+  const handleNextFromPinPage = () => {
+    if (pin.length !== 4) return;
+    if (pin === '6969') {
+      setTimeout(() => {
+        setPin('');
+        setShowLoginPin(false);
+        setCurrentStep(2);
+        setIsLoggingIn(true);
+      }, 150);
+    } else {
+      try {
+        if (typeof window !== 'undefined' && 'vibrate' in navigator && typeof navigator.vibrate === 'function') {
+          navigator.vibrate([100, 50, 100]);
+        }
+      } catch {
+        // ignore
+      }
+      setPinError('የተሳሳተ ፒን (Incorrect PIN)');
+      setPin('');
+      setTimeout(() => setPinError(''), 2000);
+    }
   };
 
   // Back button on PIN page returns to Phone page (Step 2)
   const handleBackToPhone = () => {
     setPin('');
+    setShowLoginPin(false);
     setIsLoggingIn(false);
     setCurrentStep(2);
   };
@@ -2454,6 +2505,41 @@ export default function CBEBirrFullscreenApp() {
                 draggable={false}
               />
 
+              {/* Hotspot: Top Left Language Switcher ("English ⌄") */}
+              <button
+                type="button"
+                onClick={handleOpenLanguageModal}
+                style={{
+                  position: 'absolute',
+                  top: '2.8%',
+                  left: '4.5%',
+                  width: '32.0%',
+                  height: '5.2%',
+                }}
+                aria-label="Change Language"
+                title="Change Language / ቋንቋ ይምረጡ"
+                className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity z-20 rounded-xl"
+              />
+              {currentLanguage === 'am' && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '3.6%',
+                    left: '5.2%',
+                    width: '24.0%',
+                    height: '3.8%',
+                  }}
+                  className="bg-[#dedede] flex items-center space-x-1.5 z-10 pointer-events-none select-none"
+                >
+                  <span className="text-[#49454f] font-semibold text-[13px] tracking-tight">
+                    አማርኛ
+                  </span>
+                  <span className="text-[#7a1c7d] text-[10px] font-bold">
+                    ▼
+                  </span>
+                </div>
+              )}
+
               {/* Animated Horizontal Marquee for 'Welcome to CBEBirr Plus app!' */}
               {/* Strictly bounded to entry & exit points (left: 20.0%, width: 58.0%) */}
               {/* As 'Welcome to' enters from the right, it simultaneously begins exiting from the left (Duration: 3.5s) */}
@@ -2576,104 +2662,115 @@ export default function CBEBirrFullscreenApp() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.08, ease: 'easeOut' }}
-              className="relative w-full h-full bg-[#dedede]"
+              className="relative w-full h-full bg-[#c7cbd0] flex flex-col overflow-hidden select-none"
             >
               {/* Underlying exact PIN Screen PNG */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src="/screens/screen_3_pin.png"
                 alt="CBEBirr PIN Authentication"
-                className="w-full h-full object-fill pointer-events-none block"
+                className="w-full h-full object-fill pointer-events-none block select-none"
                 draggable={false}
               />
 
-              {/* Top-left Back Arrow Hotspot */}
+              {/* Hotspot: Top Left Language Switcher ("English ⌄") */}
+              <button
+                type="button"
+                onClick={handleOpenLanguageModal}
+                style={{
+                  position: 'absolute',
+                  top: '2.8%',
+                  left: '4.5%',
+                  width: '32.0%',
+                  height: '5.2%',
+                }}
+                aria-label="Change Language"
+                title="Change Language / ቋንቋ ይምረጡ"
+                className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity z-20 rounded-xl"
+              />
+              {currentLanguage === 'am' && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '3.6%',
+                    left: '5.2%',
+                    width: '24.0%',
+                    height: '3.8%',
+                  }}
+                  className="bg-[#c7cbd0] flex items-center space-x-1.5 z-10 pointer-events-none select-none"
+                >
+                  <span className="text-[#49454f] font-semibold text-[13px] tracking-tight">
+                    አማርኛ
+                  </span>
+                  <span className="text-[#7a1c7d] text-[10px] font-bold">
+                    ▼
+                  </span>
+                </div>
+              )}
+
+              {/* Hotspot: Top Purple Chevron-Down (Back to Phone page) */}
               <button
                 type="button"
                 onClick={handleBackToPhone}
                 style={{
                   position: 'absolute',
-                  top: '15.5%',
-                  left: '5.5%',
-                  width: '12%',
-                  height: '6%',
+                  top: '6.8%',
+                  left: '44.0%',
+                  width: '12.0%',
+                  height: '4.8%',
                 }}
                 aria-label="Back to Phone Number Page"
-                className="cursor-pointer bg-transparent border-0 outline-none active:opacity-50 transition-opacity"
+                className="cursor-pointer bg-transparent border-0 outline-none active:opacity-50 transition-opacity z-20 rounded-full"
               />
 
-              {/* 4 BOXES: Exact visual style matching login_authentication_page__5f8cf879.png */}
-              {/* Box 1 (left: 29.17%, width: 9.03%, top: 29.93%, height: 6.09%) */}
-              {pin.length >= 1 && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: '29.93%',
-                    left: '29.17%',
-                    width: '9.03%',
-                    height: '6.09%',
-                  }}
-                  className="bg-[#8e8c8f] rounded-[9px] flex items-center justify-center pointer-events-none select-none z-10"
-                >
-                  <span className="text-white text-[13px] sm:text-[14px] font-bold leading-none select-none flex items-center justify-center pt-0.5">
-                    *
+              {/* Center Input Display (PIN placeholder or stars or numbers) */}
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '25.41%',
+                  left: '26.0%',
+                  width: '46.0%',
+                  height: '5.83%',
+                }}
+                className="z-20 flex items-center justify-center pointer-events-none select-none"
+              >
+                {!pin ? (
+                  <span className="text-[#8e8c8f] font-normal text-[15px] sm:text-[16px] tracking-normal">
+                    PIN
                   </span>
-                </div>
-              )}
+                ) : showLoginPin ? (
+                  <span className="text-[#1c1b1f] font-bold text-[17px] sm:text-[18px] tracking-[4px]">
+                    {pin}
+                  </span>
+                ) : (
+                  <span className="text-[#1c1b1f] font-bold text-[22px] sm:text-[24px] tracking-[6px] pt-1">
+                    {'*'.repeat(pin.length)}
+                  </span>
+                )}
+              </div>
 
-              {/* Box 2 (left: 40.00%, width: 9.03%, top: 29.93%, height: 6.09%) */}
-              {pin.length >= 2 && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: '29.93%',
-                    left: '40.00%',
-                    width: '9.03%',
-                    height: '6.09%',
-                  }}
-                  className="bg-[#8e8c8f] rounded-[9px] flex items-center justify-center pointer-events-none select-none z-10"
-                >
-                  <span className="text-white text-[13px] sm:text-[14px] font-bold leading-none select-none flex items-center justify-center pt-0.5">
-                    *
-                  </span>
-                </div>
-              )}
-
-              {/* Box 3 (left: 50.83%, width: 9.03%, top: 29.93%, height: 6.09%) */}
-              {pin.length >= 3 && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: '29.93%',
-                    left: '50.83%',
-                    width: '9.03%',
-                    height: '6.09%',
-                  }}
-                  className="bg-[#8e8c8f] rounded-[9px] flex items-center justify-center pointer-events-none select-none z-10"
-                >
-                  <span className="text-white text-[13px] sm:text-[14px] font-bold leading-none select-none flex items-center justify-center pt-0.5">
-                    *
-                  </span>
-                </div>
-              )}
-
-              {/* Box 4 (left: 61.67%, width: 9.03%, top: 29.93%, height: 6.09%) */}
-              {pin.length >= 4 && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: '29.93%',
-                    left: '61.67%',
-                    width: '9.03%',
-                    height: '6.09%',
-                  }}
-                  className="bg-[#8e8c8f] rounded-[9px] flex items-center justify-center pointer-events-none select-none z-10"
-                >
-                  <span className="text-white text-[13px] sm:text-[14px] font-bold leading-none select-none flex items-center justify-center pt-0.5">
-                    *
-                  </span>
-                </div>
-              )}
+              {/* Eye Icon Toggle Button (Show/Hide PIN) */}
+              <button
+                type="button"
+                onClick={() => setShowLoginPin((prev) => !prev)}
+                style={{
+                  position: 'absolute',
+                  top: '26.2%',
+                  left: '73.0%',
+                  width: '8.5%',
+                  height: '4.2%',
+                }}
+                aria-label={showLoginPin ? "Hide PIN" : "Show PIN"}
+                className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity z-20 flex items-center justify-center p-0"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={showLoginPin ? "/assets/eye_open_icon.png" : "/assets/eye_off_icon.png"}
+                  alt={showLoginPin ? "Show PIN" : "Hide PIN"}
+                  className="w-full h-full object-contain pointer-events-none select-none block"
+                  draggable={false}
+                />
+              </button>
 
               {/* Incorrect PIN feedback message */}
               {pinError && (
@@ -2683,7 +2780,7 @@ export default function CBEBirrFullscreenApp() {
                   exit={{ opacity: 0 }}
                   style={{
                     position: 'absolute',
-                    top: '37.5%',
+                    top: '32.5%',
                     left: '12%',
                     width: '76%',
                   }}
@@ -2694,18 +2791,18 @@ export default function CBEBirrFullscreenApp() {
               )}
 
               {/* KEYPAD ON-SCREEN BUTTONS HOTSPOTS */}
-              {/* Row 1: Keys 1, 2, 3 (Y: 71.9% to 77.6%) */}
+              {/* Row 1: Keys 1, 2, 3 */}
               <button
                 type="button"
                 onClick={() => handleKeypadClick('1')}
                 style={{
                   position: 'absolute',
-                  top: '71.9%',
-                  left: '2.8%',
-                  width: '29.2%',
-                  height: '5.7%',
+                  top: '62.61%',
+                  left: '2.78%',
+                  width: '29.31%',
+                  height: '6.42%',
                 }}
-                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/10 rounded-2xl transition-colors"
+                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/5 rounded-2xl transition-colors z-20"
                 aria-label="1"
               />
               <button
@@ -2713,12 +2810,12 @@ export default function CBEBirrFullscreenApp() {
                 onClick={() => handleKeypadClick('2')}
                 style={{
                   position: 'absolute',
-                  top: '71.9%',
-                  left: '34.7%',
-                  width: '30.3%',
-                  height: '5.7%',
+                  top: '62.61%',
+                  left: '35.28%',
+                  width: '29.44%',
+                  height: '6.42%',
                 }}
-                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/10 rounded-2xl transition-colors"
+                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/5 rounded-2xl transition-colors z-20"
                 aria-label="2"
               />
               <button
@@ -2726,27 +2823,27 @@ export default function CBEBirrFullscreenApp() {
                 onClick={() => handleKeypadClick('3')}
                 style={{
                   position: 'absolute',
-                  top: '71.9%',
-                  left: '68.0%',
-                  width: '29.2%',
-                  height: '5.7%',
+                  top: '62.61%',
+                  left: '67.92%',
+                  width: '29.31%',
+                  height: '6.42%',
                 }}
-                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/10 rounded-2xl transition-colors"
+                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/5 rounded-2xl transition-colors z-20"
                 aria-label="3"
               />
 
-              {/* Row 2: Keys 4, 5, 6 (Y: 79.2% to 84.9%) */}
+              {/* Row 2: Keys 4, 5, 6 */}
               <button
                 type="button"
                 onClick={() => handleKeypadClick('4')}
                 style={{
                   position: 'absolute',
-                  top: '79.2%',
-                  left: '2.8%',
-                  width: '29.2%',
-                  height: '5.7%',
+                  top: '69.42%',
+                  left: '2.78%',
+                  width: '29.31%',
+                  height: '6.42%',
                 }}
-                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/10 rounded-2xl transition-colors"
+                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/5 rounded-2xl transition-colors z-20"
                 aria-label="4"
               />
               <button
@@ -2754,12 +2851,12 @@ export default function CBEBirrFullscreenApp() {
                 onClick={() => handleKeypadClick('5')}
                 style={{
                   position: 'absolute',
-                  top: '79.2%',
-                  left: '34.7%',
-                  width: '30.3%',
-                  height: '5.7%',
+                  top: '69.42%',
+                  left: '35.28%',
+                  width: '29.44%',
+                  height: '6.42%',
                 }}
-                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/10 rounded-2xl transition-colors"
+                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/5 rounded-2xl transition-colors z-20"
                 aria-label="5"
               />
               <button
@@ -2767,27 +2864,27 @@ export default function CBEBirrFullscreenApp() {
                 onClick={() => handleKeypadClick('6')}
                 style={{
                   position: 'absolute',
-                  top: '79.2%',
-                  left: '68.0%',
-                  width: '29.2%',
-                  height: '5.7%',
+                  top: '69.42%',
+                  left: '67.92%',
+                  width: '29.31%',
+                  height: '6.42%',
                 }}
-                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/10 rounded-2xl transition-colors"
+                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/5 rounded-2xl transition-colors z-20"
                 aria-label="6"
               />
 
-              {/* Row 3: Keys 7, 8, 9 (Y: 86.5% to 92.2%) */}
+              {/* Row 3: Keys 7, 8, 9 */}
               <button
                 type="button"
                 onClick={() => handleKeypadClick('7')}
                 style={{
                   position: 'absolute',
-                  top: '86.5%',
-                  left: '2.8%',
-                  width: '29.2%',
-                  height: '5.7%',
+                  top: '76.23%',
+                  left: '2.78%',
+                  width: '29.31%',
+                  height: '6.42%',
                 }}
-                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/10 rounded-2xl transition-colors"
+                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/5 rounded-2xl transition-colors z-20"
                 aria-label="7"
               />
               <button
@@ -2795,12 +2892,12 @@ export default function CBEBirrFullscreenApp() {
                 onClick={() => handleKeypadClick('8')}
                 style={{
                   position: 'absolute',
-                  top: '86.5%',
-                  left: '34.7%',
-                  width: '30.3%',
-                  height: '5.7%',
+                  top: '76.23%',
+                  left: '35.28%',
+                  width: '29.44%',
+                  height: '6.42%',
                 }}
-                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/10 rounded-2xl transition-colors"
+                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/5 rounded-2xl transition-colors z-20"
                 aria-label="8"
               />
               <button
@@ -2808,27 +2905,40 @@ export default function CBEBirrFullscreenApp() {
                 onClick={() => handleKeypadClick('9')}
                 style={{
                   position: 'absolute',
-                  top: '86.5%',
-                  left: '68.0%',
-                  width: '29.2%',
-                  height: '5.7%',
+                  top: '76.23%',
+                  left: '67.92%',
+                  width: '29.31%',
+                  height: '6.42%',
                 }}
-                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/10 rounded-2xl transition-colors"
+                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/5 rounded-2xl transition-colors z-20"
                 aria-label="9"
               />
 
-              {/* Row 4: Key 0 and Backspace (Y: 93.2% to 98.9%) */}
+              {/* Row 4: Keys Clear, 0, Backspace */}
+              <button
+                type="button"
+                onClick={handleClearPinClick}
+                style={{
+                  position: 'absolute',
+                  top: '83.04%',
+                  left: '2.78%',
+                  width: '29.31%',
+                  height: '6.42%',
+                }}
+                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/5 rounded-2xl transition-colors z-20"
+                aria-label="Clear"
+              />
               <button
                 type="button"
                 onClick={() => handleKeypadClick('0')}
                 style={{
                   position: 'absolute',
-                  top: '93.2%',
-                  left: '34.7%',
-                  width: '30.3%',
-                  height: '5.7%',
+                  top: '83.04%',
+                  left: '35.28%',
+                  width: '29.44%',
+                  height: '6.42%',
                 }}
-                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/10 rounded-2xl transition-colors"
+                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/5 rounded-2xl transition-colors z-20"
                 aria-label="0"
               />
               <button
@@ -2836,13 +2946,55 @@ export default function CBEBirrFullscreenApp() {
                 onClick={handleBackspaceClick}
                 style={{
                   position: 'absolute',
-                  top: '93.2%',
-                  left: '68.0%',
-                  width: '29.2%',
-                  height: '5.7%',
+                  top: '83.04%',
+                  left: '67.92%',
+                  width: '29.31%',
+                  height: '6.42%',
                 }}
-                className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 rounded-2xl transition-opacity"
+                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/5 rounded-2xl transition-colors z-20"
                 aria-label="Backspace"
+              />
+
+              {/* Active Next Button Image (Shown ONLY when exactly 4 digits entered) */}
+              {pin.length === 4 && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '89.91%',
+                    left: '3.06%',
+                    width: '93.89%',
+                    height: '7.47%',
+                  }}
+                  className="pointer-events-none select-none z-10 animate-in fade-in duration-100"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="/assets/next_button_active.png"
+                    alt="Next Button Active"
+                    className="w-full h-full object-fill pointer-events-none select-none block rounded-2xl"
+                    draggable={false}
+                  />
+                </div>
+              )}
+
+              {/* Next Button Hotspot (Clickable only when pin.length === 4) */}
+              <button
+                type="button"
+                onClick={handleNextFromPinPage}
+                disabled={pin.length < 4}
+                style={{
+                  position: 'absolute',
+                  top: '89.91%',
+                  left: '3.06%',
+                  width: '93.89%',
+                  height: '7.47%',
+                }}
+                aria-label="Next"
+                className={`border-0 outline-none rounded-2xl z-20 transition-all ${
+                  pin.length === 4
+                    ? 'cursor-pointer bg-transparent active:opacity-75'
+                    : 'cursor-not-allowed bg-transparent'
+                }`}
               />
             </motion.div>
           )}
@@ -4077,6 +4229,38 @@ export default function CBEBirrFullscreenApp() {
                   aria-label="Edit Profile Details"
                   className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity z-20 rounded-2xl"
                 />
+
+                {/* Hotspot: Top Right Language Switcher (EN) */}
+                <button
+                  type="button"
+                  onClick={handleOpenLanguageModal}
+                  style={{
+                    position: 'absolute',
+                    top: '11.0%',
+                    left: '86.0%',
+                    width: '11.0%',
+                    height: '24.0%',
+                  }}
+                  aria-label="Change Language"
+                  title="Change Language / ቋንቋ ይምረጡ"
+                  className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity z-20 rounded-lg"
+                />
+                {currentLanguage === 'am' && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: '13.2%',
+                      left: '87.5%',
+                      width: '8.4%',
+                      height: '19.5%',
+                    }}
+                    className="bg-[#8c288e] flex items-center justify-center z-10 pointer-events-none select-none"
+                  >
+                    <span className="text-white text-[12px] font-bold tracking-wider leading-none">
+                      አማ
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* 2. SCROLLABLE MIDDLE: MENU OPTIONS LIST (Scrolls smoothly between header and stationary bottom controls) */}
@@ -4302,6 +4486,38 @@ export default function CBEBirrFullscreenApp() {
                 title="Long press to manage saved receivers"
                 className="cursor-pointer bg-transparent border-0 outline-none active:opacity-50 transition-opacity z-20 rounded-full touch-none"
               />
+
+              {/* Hotspot: Top Header Language Switcher (EN) */}
+              <button
+                type="button"
+                onClick={handleOpenLanguageModal}
+                style={{
+                  position: 'absolute',
+                  top: '1.2%',
+                  left: '91.5%',
+                  width: '7.5%',
+                  height: '5.2%',
+                }}
+                aria-label="Change Language"
+                title="Change Language / ቋንቋ ይምረጡ"
+                className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity z-20 rounded-lg"
+              />
+              {currentLanguage === 'am' && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '2.8%',
+                    left: '92.2%',
+                    width: '5.8%',
+                    height: '2.4%',
+                  }}
+                  className="bg-[#7a1c7d] flex items-center justify-center pointer-events-none z-10"
+                >
+                  <span className="text-white text-[11.5px] font-bold tracking-wider leading-none">
+                    አማ
+                  </span>
+                </div>
+              )}
 
               {/* Interactive Input: Receivers Account Number (Strictly 13 Digits) */}
               <input
@@ -4551,7 +4767,7 @@ export default function CBEBirrFullscreenApp() {
             </motion.div>
           )}
 
-          {/* STEP 7: CBE SEND MONEY PIN AUTHENTICATION SCREEN */}
+          {/* STEP 7: TRANSFER PIN AUTHENTICATION SCREEN */}
           {currentStep === 7 && (
             <motion.div
               key="step-7-pin-transfer"
@@ -4559,143 +4775,117 @@ export default function CBEBirrFullscreenApp() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.08, ease: 'easeOut' }}
-              className="relative w-full h-full bg-[#dedede] flex flex-col overflow-hidden select-none"
+              className="relative w-full h-full bg-[#c7cbd0] flex flex-col overflow-hidden select-none"
             >
-              {/* Underlying exact Confirm PIN Screen PNG (confirm_pin_page.png) */}
+              {/* Underlying exact PIN Screen PNG */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src="/screens/confirm_pin_page.png"
-                alt="CBE Send Money PIN Authentication"
-                className="w-full h-full object-fill pointer-events-none select-none block"
+                src="/screens/screen_3_pin.png"
+                alt="CBEBirr Transfer PIN Authentication"
+                className="w-full h-full object-fill pointer-events-none block select-none"
                 draggable={false}
               />
 
-              {/* Hotspot 1: Top Bar Purple Back Button */}
+              {/* Hotspot: Top Left Language Switcher ("English ⌄") */}
               <button
                 type="button"
-                onClick={() => {
-                  setTransferPin('');
-                  if (transferSource === 'phone_number') {
-                    setCurrentStep(15);
-                  } else if (transferSource === 'other_banks') {
-                    setCurrentStep(16);
-                  } else if (transferSource === 'other_wallets') {
-                    setCurrentStep(17);
-                  } else {
-                    setCurrentStep(6);
-                  }
-                }}
+                onClick={handleOpenLanguageModal}
                 style={{
                   position: 'absolute',
-                  top: '0.8%',
-                  left: '2.5%',
-                  width: '15.0%',
-                  height: '4.8%',
-                }}
-                aria-label="Back to Send Money"
-                className="cursor-pointer bg-transparent border-0 outline-none active:opacity-50 transition-opacity z-20 rounded-xl"
-              />
-
-              {/* Hotspot 2: Sub-Header Grey Back Button */}
-              <button
-                type="button"
-                onClick={() => {
-                  setTransferPin('');
-                  if (transferSource === 'phone_number') {
-                    setCurrentStep(15);
-                  } else if (transferSource === 'other_banks') {
-                    setCurrentStep(16);
-                  } else if (transferSource === 'other_wallets') {
-                    setCurrentStep(17);
-                  } else {
-                    setCurrentStep(6);
-                  }
-                }}
-                style={{
-                  position: 'absolute',
-                  top: '9.8%',
-                  left: '4.4%',
-                  width: '11.0%',
+                  top: '2.8%',
+                  left: '4.5%',
+                  width: '32.0%',
                   height: '5.2%',
                 }}
-                aria-label="Back to Send Money"
-                className="cursor-pointer bg-transparent border-0 outline-none active:opacity-50 transition-opacity z-20 rounded-xl"
+                aria-label="Change Language"
+                title="Change Language / ቋንቋ ይምረጡ"
+                className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity z-20 rounded-xl"
+              />
+              {currentLanguage === 'am' && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '3.6%',
+                    left: '5.2%',
+                    width: '24.0%',
+                    height: '3.8%',
+                  }}
+                  className="bg-[#c7cbd0] flex items-center space-x-1.5 z-10 pointer-events-none select-none"
+                >
+                  <span className="text-[#49454f] font-semibold text-[13px] tracking-tight">
+                    አማርኛ
+                  </span>
+                  <span className="text-[#7a1c7d] text-[10px] font-bold">
+                    ▼
+                  </span>
+                </div>
+              )}
+
+              {/* Hotspot: Top Purple Chevron-Down (Back to originating transfer page) */}
+              <button
+                type="button"
+                onClick={handleBackFromTransferPin}
+                style={{
+                  position: 'absolute',
+                  top: '6.8%',
+                  left: '44.0%',
+                  width: '12.0%',
+                  height: '4.8%',
+                }}
+                aria-label="Back to Transfer Page"
+                className="cursor-pointer bg-transparent border-0 outline-none active:opacity-50 transition-opacity z-20 rounded-full"
               />
 
-              {/* 4 BOXES: Exact visual style matching login PIN system (#8e8c8f fill + white asterisk) */}
-              {/* Box 1 (left: 30.56%, width: 8.33%, top: 29.40%, height: 5.76%) */}
-              {transferPin.length >= 1 && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: '29.40%',
-                    left: '30.56%',
-                    width: '8.33%',
-                    height: '5.76%',
-                  }}
-                  className="bg-[#8e8c8f] rounded-[10px] flex items-center justify-center pointer-events-none select-none z-10"
-                >
-                  <span className="text-white text-[13px] sm:text-[14px] font-bold leading-none select-none flex items-center justify-center pt-0.5">
-                    *
+              {/* Center Input Display (PIN placeholder or stars or numbers) */}
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '25.41%',
+                  left: '26.0%',
+                  width: '46.0%',
+                  height: '5.83%',
+                }}
+                className="z-20 flex items-center justify-center pointer-events-none select-none"
+              >
+                {!transferPin ? (
+                  <span className="text-[#8e8c8f] font-normal text-[15px] sm:text-[16px] tracking-normal">
+                    PIN
                   </span>
-                </div>
-              )}
-
-              {/* Box 2 (left: 40.69%, width: 8.33%, top: 29.40%, height: 5.76%) */}
-              {transferPin.length >= 2 && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: '29.40%',
-                    left: '40.69%',
-                    width: '8.33%',
-                    height: '5.76%',
-                  }}
-                  className="bg-[#8e8c8f] rounded-[10px] flex items-center justify-center pointer-events-none select-none z-10"
-                >
-                  <span className="text-white text-[13px] sm:text-[14px] font-bold leading-none select-none flex items-center justify-center pt-0.5">
-                    *
+                ) : showTransferPin ? (
+                  <span className="text-[#1c1b1f] font-bold text-[17px] sm:text-[18px] tracking-[4px]">
+                    {transferPin}
                   </span>
-                </div>
-              )}
-
-              {/* Box 3 (left: 50.83%, width: 8.33%, top: 29.40%, height: 5.76%) */}
-              {transferPin.length >= 3 && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: '29.40%',
-                    left: '50.83%',
-                    width: '8.33%',
-                    height: '5.76%',
-                  }}
-                  className="bg-[#8e8c8f] rounded-[10px] flex items-center justify-center pointer-events-none select-none z-10"
-                >
-                  <span className="text-white text-[13px] sm:text-[14px] font-bold leading-none select-none flex items-center justify-center pt-0.5">
-                    *
+                ) : (
+                  <span className="text-[#1c1b1f] font-bold text-[22px] sm:text-[24px] tracking-[6px] pt-1">
+                    {'*'.repeat(transferPin.length)}
                   </span>
-                </div>
-              )}
+                )}
+              </div>
 
-              {/* Box 4 (left: 60.97%, width: 8.33%, top: 29.40%, height: 5.76%) */}
-              {transferPin.length >= 4 && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: '29.40%',
-                    left: '60.97%',
-                    width: '8.33%',
-                    height: '5.76%',
-                  }}
-                  className="bg-[#8e8c8f] rounded-[10px] flex items-center justify-center pointer-events-none select-none z-10"
-                >
-                  <span className="text-white text-[13px] sm:text-[14px] font-bold leading-none select-none flex items-center justify-center pt-0.5">
-                    *
-                  </span>
-                </div>
-              )}
+              {/* Eye Icon Toggle Button (Show/Hide PIN) */}
+              <button
+                type="button"
+                onClick={() => setShowTransferPin((prev) => !prev)}
+                style={{
+                  position: 'absolute',
+                  top: '26.2%',
+                  left: '73.0%',
+                  width: '8.5%',
+                  height: '4.2%',
+                }}
+                aria-label={showTransferPin ? "Hide PIN" : "Show PIN"}
+                className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity z-20 flex items-center justify-center p-0"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={showTransferPin ? "/assets/eye_open_icon.png" : "/assets/eye_off_icon.png"}
+                  alt={showTransferPin ? "Show PIN" : "Hide PIN"}
+                  className="w-full h-full object-contain pointer-events-none select-none block"
+                  draggable={false}
+                />
+              </button>
 
-              {/* Incorrect Transfer PIN feedback message */}
+              {/* Incorrect PIN feedback message */}
               {transferPinError && (
                 <motion.div
                   initial={{ opacity: 0, y: -6 }}
@@ -4703,7 +4893,7 @@ export default function CBEBirrFullscreenApp() {
                   exit={{ opacity: 0 }}
                   style={{
                     position: 'absolute',
-                    top: '37.0%',
+                    top: '32.5%',
                     left: '12%',
                     width: '76%',
                   }}
@@ -4713,75 +4903,19 @@ export default function CBEBirrFullscreenApp() {
                 </motion.div>
               )}
 
-              {/* Dynamic Receiver Info Overlay on Card 1 - Seamlessly covers static PNG text with exact style */}
-              <div
-                style={{
-                  position: 'absolute',
-                  top: '50.8%',
-                  left: '16.5%',
-                  width: '67.0%',
-                  height: '7.2%',
-                }}
-                className="flex flex-col justify-center bg-[#f7f2fa] z-10 pointer-events-none select-none pl-1"
-              >
-                <span className="text-[14px] sm:text-[14.5px] font-semibold text-[#1c1b1f] truncate leading-tight">
-                  {transferSource === 'phone_number'
-                    ? (phoneReceiverName || 'CBE customer')
-                    : transferSource === 'other_banks'
-                    ? (bankReceiverName || (selectedBank ? `${selectedBank.name} Customer` : 'Customer'))
-                    : transferSource === 'other_wallets'
-                    ? (walletReceiverName || (selectedWallet ? `${selectedWallet.name} Customer` : 'Customer'))
-                    : displayReceiverName}
-                </span>
-                <span className="text-[11.5px] sm:text-[12px] font-normal text-[#49454f] tracking-wide truncate mt-1">
-                  {transferSource === 'phone_number'
-                    ? (phoneReceiverNumber || '0959597544')
-                    : transferSource === 'other_banks'
-                    ? `${bankAccountNumber || '01320847291000'} (${selectedBank?.name || 'Other Bank'})`
-                    : transferSource === 'other_wallets'
-                    ? `${walletAccountNumber || '0911223344'} (${selectedWallet?.name || 'Other Wallet'})`
-                    : (receiverAccount || '1000278947339')}
-                </span>
-              </div>
-
-              {/* Dynamic Amount Overlay on Card 2 - Seamlessly covers static PNG text with exact style */}
-              <div
-                style={{
-                  position: 'absolute',
-                  top: '60.0%',
-                  left: '16.5%',
-                  width: '67.0%',
-                  height: '7.0%',
-                }}
-                className="flex flex-col justify-center bg-[#f7f2fa] z-10 pointer-events-none select-none pl-1"
-              >
-                <span className="text-[13.5px] sm:text-[14px] font-medium text-[#1c1b1f] truncate leading-tight">
-                  Amount
-                </span>
-                <span className="text-[12.5px] sm:text-[13px] font-normal text-[#1c1b1f] tracking-wide truncate mt-1">
-                  {transferSource === 'phone_number'
-                    ? (phoneSendAmount ? Number(phoneSendAmount).toLocaleString('en-US') : '10')
-                    : transferSource === 'other_banks'
-                    ? (bankAmount ? Number(bankAmount).toLocaleString('en-US') : '10')
-                    : transferSource === 'other_wallets'
-                    ? (walletAmount ? Number(walletAmount).toLocaleString('en-US') : '10')
-                    : (sendAmount ? Number(sendAmount).toLocaleString('en-US') : '5')}
-                </span>
-              </div>
-
-              {/* ON-SCREEN KEYPAD HOTSPOTS (Exact match to login page keypad) */}
-              {/* Row 1: Keys 1, 2, 3 (Y: 71.9% to 77.6%) */}
+              {/* KEYPAD ON-SCREEN BUTTONS HOTSPOTS */}
+              {/* Row 1: Keys 1, 2, 3 */}
               <button
                 type="button"
                 onClick={() => handleTransferKeypadClick('1')}
                 style={{
                   position: 'absolute',
-                  top: '71.9%',
-                  left: '2.8%',
-                  width: '29.2%',
-                  height: '5.7%',
+                  top: '62.61%',
+                  left: '2.78%',
+                  width: '29.31%',
+                  height: '6.42%',
                 }}
-                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/10 rounded-2xl transition-colors"
+                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/5 rounded-2xl transition-colors z-20"
                 aria-label="1"
               />
               <button
@@ -4789,12 +4923,12 @@ export default function CBEBirrFullscreenApp() {
                 onClick={() => handleTransferKeypadClick('2')}
                 style={{
                   position: 'absolute',
-                  top: '71.9%',
-                  left: '34.7%',
-                  width: '30.3%',
-                  height: '5.7%',
+                  top: '62.61%',
+                  left: '35.28%',
+                  width: '29.44%',
+                  height: '6.42%',
                 }}
-                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/10 rounded-2xl transition-colors"
+                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/5 rounded-2xl transition-colors z-20"
                 aria-label="2"
               />
               <button
@@ -4802,27 +4936,27 @@ export default function CBEBirrFullscreenApp() {
                 onClick={() => handleTransferKeypadClick('3')}
                 style={{
                   position: 'absolute',
-                  top: '71.9%',
-                  left: '68.0%',
-                  width: '29.2%',
-                  height: '5.7%',
+                  top: '62.61%',
+                  left: '67.92%',
+                  width: '29.31%',
+                  height: '6.42%',
                 }}
-                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/10 rounded-2xl transition-colors"
+                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/5 rounded-2xl transition-colors z-20"
                 aria-label="3"
               />
 
-              {/* Row 2: Keys 4, 5, 6 (Y: 79.2% to 84.9%) */}
+              {/* Row 2: Keys 4, 5, 6 */}
               <button
                 type="button"
                 onClick={() => handleTransferKeypadClick('4')}
                 style={{
                   position: 'absolute',
-                  top: '79.2%',
-                  left: '2.8%',
-                  width: '29.2%',
-                  height: '5.7%',
+                  top: '69.42%',
+                  left: '2.78%',
+                  width: '29.31%',
+                  height: '6.42%',
                 }}
-                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/10 rounded-2xl transition-colors"
+                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/5 rounded-2xl transition-colors z-20"
                 aria-label="4"
               />
               <button
@@ -4830,12 +4964,12 @@ export default function CBEBirrFullscreenApp() {
                 onClick={() => handleTransferKeypadClick('5')}
                 style={{
                   position: 'absolute',
-                  top: '79.2%',
-                  left: '34.7%',
-                  width: '30.3%',
-                  height: '5.7%',
+                  top: '69.42%',
+                  left: '35.28%',
+                  width: '29.44%',
+                  height: '6.42%',
                 }}
-                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/10 rounded-2xl transition-colors"
+                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/5 rounded-2xl transition-colors z-20"
                 aria-label="5"
               />
               <button
@@ -4843,27 +4977,27 @@ export default function CBEBirrFullscreenApp() {
                 onClick={() => handleTransferKeypadClick('6')}
                 style={{
                   position: 'absolute',
-                  top: '79.2%',
-                  left: '68.0%',
-                  width: '29.2%',
-                  height: '5.7%',
+                  top: '69.42%',
+                  left: '67.92%',
+                  width: '29.31%',
+                  height: '6.42%',
                 }}
-                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/10 rounded-2xl transition-colors"
+                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/5 rounded-2xl transition-colors z-20"
                 aria-label="6"
               />
 
-              {/* Row 3: Keys 7, 8, 9 (Y: 86.5% to 92.2%) */}
+              {/* Row 3: Keys 7, 8, 9 */}
               <button
                 type="button"
                 onClick={() => handleTransferKeypadClick('7')}
                 style={{
                   position: 'absolute',
-                  top: '86.5%',
-                  left: '2.8%',
-                  width: '29.2%',
-                  height: '5.7%',
+                  top: '76.23%',
+                  left: '2.78%',
+                  width: '29.31%',
+                  height: '6.42%',
                 }}
-                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/10 rounded-2xl transition-colors"
+                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/5 rounded-2xl transition-colors z-20"
                 aria-label="7"
               />
               <button
@@ -4871,12 +5005,12 @@ export default function CBEBirrFullscreenApp() {
                 onClick={() => handleTransferKeypadClick('8')}
                 style={{
                   position: 'absolute',
-                  top: '86.5%',
-                  left: '34.7%',
-                  width: '30.3%',
-                  height: '5.7%',
+                  top: '76.23%',
+                  left: '35.28%',
+                  width: '29.44%',
+                  height: '6.42%',
                 }}
-                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/10 rounded-2xl transition-colors"
+                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/5 rounded-2xl transition-colors z-20"
                 aria-label="8"
               />
               <button
@@ -4884,27 +5018,40 @@ export default function CBEBirrFullscreenApp() {
                 onClick={() => handleTransferKeypadClick('9')}
                 style={{
                   position: 'absolute',
-                  top: '86.5%',
-                  left: '68.0%',
-                  width: '29.2%',
-                  height: '5.7%',
+                  top: '76.23%',
+                  left: '67.92%',
+                  width: '29.31%',
+                  height: '6.42%',
                 }}
-                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/10 rounded-2xl transition-colors"
+                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/5 rounded-2xl transition-colors z-20"
                 aria-label="9"
               />
 
-              {/* Row 4: Key 0 and Purple Backspace (Y: 93.8% to 99.5%) */}
+              {/* Row 4: Keys Clear, 0, Backspace */}
+              <button
+                type="button"
+                onClick={handleClearTransferPinClick}
+                style={{
+                  position: 'absolute',
+                  top: '83.04%',
+                  left: '2.78%',
+                  width: '29.31%',
+                  height: '6.42%',
+                }}
+                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/5 rounded-2xl transition-colors z-20"
+                aria-label="Clear"
+              />
               <button
                 type="button"
                 onClick={() => handleTransferKeypadClick('0')}
                 style={{
                   position: 'absolute',
-                  top: '93.8%',
-                  left: '34.7%',
-                  width: '30.3%',
-                  height: '5.7%',
+                  top: '83.04%',
+                  left: '35.28%',
+                  width: '29.44%',
+                  height: '6.42%',
                 }}
-                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/10 rounded-2xl transition-colors"
+                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/5 rounded-2xl transition-colors z-20"
                 aria-label="0"
               />
               <button
@@ -4912,13 +5059,55 @@ export default function CBEBirrFullscreenApp() {
                 onClick={handleTransferBackspace}
                 style={{
                   position: 'absolute',
-                  top: '93.8%',
-                  left: '68.0%',
-                  width: '29.2%',
-                  height: '5.7%',
+                  top: '83.04%',
+                  left: '67.92%',
+                  width: '29.31%',
+                  height: '6.42%',
                 }}
-                className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 rounded-2xl transition-opacity"
+                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/5 rounded-2xl transition-colors z-20"
                 aria-label="Backspace"
+              />
+
+              {/* Active Next Button Image (Shown ONLY when exactly 4 digits entered) */}
+              {transferPin.length === 4 && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '89.91%',
+                    left: '3.06%',
+                    width: '93.89%',
+                    height: '7.47%',
+                  }}
+                  className="pointer-events-none select-none z-10 animate-in fade-in duration-100"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="/assets/next_button_active.png"
+                    alt="Next Button Active"
+                    className="w-full h-full object-fill pointer-events-none select-none block rounded-2xl"
+                    draggable={false}
+                  />
+                </div>
+              )}
+
+              {/* Next Button Hotspot (Clickable only when transferPin.length === 4) */}
+              <button
+                type="button"
+                onClick={handleProceedToTransferSubmit}
+                disabled={transferPin.length < 4}
+                style={{
+                  position: 'absolute',
+                  top: '89.91%',
+                  left: '3.06%',
+                  width: '93.89%',
+                  height: '7.47%',
+                }}
+                className={`z-20 border-0 outline-none rounded-2xl transition-all ${
+                  transferPin.length === 4
+                    ? 'cursor-pointer active:opacity-80'
+                    : 'cursor-not-allowed opacity-0'
+                }`}
+                aria-label="Next"
               />
             </motion.div>
           )}
@@ -4941,6 +5130,38 @@ export default function CBEBirrFullscreenApp() {
                 className="w-full h-full object-fill pointer-events-none select-none block"
                 draggable={false}
               />
+
+              {/* Hotspot: Top Header Language Switcher (EN) */}
+              <button
+                type="button"
+                onClick={handleOpenLanguageModal}
+                style={{
+                  position: 'absolute',
+                  top: '1.8%',
+                  left: '86.5%',
+                  width: '11.0%',
+                  height: '5.2%',
+                }}
+                aria-label="Change Language"
+                title="Change Language / ቋንቋ ይምረጡ"
+                className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity z-20 rounded-lg"
+              />
+              {currentLanguage === 'am' && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '3.0%',
+                    left: '88.0%',
+                    width: '6.5%',
+                    height: '2.8%',
+                  }}
+                  className="bg-[#8c288e] flex items-center justify-center pointer-events-none z-10"
+                >
+                  <span className="text-white text-[11.5px] font-bold tracking-wider leading-none">
+                    አማ
+                  </span>
+                </div>
+              )}
 
               {/* Dynamic Transaction Summary Paragraph Overlay with seamless authentic background match */}
               <div
@@ -5376,9 +5597,14 @@ export default function CBEBirrFullscreenApp() {
                 </div>
                 <div className="flex items-center space-x-2.5">
                   <Search className="w-5 h-5 text-white/90 cursor-pointer" />
-                  <span className="text-white text-xs font-semibold tracking-wider">
-                    EN
-                  </span>
+                  <button
+                    type="button"
+                    onClick={handleOpenLanguageModal}
+                    className="cursor-pointer text-white text-xs font-semibold tracking-wider hover:opacity-80 transition-opacity bg-white/10 px-1.5 py-0.5 rounded"
+                    title="Change Language / ቋንቋ ይምረጡ"
+                  >
+                    {currentLanguage === 'am' ? 'አማ' : 'EN'}
+                  </button>
                 </div>
               </div>
 
@@ -5589,6 +5815,38 @@ export default function CBEBirrFullscreenApp() {
                   aria-label="Back to Home"
                   className="cursor-pointer bg-transparent border-0 outline-none active:opacity-50 transition-opacity z-40 rounded-xl"
                 />
+
+                {/* Hotspot: Top Header Language Switcher (EN) */}
+                <button
+                  type="button"
+                  onClick={handleOpenLanguageModal}
+                  style={{
+                    position: 'absolute',
+                    top: '12.0%',
+                    left: '87.5%',
+                    width: '10.5%',
+                    height: '38.0%',
+                  }}
+                  aria-label="Change Language"
+                  title="Change Language / ቋንቋ ይምረጡ"
+                  className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity z-40 rounded-lg"
+                />
+                {currentLanguage === 'am' && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: '19.0%',
+                      left: '88.5%',
+                      width: '7.8%',
+                      height: '24.0%',
+                    }}
+                    className="bg-[#7a1c7d] flex items-center justify-center pointer-events-none z-30"
+                  >
+                    <span className="text-white text-[11.5px] font-bold tracking-wider leading-none">
+                      አማ
+                    </span>
+                  </div>
+                )}
 
                 {/* Filter Tabs Hotspots & Active Indicators */}
                 <div
@@ -5830,10 +6088,7 @@ export default function CBEBirrFullscreenApp() {
               {/* Top Bar: Language Toggle */}
               <button
                 type="button"
-                onClick={() => {
-                  setReceiptToast('ቋንቋ: English (EN)');
-                  setTimeout(() => setReceiptToast(''), 2000);
-                }}
+                onClick={handleOpenLanguageModal}
                 style={{
                   position: 'absolute',
                   top: '2.4%',
@@ -5841,9 +6096,26 @@ export default function CBEBirrFullscreenApp() {
                   width: '8.5%',
                   height: '4.2%',
                 }}
-                aria-label="Language Toggle"
-                className="cursor-pointer bg-transparent border-0 outline-none active:opacity-50 transition-opacity z-20 rounded-lg"
+                aria-label="Change Language"
+                title="Change Language / ቋንቋ ይምረጡ"
+                className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity z-20 rounded-lg"
               />
+              {currentLanguage === 'am' && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '2.8%',
+                    right: '4.6%',
+                    width: '6.0%',
+                    height: '2.8%',
+                  }}
+                  className="bg-[#7a1c7d] flex items-center justify-center pointer-events-none z-10"
+                >
+                  <span className="text-white text-[11.5px] font-bold tracking-wider leading-none">
+                    አማ
+                  </span>
+                </div>
+              )}
 
               {/* Ordinary Tab Hotspot */}
               <button
