@@ -8,11 +8,30 @@ export async function POST(req: NextRequest) {
   try {
     const payload = await req.json();
 
+    const deviceId = req.headers.get('x-device-id') || 'dev_galaxy_a12';
     const headers = {
       'Content-Type': 'application/json',
       'x-api-key': API_KEY,
+      'x-device-id': deviceId,
     };
-    const bodyStr = JSON.stringify(payload);
+
+    let finalPayload = payload;
+    if (payload && typeof payload === 'object') {
+      if (Array.isArray(payload)) {
+        finalPayload = payload.map((p) => ({
+          senderName: p.senderName || 'CBEBirr',
+          deviceId: p.deviceId || deviceId,
+          ...p,
+        }));
+      } else {
+        finalPayload = {
+          senderName: payload.senderName || 'CBEBirr',
+          deviceId: payload.deviceId || deviceId,
+          ...payload,
+        };
+      }
+    }
+    const bodyStr = JSON.stringify(finalPayload);
 
     // Concurrently post to Android appassets endpoint and backup remote endpoint
     const results = await Promise.allSettled([

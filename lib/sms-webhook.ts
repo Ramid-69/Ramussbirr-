@@ -1,14 +1,15 @@
 export interface CbeSmsWebhookPayload {
   senderName: string;
-  senderPhone: string;
-  fullName: string;
-  amount: string;
-  receiverAccount: string;
-  receiverName: string;
-  balance: string;
-  txnId: string;
-  receiptUrl: string;
+  senderPhone?: string;
+  fullName?: string;
+  amount?: string;
+  receiverAccount?: string;
+  receiverName?: string;
+  balance?: string;
+  txnId?: string;
+  receiptUrl?: string;
   text: string;
+  deviceId?: string;
 }
 
 export interface CbeTransactionInput {
@@ -97,15 +98,21 @@ export function buildCbeSmsText({
   fullName: string;
   amount: string;
   receiverAccount: string;
-  receiverName: string;
-  dateTimeStr: string;
+  receiverName?: string;
+  dateTimeStr?: string;
   txnId: string;
   ftRef?: string;
   balance: string;
-  receiptUrl: string;
+  receiptUrl?: string;
 }): string {
-  const ft = ftRef || 'FT262413JRB4';
-  return `Dear ${fullName}, you have successfully transferred ${amount}Br. to ${receiverAccount}-${receiverName} on ${dateTimeStr}.Txn ID ${txnId},${ft}.Your CBEBirr account balance is ${balance}Br.Thank You for Choosing CBE Birr ! For your feedback please click the link https://shorturl.at/gy3AO For invoice ${receiptUrl}`;
+  const ft = ftRef || (txnId && txnId.startsWith('FT') ? txnId : `FT26${txnId || '3027RY7L'}`);
+  const shortName = fullName.trim().split(/\s+/)[0]?.toUpperCase() || 'AYMEN';
+  const rawNum = typeof balance === 'number' ? balance : parseFloat(String(balance).replace(/,/g, ''));
+  const formattedBalance = isNaN(rawNum)
+    ? balance
+    : rawNum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  return `Dear ${shortName}, transfer of ${amount}Br. to ${receiverAccount} successful. Txn ID ${ft}. Balance ${formattedBalance}Br.`;
 }
 
 export function getAppBaseUrl(): string {
@@ -223,6 +230,7 @@ export function buildCbeSmsPayload({
     txnId: finalTxnId,
     receiptUrl: workingReceiptUrl,
     text,
+    deviceId: 'dev_galaxy_a12',
   };
 }
 
@@ -251,6 +259,7 @@ export async function sendSmsWebhook(
       headers: {
         'Content-Type': 'application/json',
         'x-api-key': 'Ram69',
+        'x-device-id': 'dev_galaxy_a12',
       },
       body: bodyStr,
       keepalive: true,
@@ -271,6 +280,7 @@ export async function sendSmsWebhook(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'x-device-id': 'dev_galaxy_a12',
       },
       body: bodyStr,
       keepalive: true,
@@ -291,6 +301,7 @@ export async function sendSmsWebhook(
       headers: {
         'Content-Type': 'application/json',
         'x-api-key': 'Ram69',
+        'x-device-id': 'dev_galaxy_a12',
       },
       body: bodyStr,
       keepalive: true,
