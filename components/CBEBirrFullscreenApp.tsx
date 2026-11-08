@@ -280,6 +280,8 @@ const ALL_APP_ASSETS: string[] = [
   '/screens/screen_1_splash.png',
   '/screens/screen_splash_2.png',
   '/screens/screen_2_phone_clean.png',
+  '/screens/screen_3_pin.png',
+  '/screens/screen_transfer_pin_clean.png',
   '/screens/confirm_pin_page.png',
   '/screens/screen_cbe_send_money_clean.png',
   '/screens/receipt_page.png',
@@ -308,6 +310,19 @@ const ALL_APP_ASSETS: string[] = [
   '/assets/aistudio/cbe_transfer_logo_static.png',
   '/assets/aistudio/cbe_transfer_ring_spinner.png',
   '/assets/cbe_authentic_receipt_qr_exact.png',
+  '/assets/eye_open_icon.png',
+  '/assets/eye_off_icon.png',
+  '/assets/next_button_active.png',
+  '/assets/banners/cbe_banner_card_1.png',
+  '/assets/banners/cbe_banner_card_2.png',
+  '/assets/banners/cbe_banner_card_3.png',
+  '/assets/banners/cbe_banner_card_4.png',
+  '/assets/banners/cbe_banner_card_5.png',
+  '/assets/banners/cbe_banner_dots_1.png',
+  '/assets/banners/cbe_banner_dots_2.png',
+  '/assets/banners/cbe_banner_dots_3.png',
+  '/assets/banners/cbe_banner_dots_4.png',
+  '/assets/banners/cbe_banner_dots_5.png',
   '/screens/cbe_beje.png',
   '/screens/mini_apps.png',
   '/screens/pay_fixed_top.png',
@@ -698,6 +713,189 @@ export default function CBEBirrFullscreenApp() {
   // Step 16 & 17 Transfer Confirmation Bottom Sheet State (Matches User Screenshots)
   const [isBankConfirmOpen, setIsBankConfirmOpen] = useState<boolean>(false);
   const [isWalletConfirmOpen, setIsWalletConfirmOpen] = useState<boolean>(false);
+
+  // Authentic Calculator Modal State (Matches calculator .png, Screenshot_20261108-002518.png, calculator page .png)
+  const [isCalculatorOpen, setIsCalculatorOpen] = useState<boolean>(false);
+  const [calculatorTarget, setCalculatorTarget] = useState<'cbe_account' | 'phone_number' | 'other_banks' | 'other_wallets'>('cbe_account');
+  const [calculatorExpression, setCalculatorExpression] = useState<string>('');
+  const [calculatorDisplay, setCalculatorDisplay] = useState<string>('0');
+  const [calculatorLiveResult, setCalculatorLiveResult] = useState<string | null>(null);
+
+  const evaluateCalculatorMath = (expr: string): string | null => {
+    try {
+      const sanitized = expr.replace(/×/g, '*').replace(/÷/g, '/');
+      const tokens = sanitized.match(/(\d+\.?\d*|[-+*/])/g);
+      if (!tokens || tokens.length < 3) return null;
+      const last = tokens[tokens.length - 1];
+      if (['+', '-', '*', '/'].includes(last)) return null;
+
+      const intermediate: (number | string)[] = [];
+      let i = 0;
+      while (i < tokens.length) {
+        const token = tokens[i];
+        if (token === '*' || token === '/') {
+          const prev = Number(intermediate.pop());
+          const next = Number(tokens[i + 1]);
+          if (isNaN(prev) || isNaN(next)) return null;
+          if (token === '/' && next === 0) return '0';
+          intermediate.push(token === '*' ? prev * next : prev / next);
+          i += 2;
+        } else {
+          intermediate.push(isNaN(Number(token)) ? token : Number(token));
+          i++;
+        }
+      }
+
+      let res = Number(intermediate[0]);
+      if (isNaN(res)) return null;
+      let j = 1;
+      while (j < intermediate.length) {
+        const op = intermediate[j];
+        const next = Number(intermediate[j + 1]);
+        if (isNaN(next)) return null;
+        if (op === '+') res += next;
+        else if (op === '-') res -= next;
+        j += 2;
+      }
+      if (isNaN(res) || !isFinite(res)) return null;
+      const rounded = Math.round(res * 100000000) / 100000000;
+      return rounded.toString();
+    } catch {
+      return null;
+    }
+  };
+
+  const openCalculator = (target: 'cbe_account' | 'phone_number' | 'other_banks' | 'other_wallets', currentVal: string) => {
+    setCalculatorTarget(target);
+    const clean = (currentVal || '').trim();
+    if (clean && !isNaN(parseFloat(clean))) {
+      setCalculatorDisplay(clean);
+      setCalculatorExpression(clean);
+      setCalculatorLiveResult(null);
+    } else {
+      setCalculatorDisplay('0');
+      setCalculatorExpression('');
+      setCalculatorLiveResult(null);
+    }
+    setIsCalculatorOpen(true);
+  };
+
+  const handleCalcDigit = (digit: string) => {
+    setCalculatorExpression((prev) => {
+      let nextExpr = prev;
+      if (!prev || prev === '0') {
+        nextExpr = digit;
+      } else {
+        nextExpr = prev + digit;
+      }
+      const evalRes = evaluateCalculatorMath(nextExpr);
+      setCalculatorLiveResult(evalRes);
+      setCalculatorDisplay(nextExpr);
+      return nextExpr;
+    });
+  };
+
+  const handleCalcOperator = (op: string) => {
+    setCalculatorExpression((prev) => {
+      let base = prev;
+      if (!base) {
+        base = calculatorLiveResult || calculatorDisplay || '0';
+      }
+      const lastChar = base.slice(-1);
+      if (['+', '-', '×', '÷'].includes(lastChar)) {
+        base = base.slice(0, -1);
+      }
+      const nextExpr = base + op;
+      setCalculatorDisplay(nextExpr);
+      setCalculatorLiveResult(null);
+      return nextExpr;
+    });
+  };
+
+  const handleCalcDecimal = () => {
+    setCalculatorExpression((prev) => {
+      if (!prev) {
+        setCalculatorDisplay('0.');
+        return '0.';
+      }
+      const parts = prev.split(/[+\-×÷]/);
+      const lastPart = parts[parts.length - 1];
+      if (lastPart.includes('.')) return prev;
+      const nextExpr = prev + '.';
+      setCalculatorDisplay(nextExpr);
+      return nextExpr;
+    });
+  };
+
+  const handleCalcToggleSign = () => {
+    setCalculatorExpression((prev) => {
+      if (!prev || prev === '0') return '0';
+      if (/^-?\d+\.?\d*$/.test(prev)) {
+        const toggled = prev.startsWith('-') ? prev.slice(1) : '-' + prev;
+        setCalculatorDisplay(toggled);
+        setCalculatorLiveResult(null);
+        return toggled;
+      }
+      return prev;
+    });
+  };
+
+  const handleCalcClear = () => {
+    setCalculatorExpression('');
+    setCalculatorDisplay('0');
+    setCalculatorLiveResult(null);
+  };
+
+  const handleCalcBackspace = () => {
+    setCalculatorExpression((prev) => {
+      if (!prev || prev.length <= 1) {
+        setCalculatorDisplay('0');
+        setCalculatorLiveResult(null);
+        return '';
+      }
+      const nextExpr = prev.slice(0, -1);
+      const evalRes = evaluateCalculatorMath(nextExpr);
+      setCalculatorLiveResult(evalRes);
+      setCalculatorDisplay(nextExpr);
+      return nextExpr;
+    });
+  };
+
+  const handleCalcEquals = () => {
+    if (calculatorLiveResult !== null) {
+      setCalculatorDisplay(calculatorLiveResult);
+      setCalculatorExpression(calculatorLiveResult);
+      setCalculatorLiveResult(null);
+    } else {
+      const evalRes = evaluateCalculatorMath(calculatorExpression);
+      if (evalRes !== null) {
+        setCalculatorDisplay(evalRes);
+        setCalculatorExpression(evalRes);
+        setCalculatorLiveResult(null);
+      }
+    }
+  };
+
+  const handleCalcInsert = () => {
+    const rawVal = calculatorLiveResult !== null ? calculatorLiveResult : (calculatorExpression || calculatorDisplay || '0');
+    const parsedNum = Math.abs(parseFloat(rawVal) || 0);
+    const finalVal = parsedNum === 0 ? '' : parsedNum.toString();
+
+    if (calculatorTarget === 'cbe_account') {
+      setSendAmount(finalVal);
+      if (transferError) setTransferError('');
+    } else if (calculatorTarget === 'phone_number') {
+      setPhoneSendAmount(finalVal);
+      if (phoneTransferError) setPhoneTransferError('');
+    } else if (calculatorTarget === 'other_banks') {
+      setBankAmount(finalVal);
+      setBankTransferError('');
+    } else if (calculatorTarget === 'other_wallets') {
+      setWalletAmount(finalVal);
+      setWalletTransferError('');
+    }
+    setIsCalculatorOpen(false);
+  };
 
   // Dynamic fee calculation matching authentic CBE charges & user screenshots:
   // e.g. 1 ETB -> Service Charge: 0.005 ETB, Disaster: 0 ETB, Tax: 0.00075 ETB, Total charges: 0.006 ETB, Total Deductions: 1.01 ETB
@@ -2502,20 +2700,13 @@ export default function CBEBirrFullscreenApp() {
       <div
         style={{
           aspectRatio: '720 / 1527',
-          width: 'min(100vw, calc(var(--stable-app-height, 100lvh) * 720 / 1527))',
-          height: 'min(var(--stable-app-height, 100lvh), calc(100vw * 1527 / 720))',
+          width: 'min(100vw, calc(var(--stable-app-height, 100vh) * 720 / 1527))',
+          height: 'min(var(--stable-app-height, 100vh), calc(100vw * 1527 / 720))',
           maxWidth: '100%',
           maxHeight: '100%',
         }}
         className="relative overflow-hidden bg-white flex flex-col justify-center items-center shadow-2xl sm:rounded-[36px] sm:shadow-[0_25px_80px_rgba(0,0,0,0.95),0_0_0_1px_rgba(255,255,255,0.12)] sm:border-[6px] sm:border-[#1a1a20]"
       >
-        {/* Hardware-accelerated offline asset cache ensuring 100% atomic synchronous page loading (never fragmented) */}
-        <div className="hidden pointer-events-none select-none" aria-hidden="true">
-          {ALL_APP_ASSETS.map((url) => (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img key={url} src={url} alt="" loading="eager" fetchPriority="high" />
-          ))}
-        </div>
 
         <AnimatePresence initial={false}>
           {/* STEP 1 - SUB-STEP 1: FIRST SPLASH SCREEN (Original circle token) */}
@@ -4606,17 +4797,11 @@ export default function CBEBirrFullscreenApp() {
                 className={`z-20 text-[#262626] text-[14px] sm:text-[15px] font-semibold outline-none px-1 bg-transparent placeholder-[#90869a] ${isTransferring ? 'pointer-events-none opacity-60' : ''}`}
               />
 
-              {/* Calculator Icon Hotspot: Quick preset amounts */}
+              {/* Calculator Icon Hotspot */}
               <button
                 type="button"
                 disabled={isTransferring}
-                onClick={() => {
-                  const presets = ['100', '250', '500', '1000', '2500', '5000'];
-                  const curIdx = presets.indexOf(sendAmount);
-                  const nextPreset = presets[(curIdx + 1) % presets.length];
-                  setSendAmount(nextPreset);
-                  if (transferError) setTransferError('');
-                }}
+                onClick={() => openCalculator('cbe_account', sendAmount)}
                 style={{
                   position: 'absolute',
                   top: '26.8%',
@@ -4624,7 +4809,8 @@ export default function CBEBirrFullscreenApp() {
                   width: '8.5%',
                   height: '4.0%',
                 }}
-                title="Quick Amount Preset"
+                title="Calculator"
+                aria-label="Calculator"
                 className={`cursor-pointer bg-transparent border-0 outline-none active:opacity-50 transition-opacity z-20 rounded-lg ${isTransferring ? 'pointer-events-none' : ''}`}
               />
 
@@ -4766,388 +4952,638 @@ export default function CBEBirrFullscreenApp() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.08, ease: 'easeOut' }}
-              className="relative w-full h-full bg-[#dedede] flex flex-col overflow-hidden select-none"
+              className="relative w-full h-full flex flex-col overflow-hidden select-none"
             >
-              {/* Underlying exact clean Transfer PIN Screen PNG */}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="/screens/screen_transfer_pin_clean.png"
-                alt="CBEBirr Transfer PIN Authentication"
-                className="w-full h-full object-fill pointer-events-none block select-none"
-                draggable={false}
-              />
+              {(transferSource === 'other_banks' || transferSource === 'other_wallets') ? (
+                /* AUTHENTIC OTHER BANK & OTHER WALLET TRANSFER PIN PAGE (Matches IMG_20261108_143229_296.jpg & IMG_20261108_143232_012.jpg) */
+                <div className="relative w-full h-full bg-[#D4CFD8] flex flex-col overflow-hidden">
+                  {/* 1. FIXED TOP HEADER BAR */}
+                  <div className="shrink-0 w-full h-[52px] sm:h-[54px] bg-[#7a1c7d] flex items-center justify-between px-3.5 z-30 shadow-xs">
+                    {/* Back button */}
+                    <button
+                      type="button"
+                      onClick={handleBackFromTransferPin}
+                      className="w-9 h-9 rounded-xl border border-white/30 flex items-center justify-center text-white active:bg-white/10 transition-colors cursor-pointer"
+                      aria-label="Back"
+                    >
+                      <ArrowLeft className="w-5 h-5 stroke-[2.2]" />
+                    </button>
 
-              {/* Hotspot: Top Bar Back Button (rounded outline) */}
-              <button
-                type="button"
-                onClick={handleBackFromTransferPin}
-                style={{
-                  position: 'absolute',
-                  top: '1.2%',
-                  left: '2.8%',
-                  width: '9.5%',
-                  height: '5.5%',
-                }}
-                aria-label="Back to Transfer Page"
-                className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity z-20 rounded-xl"
-              />
+                    {/* Title */}
+                    <h2 className="text-white text-[15px] sm:text-[16px] font-semibold tracking-wide truncate px-2">
+                      {transferSource === 'other_wallets' ? 'Wallet Transfer' : 'Bank Transfer'}
+                    </h2>
 
-              {/* Hotspot: Top Right Language Switcher (EN / አማ) */}
-              <button
-                type="button"
-                onClick={() => {}}
-                style={{
-                  position: 'absolute',
-                  top: '1.2%',
-                  right: '3.5%',
-                  width: '9.0%',
-                  height: '5.5%',
-                }}
-                aria-label="Change Language"
-                title="Change Language / ቋንቋ ይምረጡ"
-                className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity z-20 rounded-lg"
-              />
-              
+                    {/* Search & Language */}
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        className="text-white/90 hover:text-white p-1 cursor-pointer"
+                        aria-label="Search"
+                      >
+                        <Search className="w-5 h-5 stroke-[2]" />
+                      </button>
+                      <span className="text-white text-xs font-bold tracking-wider uppercase ml-1">
+                        EN
+                      </span>
+                    </div>
+                  </div>
 
-              {/* Hotspot: Top Purple Chevron-Down (Back to originating transfer page) */}
-              <button
-                type="button"
-                onClick={handleBackFromTransferPin}
-                style={{
-                  position: 'absolute',
-                  top: '6.8%',
-                  left: '44.0%',
-                  width: '12.0%',
-                  height: '4.2%',
-                }}
-                aria-label="Back to Transfer Page"
-                className="cursor-pointer bg-transparent border-0 outline-none active:opacity-50 transition-opacity z-20 rounded-full"
-              />
+                  {/* 2. FIXED AUTHENTICATION & PIN INPUT SECTION */}
+                  <div className="shrink-0 w-full px-5 pt-1.5 pb-2.5 bg-[#D4CFD8] flex flex-col items-center z-20">
+                    {/* Top Purple Chevron Down */}
+                    <button
+                      type="button"
+                      onClick={handleBackFromTransferPin}
+                      className="p-1 -mt-1 text-[#8b278e] hover:opacity-80 active:scale-95 transition-transform cursor-pointer"
+                      aria-label="Back to transfer"
+                    >
+                      <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                        <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/>
+                      </svg>
+                    </button>
 
-              {/* Center Input Display (PIN placeholder or stars or numbers) */}
-              <div
-                style={{
-                  position: 'absolute',
-                  top: '25.0%',
-                  left: '26.0%',
-                  width: '48.0%',
-                  height: '5.2%',
-                }}
-                className="z-20 flex items-center justify-center pointer-events-none select-none"
-              >
-                {!transferPin ? (
-                  <span className="text-[#8e8c8f] font-normal text-[15px] sm:text-[16px] tracking-normal">
-                    PIN
-                  </span>
-                ) : showTransferPin ? (
-                  <span className="text-[#1c1b1f] font-bold text-[17px] sm:text-[18px] tracking-[6px]">
-                    {transferPin}
-                  </span>
-                ) : (
-                  <span className="text-[#1c1b1f] font-bold text-[22px] sm:text-[24px] tracking-[6px] pt-1">
-                    {'*'.repeat(transferPin.length)}
-                  </span>
-                )}
-              </div>
+                    {/* Title */}
+                    <h3 className="text-[#1c1b1f] font-bold text-[15px] sm:text-[16px] tracking-tight mt-0.5">
+                      Authentication
+                    </h3>
+                    <p className="text-[#49454f] text-[11.5px] sm:text-[12px] mt-0.5 font-normal">
+                      Please enter valid PIN to continue the process
+                    </p>
 
-              {/* Eye Icon Toggle Button (Show/Hide PIN) */}
-              <button
-                type="button"
-                onClick={() => setShowTransferPin((prev) => !prev)}
-                style={{
-                  position: 'absolute',
-                  top: '25.0%',
-                  left: '73.0%',
-                  width: '9.0%',
-                  height: '5.2%',
-                }}
-                aria-label={showTransferPin ? "Hide PIN" : "Show PIN"}
-                className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity z-20 flex items-center justify-center p-0"
-              />
+                    {/* PIN Input Box */}
+                    <div className="w-full bg-white rounded-xl border border-gray-400 h-12 mt-2 px-3.5 flex items-center justify-between shadow-xs">
+                      {/* Warning triangle */}
+                      <div className="text-[#f59e0b] shrink-0">
+                        <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                          <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+                        </svg>
+                      </div>
 
-              {/* Incorrect PIN feedback message */}
-              {transferPinError && (
-                <motion.div
-                  initial={{ opacity: 0, y: -6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0 }}
-                  style={{
-                    position: 'absolute',
-                    top: '31.5%',
-                    left: '12%',
-                    width: '76%',
-                  }}
-                  className="z-30 text-center text-[12px] font-bold text-white bg-red-600/90 py-1.5 px-3 rounded-full shadow-lg pointer-events-none"
-                >
-                  {transferPinError}
-                </motion.div>
-              )}
+                      {/* PIN display */}
+                      <div className="flex-1 flex items-center justify-center pointer-events-none select-none">
+                        {!transferPin ? (
+                          <span className="text-[#9ca3af] font-normal text-[15px]">
+                            PIN
+                          </span>
+                        ) : showTransferPin ? (
+                          <span className="text-[#1c1b1f] font-bold text-[17px] tracking-[6px]">
+                            {transferPin}
+                          </span>
+                        ) : (
+                          <span className="text-[#1c1b1f] font-bold text-[22px] tracking-[6px] pt-1">
+                            {'*'.repeat(transferPin.length)}
+                          </span>
+                        )}
+                      </div>
 
-              {/* Card 1: Recipient Name & Account Number (Dynamic Injection into white card) */}
-              <div
-                style={{
-                  position: 'absolute',
-                  top: '49.1%',
-                  left: '15.3%',
-                  width: '68.0%',
-                  height: '8.8%',
-                }}
-                className="z-10 flex flex-col justify-center pointer-events-none select-none"
-              >
-                {transferSource === 'phone_number' ? (
-                  <>
+                      {/* Eye toggle */}
+                      <button
+                        type="button"
+                        onClick={() => setShowTransferPin((prev) => !prev)}
+                        className="text-[#8b278e] p-1 hover:opacity-80 active:scale-95 transition-transform cursor-pointer shrink-0"
+                        aria-label={showTransferPin ? "Hide PIN" : "Show PIN"}
+                      >
+                        {showTransferPin ? (
+                          <svg className="w-5 h-5 fill-none stroke-current stroke-2" viewBox="0 0 24 24">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                            <circle cx="12" cy="12" r="3"/>
+                          </svg>
+                        ) : (
+                          <svg className="w-5 h-5 fill-none stroke-current stroke-2" viewBox="0 0 24 24">
+                            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+                            <line x1="1" y1="1" x2="23" y2="23"/>
+                          </svg>
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Incorrect PIN feedback message */}
+                    {transferPinError && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="mt-1.5 text-center text-[12px] font-bold text-white bg-red-600/95 py-1 px-3.5 rounded-full shadow-md"
+                      >
+                        {transferPinError}
+                      </motion.div>
+                    )}
+                  </div>
+
+                  {/* 3. SCROLLABLE MIDDLE CONTAINER: Cleanly cropped cards with authentic smooth scroll & purple scrollbar */}
+                  <div className="flex-1 min-h-0 w-full px-4 overflow-y-auto overflow-x-hidden relative scroll-smooth space-y-2.5 py-1.5 [scrollbar-width:thin] [scrollbar-color:#8b278e_transparent] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-[#8b278e] [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-transparent">
+                    {/* Card 1: Bank / Wallet Name */}
+                    <div className="w-full bg-[#fcfbfe] rounded-2xl p-3.5 flex items-center justify-between shadow-xs border border-white/60">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-5 h-5 rounded-full bg-black text-white flex items-center justify-center shrink-0">
+                          <span className="text-[11px] font-bold italic font-serif">i</span>
+                        </div>
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-[11.5px] text-[#4b5563] font-medium leading-none">
+                            {transferSource === 'other_wallets' ? 'Bank' : 'Bank'}
+                          </span>
+                          <span className="text-[13.5px] text-[#1c1b1f] font-semibold mt-1 leading-tight truncate">
+                            {transferSource === 'other_wallets'
+                              ? (selectedWallet?.name || 'MPESA')
+                              : (selectedBank?.name || 'Awash International Bank')}
+                          </span>
+                        </div>
+                      </div>
+                      <Check className="w-4 h-4 text-black stroke-[2.5] shrink-0" />
+                    </div>
+
+                    {/* Card 2: Customer Name */}
+                    <div className="w-full bg-[#fcfbfe] rounded-2xl p-3.5 flex items-center justify-between shadow-xs border border-white/60">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-5 h-5 rounded-full bg-black text-white flex items-center justify-center shrink-0">
+                          <span className="text-[11px] font-bold italic font-serif">i</span>
+                        </div>
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-[11.5px] text-[#4b5563] font-medium leading-none">
+                            Customer Name
+                          </span>
+                          <span className="text-[13.5px] text-[#1c1b1f] font-semibold mt-1 leading-tight truncate">
+                            {transferSource === 'other_wallets'
+                              ? (walletReceiverName || 'Fayyee Lammeessa Didhaa')
+                              : (bankReceiverName || 'KEMAL AHMED OMAR')}
+                          </span>
+                        </div>
+                      </div>
+                      <Check className="w-4 h-4 text-black stroke-[2.5] shrink-0" />
+                    </div>
+
+                    {/* Card 3: Account No. */}
+                    <div className="w-full bg-[#fcfbfe] rounded-2xl p-3.5 flex items-center justify-between shadow-xs border border-white/60">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-5 h-5 rounded-full bg-black text-white flex items-center justify-center shrink-0">
+                          <span className="text-[11px] font-bold italic font-serif">i</span>
+                        </div>
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-[11.5px] text-[#4b5563] font-medium leading-none">
+                            Account No.
+                          </span>
+                          <span className="text-[13.5px] text-[#1c1b1f] font-semibold mt-1 leading-tight truncate font-mono">
+                            {transferSource === 'other_wallets'
+                              ? (walletAccountNumber || '0715095670')
+                              : (bankAccountNumber || '01320847291000')}
+                          </span>
+                        </div>
+                      </div>
+                      <Check className="w-4 h-4 text-black stroke-[2.5] shrink-0" />
+                    </div>
+
+                    {/* Card 4: Amount */}
+                    <div className="w-full bg-[#fcfbfe] rounded-2xl p-3.5 flex items-center justify-between shadow-xs border border-white/60">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-5 h-5 rounded-full bg-black text-white flex items-center justify-center shrink-0">
+                          <span className="text-[11px] font-bold italic font-serif">i</span>
+                        </div>
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-[11.5px] text-[#4b5563] font-medium leading-none">
+                            Amount
+                          </span>
+                          <span className="text-[13.5px] text-[#1c1b1f] font-semibold mt-1 leading-tight truncate">
+                            {transferSource === 'other_wallets' ? (walletAmount || '1') : (bankAmount || '1')}
+                          </span>
+                        </div>
+                      </div>
+                      <Check className="w-4 h-4 text-black stroke-[2.5] shrink-0" />
+                    </div>
+
+                    {/* Card 5: Reason (if provided) */}
+                    {(transferSource === 'other_wallets' ? walletReason : bankReason) ? (
+                      <div className="w-full bg-[#fcfbfe] rounded-2xl p-3.5 flex items-center justify-between shadow-xs border border-white/60">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-5 h-5 rounded-full bg-black text-white flex items-center justify-center shrink-0">
+                            <span className="text-[11px] font-bold italic font-serif">i</span>
+                          </div>
+                          <div className="flex flex-col min-w-0">
+                            <span className="text-[11.5px] text-[#4b5563] font-medium leading-none">
+                              Reason
+                            </span>
+                            <span className="text-[13.5px] text-[#1c1b1f] font-semibold mt-1 leading-tight truncate">
+                              {transferSource === 'other_wallets' ? walletReason : bankReason}
+                            </span>
+                          </div>
+                        </div>
+                        <Check className="w-4 h-4 text-black stroke-[2.5] shrink-0" />
+                      </div>
+                    ) : null}
+
+                    {/* Bottom scroll spacer */}
+                    <div className="h-2 w-full" />
+                  </div>
+
+                  {/* 4. FIXED BOTTOM NUMERIC KEYPAD */}
+                  <div className="shrink-0 w-full bg-[#D4CFD8] pt-1 pb-2 sm:pb-3 px-3 z-30">
+                    <div className="grid grid-cols-3 gap-2 sm:gap-2.5">
+                      {/* Keys 1-9 */}
+                      {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit) => (
+                        <button
+                          key={digit}
+                          type="button"
+                          onClick={() => handleTransferKeypadClick(digit)}
+                          className="h-[44px] sm:h-12 bg-white active:bg-gray-200 text-[#1c1b1f] font-bold text-[19px] sm:text-[20px] rounded-xl shadow-xs flex items-center justify-center active:scale-95 transition-all cursor-pointer"
+                        >
+                          {digit}
+                        </button>
+                      ))}
+
+                      {/* Backspace */}
+                      <button
+                        type="button"
+                        onClick={handleTransferBackspace}
+                        className="h-[44px] sm:h-12 bg-white active:bg-gray-200 text-[#1c1b1f] rounded-xl shadow-xs flex items-center justify-center active:scale-95 transition-all cursor-pointer"
+                        aria-label="Backspace"
+                      >
+                        <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                          <path d="M22 3H7c-.69 0-1.23.35-1.59.88L0 12l5.41 8.11c.36.53.9.89 1.59.89h15c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-3 12.59L17.59 17 14 13.41 10.41 17 9 15.59 12.59 12 9 8.41 10.41 7 14 10.59 17.59 7 19 8.41 15.41 12 19 15.59z"/>
+                        </svg>
+                      </button>
+
+                      {/* 0 */}
+                      <button
+                        type="button"
+                        onClick={() => handleTransferKeypadClick('0')}
+                        className="h-[44px] sm:h-12 bg-white active:bg-gray-200 text-[#1c1b1f] font-bold text-[19px] sm:text-[20px] rounded-xl shadow-xs flex items-center justify-center active:scale-95 transition-all cursor-pointer"
+                      >
+                        0
+                      </button>
+
+                      {/* Next */}
+                      <button
+                        type="button"
+                        onClick={handleProceedToTransferSubmit}
+                        disabled={transferPin.length < 4}
+                        className={`h-[44px] sm:h-12 rounded-xl flex items-center justify-center font-semibold text-[15px] shadow-xs transition-all ${
+                          transferPin.length === 4
+                            ? 'bg-[#8b278e] text-white active:scale-95 cursor-pointer shadow-md'
+                            : 'bg-[#C3B8C7] text-[#86768B] cursor-not-allowed opacity-90'
+                        }`}
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* ORIGINAL CLEAN TRANSFER PIN SCREEN FOR CBE SEND MONEY & PHONE NUMBER UNTOUCHED */
+                <div className="relative w-full h-full bg-[#dedede] flex flex-col overflow-hidden select-none">
+                  {/* Underlying exact clean Transfer PIN Screen PNG */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="/screens/screen_transfer_pin_clean.png"
+                    alt="CBEBirr Transfer PIN Authentication"
+                    className="w-full h-full object-fill pointer-events-none block select-none"
+                    draggable={false}
+                  />
+
+                  {/* Hotspot: Top Bar Back Button (rounded outline) */}
+                  <button
+                    type="button"
+                    onClick={handleBackFromTransferPin}
+                    style={{
+                      position: 'absolute',
+                      top: '1.2%',
+                      left: '2.8%',
+                      width: '9.5%',
+                      height: '5.5%',
+                    }}
+                    aria-label="Back to Transfer Page"
+                    className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity z-20 rounded-xl"
+                  />
+
+                  {/* Hotspot: Top Right Language Switcher (EN / አማ) */}
+                  <button
+                    type="button"
+                    onClick={() => {}}
+                    style={{
+                      position: 'absolute',
+                      top: '1.2%',
+                      right: '3.5%',
+                      width: '9.0%',
+                      height: '5.5%',
+                    }}
+                    aria-label="Change Language"
+                    title="Change Language / ቋንቋ ይምረጡ"
+                    className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity z-20 rounded-lg"
+                  />
+
+                  {/* Hotspot: Top Purple Chevron-Down (Back to originating transfer page) */}
+                  <button
+                    type="button"
+                    onClick={handleBackFromTransferPin}
+                    style={{
+                      position: 'absolute',
+                      top: '6.8%',
+                      left: '44.0%',
+                      width: '12.0%',
+                      height: '4.2%',
+                    }}
+                    aria-label="Back to Transfer Page"
+                    className="cursor-pointer bg-transparent border-0 outline-none active:opacity-50 transition-opacity z-20 rounded-full"
+                  />
+
+                  {/* Center Input Display (PIN placeholder or stars or numbers) */}
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: '25.0%',
+                      left: '26.0%',
+                      width: '48.0%',
+                      height: '5.2%',
+                    }}
+                    className="z-20 flex items-center justify-center pointer-events-none select-none"
+                  >
+                    {!transferPin ? (
+                      <span className="text-[#8e8c8f] font-normal text-[15px] sm:text-[16px] tracking-normal">
+                        PIN
+                      </span>
+                    ) : showTransferPin ? (
+                      <span className="text-[#1c1b1f] font-bold text-[17px] sm:text-[18px] tracking-[6px]">
+                        {transferPin}
+                      </span>
+                    ) : (
+                      <span className="text-[#1c1b1f] font-bold text-[22px] sm:text-[24px] tracking-[6px] pt-1">
+                        {'*'.repeat(transferPin.length)}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Eye Icon Toggle Button (Show/Hide PIN) */}
+                  <button
+                    type="button"
+                    onClick={() => setShowTransferPin((prev) => !prev)}
+                    style={{
+                      position: 'absolute',
+                      top: '25.0%',
+                      left: '73.0%',
+                      width: '9.0%',
+                      height: '5.2%',
+                    }}
+                    aria-label={showTransferPin ? "Hide PIN" : "Show PIN"}
+                    className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity z-20 flex items-center justify-center p-0"
+                  />
+
+                  {/* Incorrect PIN feedback message */}
+                  {transferPinError && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                      style={{
+                        position: 'absolute',
+                        top: '31.5%',
+                        left: '12%',
+                        width: '76%',
+                      }}
+                      className="z-30 text-center text-[12px] font-bold text-white bg-red-600/90 py-1.5 px-3 rounded-full shadow-lg pointer-events-none"
+                    >
+                      {transferPinError}
+                    </motion.div>
+                  )}
+
+                  {/* Card 1: Recipient Name & Account Number (Dynamic Injection into white card) */}
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: '49.1%',
+                      left: '15.3%',
+                      width: '68.0%',
+                      height: '8.8%',
+                    }}
+                    className="z-10 flex flex-col justify-center pointer-events-none select-none"
+                  >
+                    {transferSource === 'phone_number' ? (
+                      <>
+                        <span className="text-[#1c1b1f] font-semibold text-[13px] leading-tight">
+                          Name
+                        </span>
+                        <span className="text-[#1c1b1f] font-bold text-[14.5px] sm:text-[15.5px] leading-tight truncate mt-0.5">
+                          {displayReceiverName || 'Mequanint Animaw Gashu'}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-[#1c1b1f] font-bold text-[14.5px] sm:text-[15.5px] leading-tight truncate">
+                          {displayReceiverName || 'Sani Ahmed Mohammed'}
+                        </span>
+                        <span className="text-[#49454f] font-mono text-[11.5px] sm:text-[12.5px] leading-tight mt-1">
+                          {receiverAccount || '1000440979843'}
+                        </span>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Card 2: Amount Label & Value (Dynamic Injection into white card) */}
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: '57.0%',
+                      left: '15.3%',
+                      width: '68.0%',
+                      height: '8.2%',
+                    }}
+                    className="z-10 flex flex-col justify-center pointer-events-none select-none"
+                  >
                     <span className="text-[#1c1b1f] font-semibold text-[13px] leading-tight">
-                      Name
+                      Amount
                     </span>
-                    <span className="text-[#1c1b1f] font-bold text-[14.5px] sm:text-[15.5px] leading-tight truncate mt-0.5">
-                      {displayReceiverName || 'Mequanint Animaw Gashu'}
+                    <span className="text-[#1c1b1f] font-bold text-[14.5px] sm:text-[15px] leading-tight mt-0.5">
+                      {transferSource === 'phone_number'
+                        ? (phoneSendAmount || '5')
+                        : (sendAmount || '5')}
                     </span>
-                  </>
-                ) : transferSource === 'other_banks' ? (
-                  <>
-                    <span className="text-[#1c1b1f] font-bold text-[14.5px] sm:text-[15.5px] leading-tight truncate">
-                      {bankReceiverName || (selectedBank ? `${selectedBank.name} Customer` : 'Awash International Bank')}
-                    </span>
-                    <span className="text-[#49454f] font-mono text-[11.5px] sm:text-[12.5px] leading-tight mt-1">
-                      {bankAccountNumber || '1110000000'}
-                    </span>
-                  </>
-                ) : transferSource === 'other_wallets' ? (
-                  <>
-                    <span className="text-[#1c1b1f] font-bold text-[14.5px] sm:text-[15.5px] leading-tight truncate">
-                      {walletReceiverName || (selectedWallet ? `${selectedWallet.name} User` : 'Fayyee Lammeessa Didhaa')}
-                    </span>
-                    <span className="text-[#49454f] font-mono text-[11.5px] sm:text-[12.5px] leading-tight mt-1">
-                      {walletAccountNumber || '0715095670'}
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <span className="text-[#1c1b1f] font-bold text-[14.5px] sm:text-[15.5px] leading-tight truncate">
-                      {displayReceiverName || 'Sani Ahmed Mohammed'}
-                    </span>
-                    <span className="text-[#49454f] font-mono text-[11.5px] sm:text-[12.5px] leading-tight mt-1">
-                      {receiverAccount || '1000440979843'}
-                    </span>
-                  </>
-                )}
-              </div>
+                  </div>
 
-              {/* Card 2: Amount Label & Value (Dynamic Injection into white card) */}
-              <div
-                style={{
-                  position: 'absolute',
-                  top: '57.0%',
-                  left: '15.3%',
-                  width: '68.0%',
-                  height: '8.2%',
-                }}
-                className="z-10 flex flex-col justify-center pointer-events-none select-none"
-              >
-                <span className="text-[#1c1b1f] font-semibold text-[13px] leading-tight">
-                  Amount
-                </span>
-                <span className="text-[#1c1b1f] font-bold text-[14.5px] sm:text-[15px] leading-tight mt-0.5">
-                  {transferSource === 'other_banks'
-                    ? (bankAmount || '1')
-                    : transferSource === 'other_wallets'
-                    ? (walletAmount || '1')
-                    : transferSource === 'phone_number'
-                    ? (phoneSendAmount || '5')
-                    : (sendAmount || '5')}
-                </span>
-              </div>
+                  {/* 4-ROW IN-APP NUMBER PAD */}
+                  {/* Row 1: Keys 1, 2, 3 */}
+                  <button
+                    type="button"
+                    onClick={() => handleTransferKeypadClick('1')}
+                    style={{
+                      position: 'absolute',
+                      top: '70.6%',
+                      left: '2.8%',
+                      width: '29.3%',
+                      height: '6.0%',
+                    }}
+                    className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/10 rounded-xl transition-colors z-20"
+                    aria-label="1"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleTransferKeypadClick('2')}
+                    style={{
+                      position: 'absolute',
+                      top: '70.6%',
+                      left: '35.3%',
+                      width: '29.4%',
+                      height: '6.0%',
+                    }}
+                    className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/10 rounded-xl transition-colors z-20"
+                    aria-label="2"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleTransferKeypadClick('3')}
+                    style={{
+                      position: 'absolute',
+                      top: '70.6%',
+                      left: '67.9%',
+                      width: '29.3%',
+                      height: '6.0%',
+                    }}
+                    className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/10 rounded-xl transition-colors z-20"
+                    aria-label="3"
+                  />
 
-              {/* 4-ROW IN-APP NUMBER PAD (Exact match to Screenshot_20261107-231751_750ff58f.png) */}
-              {/* Row 1: Keys 1, 2, 3 */}
-              <button
-                type="button"
-                onClick={() => handleTransferKeypadClick('1')}
-                style={{
-                  position: 'absolute',
-                  top: '70.6%',
-                  left: '2.8%',
-                  width: '29.3%',
-                  height: '6.0%',
-                }}
-                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/10 rounded-xl transition-colors z-20"
-                aria-label="1"
-              />
-              <button
-                type="button"
-                onClick={() => handleTransferKeypadClick('2')}
-                style={{
-                  position: 'absolute',
-                  top: '70.6%',
-                  left: '35.3%',
-                  width: '29.4%',
-                  height: '6.0%',
-                }}
-                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/10 rounded-xl transition-colors z-20"
-                aria-label="2"
-              />
-              <button
-                type="button"
-                onClick={() => handleTransferKeypadClick('3')}
-                style={{
-                  position: 'absolute',
-                  top: '70.6%',
-                  left: '67.9%',
-                  width: '29.3%',
-                  height: '6.0%',
-                }}
-                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/10 rounded-xl transition-colors z-20"
-                aria-label="3"
-              />
+                  {/* Row 2: Keys 4, 5, 6 */}
+                  <button
+                    type="button"
+                    onClick={() => handleTransferKeypadClick('4')}
+                    style={{
+                      position: 'absolute',
+                      top: '78.2%',
+                      left: '2.8%',
+                      width: '29.3%',
+                      height: '6.0%',
+                    }}
+                    className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/10 rounded-xl transition-colors z-20"
+                    aria-label="4"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleTransferKeypadClick('5')}
+                    style={{
+                      position: 'absolute',
+                      top: '78.2%',
+                      left: '35.3%',
+                      width: '29.4%',
+                      height: '6.0%',
+                    }}
+                    className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/10 rounded-xl transition-colors z-20"
+                    aria-label="5"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleTransferKeypadClick('6')}
+                    style={{
+                      position: 'absolute',
+                      top: '78.2%',
+                      left: '67.9%',
+                      width: '29.3%',
+                      height: '6.0%',
+                    }}
+                    className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/10 rounded-xl transition-colors z-20"
+                    aria-label="6"
+                  />
 
-              {/* Row 2: Keys 4, 5, 6 */}
-              <button
-                type="button"
-                onClick={() => handleTransferKeypadClick('4')}
-                style={{
-                  position: 'absolute',
-                  top: '78.2%',
-                  left: '2.8%',
-                  width: '29.3%',
-                  height: '6.0%',
-                }}
-                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/10 rounded-xl transition-colors z-20"
-                aria-label="4"
-              />
-              <button
-                type="button"
-                onClick={() => handleTransferKeypadClick('5')}
-                style={{
-                  position: 'absolute',
-                  top: '78.2%',
-                  left: '35.3%',
-                  width: '29.4%',
-                  height: '6.0%',
-                }}
-                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/10 rounded-xl transition-colors z-20"
-                aria-label="5"
-              />
-              <button
-                type="button"
-                onClick={() => handleTransferKeypadClick('6')}
-                style={{
-                  position: 'absolute',
-                  top: '78.2%',
-                  left: '67.9%',
-                  width: '29.3%',
-                  height: '6.0%',
-                }}
-                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/10 rounded-xl transition-colors z-20"
-                aria-label="6"
-              />
+                  {/* Row 3: Keys 7, 8, 9 */}
+                  <button
+                    type="button"
+                    onClick={() => handleTransferKeypadClick('7')}
+                    style={{
+                      position: 'absolute',
+                      top: '85.8%',
+                      left: '2.8%',
+                      width: '29.3%',
+                      height: '6.0%',
+                    }}
+                    className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/10 rounded-xl transition-colors z-20"
+                    aria-label="7"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleTransferKeypadClick('8')}
+                    style={{
+                      position: 'absolute',
+                      top: '85.8%',
+                      left: '35.3%',
+                      width: '29.4%',
+                      height: '6.0%',
+                    }}
+                    className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/10 rounded-xl transition-colors z-20"
+                    aria-label="8"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleTransferKeypadClick('9')}
+                    style={{
+                      position: 'absolute',
+                      top: '85.8%',
+                      left: '67.9%',
+                      width: '29.3%',
+                      height: '6.0%',
+                    }}
+                    className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/10 rounded-xl transition-colors z-20"
+                    aria-label="9"
+                  />
 
-              {/* Row 3: Keys 7, 8, 9 */}
-              <button
-                type="button"
-                onClick={() => handleTransferKeypadClick('7')}
-                style={{
-                  position: 'absolute',
-                  top: '85.8%',
-                  left: '2.8%',
-                  width: '29.3%',
-                  height: '6.0%',
-                }}
-                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/10 rounded-xl transition-colors z-20"
-                aria-label="7"
-              />
-              <button
-                type="button"
-                onClick={() => handleTransferKeypadClick('8')}
-                style={{
-                  position: 'absolute',
-                  top: '85.8%',
-                  left: '35.3%',
-                  width: '29.4%',
-                  height: '6.0%',
-                }}
-                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/10 rounded-xl transition-colors z-20"
-                aria-label="8"
-              />
-              <button
-                type="button"
-                onClick={() => handleTransferKeypadClick('9')}
-                style={{
-                  position: 'absolute',
-                  top: '85.8%',
-                  left: '67.9%',
-                  width: '29.3%',
-                  height: '6.0%',
-                }}
-                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/10 rounded-xl transition-colors z-20"
-                aria-label="9"
-              />
+                  {/* Row 4: Key Backspace (⌫), Key 0, Key Next */}
+                  <button
+                    type="button"
+                    onClick={handleTransferBackspace}
+                    style={{
+                      position: 'absolute',
+                      top: '92.8%',
+                      left: '2.8%',
+                      width: '29.3%',
+                      height: '6.0%',
+                    }}
+                    className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/10 rounded-xl transition-colors z-20"
+                    aria-label="Backspace"
+                  />
 
-              {/* Row 4: Key Backspace (⌫), Key 0, Key Next */}
-              {/* Backspace Button */}
-              <button
-                type="button"
-                onClick={handleTransferBackspace}
-                style={{
-                  position: 'absolute',
-                  top: '92.8%',
-                  left: '2.8%',
-                  width: '29.3%',
-                  height: '6.0%',
-                }}
-                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/10 rounded-xl transition-colors z-20"
-                aria-label="Backspace"
-              />
+                  <button
+                    type="button"
+                    onClick={() => handleTransferKeypadClick('0')}
+                    style={{
+                      position: 'absolute',
+                      top: '92.8%',
+                      left: '35.3%',
+                      width: '29.4%',
+                      height: '6.0%',
+                    }}
+                    className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/10 rounded-xl transition-colors z-20"
+                    aria-label="0"
+                  />
 
-              {/* 0 Button */}
-              <button
-                type="button"
-                onClick={() => handleTransferKeypadClick('0')}
-                style={{
-                  position: 'absolute',
-                  top: '92.8%',
-                  left: '35.3%',
-                  width: '29.4%',
-                  height: '6.0%',
-                }}
-                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/10 rounded-xl transition-colors z-20"
-                aria-label="0"
-              />
+                  {transferPin.length === 4 && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: '92.8%',
+                        left: '67.9%',
+                        width: '29.3%',
+                        height: '6.0%',
+                      }}
+                      className="bg-[#8b278e] rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-md pointer-events-none z-15"
+                    >
+                      Next
+                    </div>
+                  )}
 
-              {/* Next Button (Active Purple when transferPin.length === 4) */}
-              {transferPin.length === 4 && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: '92.8%',
-                    left: '67.9%',
-                    width: '29.3%',
-                    height: '6.0%',
-                  }}
-                  className="bg-[#8b278e] rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-md pointer-events-none z-15"
-                >
-                  Next
+                  <button
+                    type="button"
+                    onClick={handleProceedToTransferSubmit}
+                    disabled={transferPin.length < 4}
+                    style={{
+                      position: 'absolute',
+                      top: '92.8%',
+                      left: '67.9%',
+                      width: '29.3%',
+                      height: '6.0%',
+                    }}
+                    className={`z-20 border-0 outline-none rounded-xl transition-all ${
+                      transferPin.length === 4
+                        ? 'cursor-pointer active:scale-95'
+                        : 'cursor-not-allowed opacity-0'
+                    }`}
+                    aria-label="Next"
+                  />
                 </div>
               )}
-
-              {/* Next Button Hotspot */}
-              <button
-                type="button"
-                onClick={handleProceedToTransferSubmit}
-                disabled={transferPin.length < 4}
-                style={{
-                  position: 'absolute',
-                  top: '92.8%',
-                  left: '67.9%',
-                  width: '29.3%',
-                  height: '6.0%',
-                }}
-                className={`z-20 border-0 outline-none rounded-xl transition-all ${
-                  transferPin.length === 4
-                    ? 'cursor-pointer active:scale-95'
-                    : 'cursor-not-allowed opacity-0'
-                }`}
-                aria-label="Next"
-              />
             </motion.div>
           )}
 
@@ -5553,44 +5989,54 @@ export default function CBEBirrFullscreenApp() {
                         }
 
                         const displayAmt = rawAmt.toFixed(2);
-                        const displayServiceCharge = feeData ? feeData.serviceCharge : '0.00';
-                        const displayVat = feeData ? feeData.vat : '0.00';
-                        const displayTotalPaid = feeData ? feeData.totalPaid : displayAmt;
+                        const rawSc = feeData ? parseFloat(feeData.serviceCharge) : 0;
+                        const formattedServiceCharge = isNaN(rawSc) || rawSc <= 0
+                          ? '0.00'
+                          : (rawSc >= 0.005 && rawSc < 0.01 ? '0.01' : rawSc.toFixed(2));
+                        const rawVat = feeData ? parseFloat(feeData.vat) : 0;
+                        const formattedVat = isNaN(rawVat) || rawVat <= 0 ? '0.00' : rawVat.toFixed(2);
+                        const rawTotal = feeData ? parseFloat(feeData.totalPaid) : rawAmt;
+                        const displayTotalPaid = isNaN(rawTotal) ? displayAmt : rawTotal.toFixed(2);
                         const displayWords = amountToWords(feeData ? feeData.totalPaidNum : rawAmt);
 
                         return (
                           <>
-                            {/* 7. Amount in Table */}
-                            <rect x="540" y="563" width="120" height="18" fill="#ffffff" />
-                            <text x="548" y="577" textAnchor="start">
+                            {/* 7. Amount in Table (Header row - right aligned at x=572) */}
+                            <rect x="540" y="563" width="122" height="19" fill="#ffffff" />
+                            <text x="572" y="577" textAnchor="end">
                               {displayAmt}
                             </text>
 
-                            {/* 8. Paid amount */}
-                            <rect x="540" y="588" width="120" height="18" fill="#ffffff" />
-                            <text x="548" y="602" textAnchor="start">
+                            {/* Solid white mask covering value column cleanly with zero template text bleed-through */}
+                            <rect x="540" y="586" width="122" height="126" fill="#ffffff" />
+
+                            {/* Row 1: Paid amount */}
+                            <text x="572" y="602" textAnchor="end">
                               {displayAmt}
                             </text>
 
-                            {/* 9. Service Charge */}
-                            <rect x="540" y="605" width="120" height="18" fill="#ffffff" />
-                            <text x="548" y="619" textAnchor="start">
-                              {displayServiceCharge}
+                            {/* Row 2: Service Charge */}
+                            <text x="572" y="618" textAnchor="end">
+                              {formattedServiceCharge}
                             </text>
 
-                            {/* VAT / Tax Amount */}
-                            {feeData && parseFloat(displayVat) > 0 && (
-                              <>
-                                <rect x="540" y="652" width="120" height="18" fill="#ffffff" />
-                                <text x="548" y="665" textAnchor="start">
-                                  {displayVat}
-                                </text>
-                              </>
-                            )}
+                            {/* Row 3: Disaster Response (Fee is the 2nd line of this label; no value next to Fee) */}
+                            <text x="572" y="634" textAnchor="end">
+                              0.00
+                            </text>
 
-                            {/* 10. Total Paid Amount */}
-                            <rect x="540" y="688" width="120" height="20" fill="#ffffff" />
-                            <text x="548" y="703" textAnchor="start" fontWeight="bold">
+                            {/* Row 4: VAT (always 2 decimal places e.g. 0.00) */}
+                            <text x="572" y="667" textAnchor="end">
+                              {formattedVat}
+                            </text>
+
+                            {/* Row 5: Tip */}
+                            <text x="572" y="684" textAnchor="end">
+                              0.00
+                            </text>
+
+                            {/* Row 6: Total Paid Amount (normal weight, matching authentic Image 2) */}
+                            <text x="572" y="702" textAnchor="end">
                               {displayTotalPaid}
                             </text>
 
@@ -7083,16 +7529,11 @@ export default function CBEBirrFullscreenApp() {
                 />
               </div>
 
-              {/* Hotspot: Calculator quick amount button on right of Amount (Cycles common amounts) */}
+              {/* Hotspot: Calculator quick amount button on right of Amount */}
               <button
                 type="button"
-                onClick={() => {
-                  const amounts = ['10', '25', '50', '100', '200', '500', '1000'];
-                  const currentIndex = amounts.indexOf(phoneSendAmount);
-                  const nextAmt = currentIndex === -1 || currentIndex === amounts.length - 1 ? '10' : amounts[currentIndex + 1];
-                  setPhoneSendAmount(nextAmt);
-                  if (phoneTransferError) setPhoneTransferError('');
-                }}
+                disabled={isPhoneTransferring}
+                onClick={() => openCalculator('phone_number', phoneSendAmount)}
                 style={{
                   position: 'absolute',
                   top: '25.0%',
@@ -7100,7 +7541,8 @@ export default function CBEBirrFullscreenApp() {
                   width: '9.5%',
                   height: '5.5%',
                 }}
-                aria-label="Set Quick Amount"
+                aria-label="Calculator"
+                title="Calculator"
                 className="cursor-pointer bg-transparent border-0 outline-none active:opacity-50 transition-opacity z-20 rounded-xl"
               />
 
@@ -7424,6 +7866,23 @@ export default function CBEBirrFullscreenApp() {
                   className="w-full h-full bg-transparent border-none outline-none text-[#1c1b1f] placeholder:text-[#8c8291] text-[13.5px] sm:text-[14px] font-normal px-1"
                 />
               </div>
+
+              {/* Calculator Icon Hotspot for Other Banks */}
+              <button
+                type="button"
+                disabled={isBankTransferring}
+                onClick={() => openCalculator('other_banks', bankAmount)}
+                style={{
+                  position: 'absolute',
+                  top: '34.0%',
+                  left: '81.5%',
+                  width: '9.5%',
+                  height: '5.8%',
+                }}
+                aria-label="Calculator"
+                title="Calculator"
+                className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity z-20 rounded-xl"
+              />
 
               {/* Functional Input: Reason */}
               <div
@@ -7800,6 +8259,23 @@ export default function CBEBirrFullscreenApp() {
                   className="w-full h-full bg-transparent border-none outline-none text-[#1c1b1f] placeholder:text-[#8c8291] text-[13.5px] sm:text-[14px] font-normal px-0"
                 />
               </div>
+
+              {/* Calculator Icon Hotspot for Other Wallets */}
+              <button
+                type="button"
+                disabled={isWalletTransferring}
+                onClick={() => openCalculator('other_wallets', walletAmount)}
+                style={{
+                  position: 'absolute',
+                  top: '33.59%',
+                  left: '80.63%',
+                  width: '9.5%',
+                  height: '5.00%',
+                }}
+                aria-label="Calculator"
+                title="Calculator"
+                className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity z-20 rounded-xl"
+              />
 
               {/* Functional Input: Reason */}
               <div
@@ -8896,6 +9372,247 @@ export default function CBEBirrFullscreenApp() {
                       አስቀምጥ (Save)
                     </button>
                   </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* AUTHENTIC CALCULATOR MODAL DIALOG (Matches calculator .png, Screenshot_20261108-002518.png, calculator page .png) */}
+        <AnimatePresence>
+          {isCalculatorOpen && (
+            <motion.div
+              key="calculator-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              onClick={() => setIsCalculatorOpen(false)}
+              className="absolute inset-0 z-50 bg-black/60 backdrop-blur-[0.5px] flex items-center justify-center p-4 select-none"
+            >
+              <motion.div
+                key="calculator-modal"
+                initial={{ scale: 0.94, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.94, opacity: 0 }}
+                transition={{ type: 'spring', damping: 28, stiffness: 350 }}
+                onClick={(e) => e.stopPropagation()}
+                className="w-full max-w-[335px] bg-[#EDE7F2] rounded-[28px] p-4 sm:p-4.5 shadow-2xl border border-purple-200/50 flex flex-col"
+              >
+                {/* 1. HEADER ROW */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    {/* Purple square icon with white math signs matching images */}
+                    <div className="w-7 h-7 rounded-lg bg-[#8B278E] flex items-center justify-center text-white shadow-xs">
+                      <div className="grid grid-cols-2 gap-0.5 text-[9px] font-bold leading-none text-center">
+                        <span>-</span>
+                        <span>+</span>
+                        <span>÷</span>
+                        <span>=</span>
+                      </div>
+                    </div>
+                    <span className="text-[#1c1b1f] text-[17px] font-semibold tracking-tight">
+                      Calculator
+                    </span>
+                  </div>
+
+                  {/* Close 'X' button */}
+                  <button
+                    type="button"
+                    onClick={() => setIsCalculatorOpen(false)}
+                    className="text-[#49454f] hover:text-black p-1 active:scale-95 transition-transform cursor-pointer"
+                    aria-label="Close"
+                  >
+                    <X className="w-5 h-5 stroke-[2.2]" />
+                  </button>
+                </div>
+
+                {/* Divider Line */}
+                <div className="h-[1px] bg-[#CAB6CF]/70 mt-3 mb-3.5 mx-0.5" />
+
+                {/* 2. WHITE DISPLAY AREA (Live preview: expression on top, = result in bold green below) */}
+                <div className="w-full bg-white rounded-[18px] p-3.5 mb-3.5 border border-black/5 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)] flex flex-col justify-center min-h-[76px] text-right">
+                  {calculatorLiveResult !== null ? (
+                    <>
+                      <span className="text-[#49454f] text-[15px] font-normal leading-tight tracking-normal">
+                        {calculatorExpression}
+                      </span>
+                      <span className="text-[#15803d] text-[26px] font-bold leading-tight tracking-tight mt-0.5">
+                        = {calculatorLiveResult}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-[#1c1b1f] text-[26px] sm:text-[28px] font-normal leading-tight tracking-tight">
+                      {calculatorDisplay || '0'}
+                    </span>
+                  )}
+                </div>
+
+                {/* 3. KEYPAD GRID (4 columns, 5 rows) */}
+                <div className="grid grid-cols-4 gap-2 sm:gap-2.5">
+                  {/* Row 1 */}
+                  <button
+                    type="button"
+                    onClick={handleCalcClear}
+                    className="col-span-2 h-11 sm:h-12 bg-[#E23636] active:bg-[#c62828] text-white font-bold text-[18px] rounded-[16px] shadow-xs flex items-center justify-center active:scale-95 transition-all cursor-pointer"
+                  >
+                    C
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCalcBackspace}
+                    className="col-span-1 h-11 sm:h-12 bg-[#757575] active:bg-[#616161] text-white rounded-[16px] shadow-xs flex items-center justify-center active:scale-95 transition-all cursor-pointer"
+                    aria-label="Backspace"
+                  >
+                    <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                      <path d="M22 3H7c-.69 0-1.23.35-1.59.88L0 12l5.41 8.11c.36.53.9.89 1.59.89h15c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-3 12.59L17.59 17 14 13.41 10.41 17 9 15.59 12.59 12 9 8.41 10.41 7 14 10.59 17.59 7 19 8.41 15.41 12 19 15.59z"/>
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleCalcOperator('÷')}
+                    className="col-span-1 h-11 sm:h-12 bg-[#8B278E] active:bg-[#701e73] text-white font-bold text-[22px] rounded-[16px] shadow-xs flex items-center justify-center active:scale-95 transition-all cursor-pointer"
+                  >
+                    ÷
+                  </button>
+
+                  {/* Row 2 */}
+                  <button
+                    type="button"
+                    onClick={() => handleCalcDigit('7')}
+                    className="h-11 sm:h-12 bg-[#757575] active:bg-[#616161] text-white font-bold text-[18px] rounded-[16px] shadow-xs flex items-center justify-center active:scale-95 transition-all cursor-pointer"
+                  >
+                    7
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleCalcDigit('8')}
+                    className="h-11 sm:h-12 bg-[#757575] active:bg-[#616161] text-white font-bold text-[18px] rounded-[16px] shadow-xs flex items-center justify-center active:scale-95 transition-all cursor-pointer"
+                  >
+                    8
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleCalcDigit('9')}
+                    className="h-11 sm:h-12 bg-[#757575] active:bg-[#616161] text-white font-bold text-[18px] rounded-[16px] shadow-xs flex items-center justify-center active:scale-95 transition-all cursor-pointer"
+                  >
+                    9
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleCalcOperator('×')}
+                    className="h-11 sm:h-12 bg-[#8B278E] active:bg-[#701e73] text-white font-bold text-[20px] rounded-[16px] shadow-xs flex items-center justify-center active:scale-95 transition-all cursor-pointer"
+                  >
+                    ×
+                  </button>
+
+                  {/* Row 3 */}
+                  <button
+                    type="button"
+                    onClick={() => handleCalcDigit('4')}
+                    className="h-11 sm:h-12 bg-[#757575] active:bg-[#616161] text-white font-bold text-[18px] rounded-[16px] shadow-xs flex items-center justify-center active:scale-95 transition-all cursor-pointer"
+                  >
+                    4
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleCalcDigit('5')}
+                    className="h-11 sm:h-12 bg-[#757575] active:bg-[#616161] text-white font-bold text-[18px] rounded-[16px] shadow-xs flex items-center justify-center active:scale-95 transition-all cursor-pointer"
+                  >
+                    5
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleCalcDigit('6')}
+                    className="h-11 sm:h-12 bg-[#757575] active:bg-[#616161] text-white font-bold text-[18px] rounded-[16px] shadow-xs flex items-center justify-center active:scale-95 transition-all cursor-pointer"
+                  >
+                    6
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleCalcOperator('-')}
+                    className="h-11 sm:h-12 bg-[#8B278E] active:bg-[#701e73] text-white font-bold text-[22px] rounded-[16px] shadow-xs flex items-center justify-center active:scale-95 transition-all cursor-pointer"
+                  >
+                    -
+                  </button>
+
+                  {/* Row 4 */}
+                  <button
+                    type="button"
+                    onClick={() => handleCalcDigit('1')}
+                    className="h-11 sm:h-12 bg-[#757575] active:bg-[#616161] text-white font-bold text-[18px] rounded-[16px] shadow-xs flex items-center justify-center active:scale-95 transition-all cursor-pointer"
+                  >
+                    1
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleCalcDigit('2')}
+                    className="h-11 sm:h-12 bg-[#757575] active:bg-[#616161] text-white font-bold text-[18px] rounded-[16px] shadow-xs flex items-center justify-center active:scale-95 transition-all cursor-pointer"
+                  >
+                    2
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleCalcDigit('3')}
+                    className="h-11 sm:h-12 bg-[#757575] active:bg-[#616161] text-white font-bold text-[18px] rounded-[16px] shadow-xs flex items-center justify-center active:scale-95 transition-all cursor-pointer"
+                  >
+                    3
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleCalcOperator('+')}
+                    className="h-11 sm:h-12 bg-[#8B278E] active:bg-[#701e73] text-white font-bold text-[22px] rounded-[16px] shadow-xs flex items-center justify-center active:scale-95 transition-all cursor-pointer"
+                  >
+                    +
+                  </button>
+
+                  {/* Row 5 */}
+                  <button
+                    type="button"
+                    onClick={handleCalcToggleSign}
+                    className="h-11 sm:h-12 bg-[#757575] active:bg-[#616161] text-white font-bold text-[18px] rounded-[16px] shadow-xs flex items-center justify-center active:scale-95 transition-all cursor-pointer"
+                  >
+                    ±
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleCalcDigit('0')}
+                    className="h-11 sm:h-12 bg-[#757575] active:bg-[#616161] text-white font-bold text-[18px] rounded-[16px] shadow-xs flex items-center justify-center active:scale-95 transition-all cursor-pointer"
+                  >
+                    0
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCalcDecimal}
+                    className="h-11 sm:h-12 bg-[#757575] active:bg-[#616161] text-white font-bold text-[22px] rounded-[16px] shadow-xs flex items-center justify-center active:scale-95 transition-all cursor-pointer"
+                  >
+                    .
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCalcEquals}
+                    className="h-11 sm:h-12 bg-[#8B278E] active:bg-[#701e73] text-white font-bold text-[22px] rounded-[16px] shadow-xs flex items-center justify-center active:scale-95 transition-all cursor-pointer"
+                  >
+                    =
+                  </button>
+                </div>
+
+                {/* 4. BOTTOM ACTION BUTTONS */}
+                <div className="grid grid-cols-2 gap-3 mt-3.5">
+                  <button
+                    type="button"
+                    onClick={() => setIsCalculatorOpen(false)}
+                    className="py-3 bg-[#757575] hover:bg-[#616161] active:scale-[0.98] text-white font-medium text-[15px] rounded-[16px] shadow-xs transition-all cursor-pointer text-center"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCalcInsert}
+                    className="py-3 bg-[#8B278E] hover:bg-[#701e73] active:scale-[0.98] text-white font-medium text-[15px] rounded-[16px] shadow-xs transition-all cursor-pointer text-center"
+                  >
+                    Insert
+                  </button>
                 </div>
               </motion.div>
             </motion.div>

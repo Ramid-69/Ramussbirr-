@@ -428,7 +428,11 @@ function OfficialReceiptContent() {
                 <span className={feeObj ? 'font-bold text-slate-900' : ''}>{finalServiceCharge}</span>
               </div>
               <div className="flex justify-between text-slate-500">
-                <span>Disaster Response Fee:</span>
+                <span>Disaster Response:</span>
+                <span>0.00</span>
+              </div>
+              <div className="flex justify-between text-slate-500">
+                <span>Fee:</span>
                 <span>0.00</span>
               </div>
               <div className="flex justify-between text-slate-500">
