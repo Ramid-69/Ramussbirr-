@@ -41,6 +41,30 @@ export const DEFAULT_RECEIPT: StoredReceipt = {
 // Seed with default transactions from user's screenshots
 const INITIAL_SEEDS: StoredReceipt[] = [
   {
+    ref: 'FT262413JRB4',
+    amt: '740.00',
+    date: '2026-10-27 11:56:20',
+    rec: '1000760389289',
+    name: 'Miss Simera Gofer Abdisa',
+    user: 'AYMEN NIGATU YIMAM',
+    acc: '959754788',
+    reason: 'Customer transfer to CBE account',
+    status: 'Completed',
+    orderId: '9V8GPL5D',
+  },
+  {
+    ref: '9V8GPL5D',
+    amt: '740.00',
+    date: '2026-10-27 11:56:20',
+    rec: '1000760389289',
+    name: 'Miss Simera Gofer Abdisa',
+    user: 'AYMEN NIGATU YIMAM',
+    acc: '959754788',
+    reason: 'Customer transfer to CBE account',
+    status: 'Completed',
+    orderId: '9V8GPL5D',
+  },
+  {
     ref: 'FT1384476084',
     amt: '10.00',
     date: '2026-10-29 15:50',

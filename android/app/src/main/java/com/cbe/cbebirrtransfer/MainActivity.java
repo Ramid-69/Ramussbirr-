@@ -79,6 +79,13 @@ public class MainActivity extends Activity {
 
         webView.setWebChromeClient(new WebChromeClient());
 
+        webView.setDownloadListener(new android.webkit.DownloadListener() {
+            @Override
+            public void onDownloadStart(String url, String userAgent, String contentDisposition, String mimetype, long contentLength) {
+                downloadFileFromUrl(url, contentDisposition, mimetype);
+            }
+        });
+
         webView.addJavascriptInterface(new WebAppInterface(this), "Android");
 
         webView.setWebViewClient(new WebViewClient() {
@@ -291,6 +298,58 @@ public class MainActivity extends Activity {
                 Intent intent = new Intent("com.cbe.cbebirrtransfer.SMS_WEBHOOK");
                 intent.putExtra("payload", jsonPayload);
                 mContext.sendBroadcast(intent);
+            } catch (Exception ignored) {}
+        }
+
+        @JavascriptInterface
+        public void downloadReceipt(final String url) {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    downloadFileFromUrl(url, null, "application/pdf");
+                }
+            });
+        }
+    }
+
+    public void downloadFileFromUrl(String url, String contentDisposition, String mimetype) {
+        try {
+            android.app.DownloadManager.Request request = new android.app.DownloadManager.Request(Uri.parse(url));
+            if (mimetype != null && !mimetype.isEmpty()) {
+                request.setMimeType(mimetype);
+            } else {
+                request.setMimeType("application/pdf");
+            }
+            String cookies = android.webkit.CookieManager.getInstance().getCookie(url);
+            if (cookies != null) {
+                request.addRequestHeader("cookie", cookies);
+            }
+            request.setDescription("Downloading CBEBirr Official Receipt...");
+            String filename = "CBEBirr_Receipt.pdf";
+            if (contentDisposition != null) {
+                filename = android.webkit.URLUtil.guessFileName(url, contentDisposition, mimetype);
+            } else if (url != null && url.contains("ref=")) {
+                try {
+                    Uri u = Uri.parse(url);
+                    String ref = u.getQueryParameter("ref");
+                    if (ref != null && !ref.isEmpty()) {
+                        filename = "CBEBirr_Official_Receipt_" + ref + ".pdf";
+                    }
+                } catch (Exception ignored) {}
+            }
+            request.setTitle(filename);
+            request.allowScanningByMediaScanner();
+            request.setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+            request.setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_DOWNLOADS, filename);
+            android.app.DownloadManager dm = (android.app.DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+            if (dm != null) {
+                dm.enqueue(request);
+                Toast.makeText(MainActivity.this, "ደረሰኝ በማውረድ ላይ... (" + filename + ")", Toast.LENGTH_LONG).show();
+            }
+        } catch (Exception e) {
+            try {
+                Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                startActivity(intent);
             } catch (Exception ignored) {}
         }
     }

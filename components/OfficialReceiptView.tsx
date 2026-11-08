@@ -108,7 +108,7 @@ function OfficialReceiptContent() {
 
   const activeAmt = amt || '10.00';
   const activeRec = rec || '1000278947339';
-  const activeName = name || (rec ? `CBE Customer` : 'Customer');
+  const activeName = name || '';
   const activeUser = user || 'AYMEN NIGATU YIMAM';
   const activeAcc = acc || '0959754788';
   const activeDate = date || '2026-10-27 11:56:20';
@@ -168,7 +168,13 @@ function OfficialReceiptContent() {
 
   const handleDownload = (format: 'pdf' | 'png') => {
     setDownloadToast(`Preparing ${format.toUpperCase()} receipt...`);
-    const downloadUrl = `/api/receipt/download?format=${format}&ref=${encodeURIComponent(ref)}&amt=${encodeURIComponent(formattedAmt)}&rec=${encodeURIComponent(activeRec)}&name=${encodeURIComponent(activeName)}&user=${encodeURIComponent(activeUser)}&acc=${encodeURIComponent(activeAcc)}&date=${encodeURIComponent(activeDate)}&reason=${encodeURIComponent(activeReason)}${activeBank ? `&bank=${encodeURIComponent(activeBank)}` : ''}`;
+    const downloadUrl = `/api/receipt/download?format=${format}&ref=${encodeURIComponent(ref)}&amt=${encodeURIComponent(formattedAmt)}&rec=${encodeURIComponent(activeRec)}&name=${encodeURIComponent(activeName)}&user=${encodeURIComponent(activeUser)}&acc=${encodeURIComponent(activeAcc)}&date=${encodeURIComponent(activeDate)}&reason=${encodeURIComponent(activeReason)}${activeBank ? `&bank=${encodeURIComponent(activeBank)}` : ''}${finalServiceCharge !== '0.00' ? `&fee=${encodeURIComponent(finalServiceCharge)}` : ''}${finalVat !== '0.00' ? `&vat=${encodeURIComponent(finalVat)}` : ''}&totalPaid=${encodeURIComponent(finalTotalPaid)}`;
+
+    // Android APK Native Bridge Call
+    if (typeof window !== 'undefined' && (window as any).Android && typeof (window as any).Android.downloadReceipt === 'function') {
+      const fullUrl = window.location.origin + downloadUrl;
+      (window as any).Android.downloadReceipt(fullUrl);
+    }
 
     const link = document.createElement('a');
     link.href = downloadUrl;
@@ -418,34 +424,33 @@ function OfficialReceiptContent() {
               </p>
             </div>
 
-            <div className="w-full sm:w-60 bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1 font-mono">
+            <div className="w-full sm:w-64 bg-white p-3.5 rounded-xl border border-slate-200 space-y-1.5 font-mono text-xs">
               <div className="flex justify-between">
-                <span className="text-slate-600">Paid amount:</span>
-                <span className="font-bold">{formattedAmt}</span>
+                <span className="text-slate-700">Paid amount</span>
+                <span className="font-semibold text-slate-900">{formattedAmt}</span>
               </div>
-              <div className="flex justify-between text-slate-500">
-                <span>Service Charge:</span>
-                <span className={feeObj ? 'font-bold text-slate-900' : ''}>{finalServiceCharge}</span>
+              <div className="flex justify-between">
+                <span className="text-slate-700">Service Charge</span>
+                <span className="font-semibold text-slate-900">{finalServiceCharge}</span>
               </div>
-              <div className="flex justify-between text-slate-500">
-                <span>Disaster Response:</span>
-                <span>0.00</span>
+              <div className="flex justify-between leading-tight">
+                <div className="flex flex-col">
+                  <span className="text-slate-700">Disaster Response</span>
+                  <span className="text-slate-700">Fee</span>
+                </div>
+                <span className="font-semibold text-slate-900 self-start">0.00</span>
               </div>
-              <div className="flex justify-between text-slate-500">
-                <span>Fee:</span>
-                <span>0.00</span>
+              <div className="flex justify-between">
+                <span className="text-slate-700">VAT</span>
+                <span className="font-semibold text-slate-900">{finalVat}</span>
               </div>
-              <div className="flex justify-between text-slate-500">
-                <span>VAT:</span>
-                <span className={feeObj ? 'font-bold text-slate-900' : ''}>{finalVat}</span>
+              <div className="flex justify-between">
+                <span className="text-slate-700">Tip</span>
+                <span className="font-semibold text-slate-900">0.00</span>
               </div>
-              <div className="flex justify-between text-slate-500">
-                <span>Tip:</span>
-                <span>0.00</span>
-              </div>
-              <div className="flex justify-between border-t border-slate-300 pt-1.5 text-sm font-bold text-[#7a1c7d]">
-                <span>Total Paid Amount:</span>
-                <span>{finalTotalPaid} ETB</span>
+              <div className="flex justify-between border-t border-slate-300 pt-1 text-xs font-bold text-slate-900">
+                <span>Total Paid Amount</span>
+                <span>{finalTotalPaid}</span>
               </div>
             </div>
           </div>

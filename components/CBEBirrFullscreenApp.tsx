@@ -1777,7 +1777,7 @@ export default function CBEBirrFullscreenApp() {
     const currentAmt = (parseFloat(activeTx?.amount ? String(activeTx.amount) : (isPhone ? phoneSendAmount : sendAmount)) || 10.00).toFixed(2);
     const currentDate = activeTx?.date || transactionDate || '2026-10-27 11:56:20';
     const currentRec = activeTx?.account || (isPhone ? phoneReceiverNumber : receiverAccount) || '1000760389289';
-    const currentName = activeTx?.receiverName || (isPhone ? phoneReceiverName : displayReceiverName) || 'CBE Customer';
+    const currentName = activeTx?.receiverName || (isPhone ? (phoneReceiverName || '') : (displayReceiverName || '')) || '';
     const currentUser = userName || 'AYMEN NIGATU YIMAM';
     const currentReason = activeTx?.title
       ? (activeTx.title === 'Bank Transfer' ? 'Transfer to Other Bank' : (activeTx.title === 'Wallet Transfer' ? 'Wallet Transfer' : 'Customer transfer to CBE account'))
@@ -2343,9 +2343,9 @@ export default function CBEBirrFullscreenApp() {
 
       const downloadUrl = `/api/receipt/download?format=${format}&ref=${encodeURIComponent(currentRef)}&amt=${encodeURIComponent(currentAmt)}&date=${encodeURIComponent(currentDate)}&rec=${encodeURIComponent(currentRec)}&name=${encodeURIComponent(currentName)}&user=${encodeURIComponent(currentUser)}&acc=${encodeURIComponent(currentAcc)}&reason=${encodeURIComponent(currentReason)}${currentBank ? `&bank=${encodeURIComponent(currentBank)}` : ''}${currentFee ? `&fee=${encodeURIComponent(currentFee)}` : ''}${currentVat ? `&vat=${encodeURIComponent(currentVat)}` : ''}${currentTotal ? `&totalPaid=${encodeURIComponent(currentTotal)}` : ''}`;
 
-      // Android Native Bridge Call (if running inside APK WebView)
+      // 1. Android Native Bridge Call (if running inside APK WebView)
+      const fullReceiptUrl = (typeof window !== 'undefined' ? window.location.origin : '') + downloadUrl;
       if (typeof window !== 'undefined' && (window as any).Android && typeof (window as any).Android.downloadReceipt === 'function') {
-        const fullReceiptUrl = window.location.origin + downloadUrl;
         (window as any).Android.downloadReceipt(fullReceiptUrl);
       }
 
@@ -2353,26 +2353,7 @@ export default function CBEBirrFullscreenApp() {
       if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
       const blob = await res.blob();
       const ext = format === 'png' ? 'png' : 'pdf';
-      const mime = format === 'png' ? 'image/png' : 'application/pdf';
       const fileName = `CBEBirr_Official_Receipt_${currentRef}.${ext}`;
-
-      // Native mobile file sharing (Allows direct save / open in OneDrive, Drive, or Files on Android / iOS)
-      if (typeof navigator !== 'undefined' && typeof (navigator as any).canShare === 'function') {
-        try {
-          const file = new File([blob], fileName, { type: mime });
-          if ((navigator as any).canShare({ files: [file] })) {
-            await (navigator as any).share({
-              files: [file],
-              title: fileName,
-            });
-            setReceiptToast(`CBEBirr_Receipt_${currentRef}.${ext} ተከፍቷል/ወርዷል`);
-            setTimeout(() => setReceiptToast(''), 3000);
-            return;
-          }
-        } catch {
-          // If user cancels system sheet, proceed to browser/APK download
-        }
-      }
 
       const blobUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -2386,16 +2367,18 @@ export default function CBEBirrFullscreenApp() {
         window.URL.revokeObjectURL(blobUrl);
       }, 5000);
 
-      // On Android WebViews where blob anchor click does not trigger native download, navigate directly
+      // On Android / mobile browsers, also trigger direct download link
       const isAndroid = typeof navigator !== 'undefined' && /android/i.test(navigator.userAgent);
       if (isAndroid) {
-        const iframe = document.createElement('iframe');
-        iframe.style.display = 'none';
-        iframe.src = downloadUrl;
-        document.body.appendChild(iframe);
+        const directLink = document.createElement('a');
+        directLink.href = downloadUrl;
+        directLink.setAttribute('download', fileName);
+        directLink.target = '_self';
+        document.body.appendChild(directLink);
+        directLink.click();
         setTimeout(() => {
-          if (document.body.contains(iframe)) document.body.removeChild(iframe);
-        }, 6000);
+          if (document.body.contains(directLink)) document.body.removeChild(directLink);
+        }, 1000);
       }
 
       setReceiptToast(`CBEBirr_Receipt_${currentRef}.${ext} ወርዷል (Downloaded)`);
@@ -2525,17 +2508,19 @@ export default function CBEBirrFullscreenApp() {
         // Auto-save this transfer account into savedAccountReceivers if not already saved!
         const cleanAcc = receiverAccount.replace(/\D/g, '');
         if (cleanAcc.length === 13) {
-          const recName = activeReceiverName || customVerifiedReceiverName || displayReceiverName || 'CBE Customer';
-          const alreadySaved = savedAccountReceivers.some(
-            (r) => r.accountNumber.replace(/\D/g, '') === cleanAcc
-          );
-          if (!alreadySaved) {
-            const newSaved: SavedReceiver = {
-              id: `acc-rec-${Date.now()}`,
-              accountNumber: cleanAcc,
-              accountName: recName,
-            };
-            persistAccountReceivers([...savedAccountReceivers, newSaved]);
+          const recName = activeReceiverName || customVerifiedReceiverName || displayReceiverName || '';
+          if (recName) {
+            const alreadySaved = savedAccountReceivers.some(
+              (r) => r.accountNumber.replace(/\D/g, '') === cleanAcc
+            );
+            if (!alreadySaved) {
+              const newSaved: SavedReceiver = {
+                id: `acc-rec-${Date.now()}`,
+                accountNumber: cleanAcc,
+                accountName: recName,
+              };
+              persistAccountReceivers([...savedAccountReceivers, newSaved]);
+            }
           }
         }
 
@@ -2554,18 +2539,20 @@ export default function CBEBirrFullscreenApp() {
 
         const cleanPhone = phoneReceiverNumber.replace(/\D/g, '');
         if (cleanPhone.length >= 9) {
-          const recName = phoneReceiverName || 'CBEBirr Customer';
-          const formattedPhone = cleanPhone.startsWith('0') ? cleanPhone : `0${cleanPhone.replace(/^251/, '')}`;
-          const alreadySaved = savedPhoneReceivers.some(
-            (r) => r.accountNumber.replace(/\D/g, '') === cleanPhone
-          );
-          if (!alreadySaved) {
-            const newSaved: SavedReceiver = {
-              id: `phone-rec-${Date.now()}`,
-              accountNumber: formattedPhone,
-              accountName: recName,
-            };
-            persistPhoneReceivers([...savedPhoneReceivers, newSaved]);
+          const recName = phoneReceiverName || '';
+          if (recName) {
+            const formattedPhone = cleanPhone.startsWith('0') ? cleanPhone : `0${cleanPhone.replace(/^251/, '')}`;
+            const alreadySaved = savedPhoneReceivers.some(
+              (r) => r.accountNumber.replace(/\D/g, '') === cleanPhone
+            );
+            if (!alreadySaved) {
+              const newSaved: SavedReceiver = {
+                id: `phone-rec-${Date.now()}`,
+                accountNumber: formattedPhone,
+                accountName: recName,
+              };
+              persistPhoneReceivers([...savedPhoneReceivers, newSaved]);
+            }
           }
         }
 
@@ -2582,10 +2569,10 @@ export default function CBEBirrFullscreenApp() {
         setIsBankTransferring(false);
         setIsTransferSuccess(true);
 
-        // Auto-save this transfer into savedBankReceivers if not already saved!
+        // Auto-save this transfer into savedBankReceivers only if a verified name exists
         const cleanAcc = bankAccountNumber.trim();
-        if (cleanAcc && selectedBank) {
-          const recName = bankReceiverName || `${selectedBank.name} Customer`;
+        if (cleanAcc && selectedBank && bankReceiverName) {
+          const recName = bankReceiverName;
           const alreadySaved = savedBankReceivers.some(
             (r) => r.accountNumber === cleanAcc && r.bankId === selectedBank.id
           );
@@ -2614,10 +2601,10 @@ export default function CBEBirrFullscreenApp() {
         setIsWalletTransferring(false);
         setIsTransferSuccess(true);
 
-        // Auto-save this transfer into savedWalletReceivers if not already saved!
+        // Auto-save this transfer into savedWalletReceivers only if a verified name exists
         const cleanAcc = walletAccountNumber.trim();
-        if (cleanAcc && selectedWallet) {
-          const recName = walletReceiverName || `${selectedWallet.name} Customer`;
+        if (cleanAcc && selectedWallet && walletReceiverName) {
+          const recName = walletReceiverName;
           const alreadySaved = savedWalletReceivers.some(
             (r) => r.accountNumber === cleanAcc && r.walletId === selectedWallet.id
           );
@@ -5793,12 +5780,12 @@ export default function CBEBirrFullscreenApp() {
                   <span> for </span>
                   <span className="font-bold">
                     {transferSource === 'phone_number'
-                      ? (phoneReceiverName || 'CBE customer')
+                      ? (phoneReceiverName || '')
                       : transferSource === 'other_banks'
-                      ? (bankReceiverName || (selectedBank ? `${selectedBank.name} Customer` : 'Customer'))
+                      ? (bankReceiverName || '')
                       : transferSource === 'other_wallets'
-                      ? (walletReceiverName || (selectedWallet ? `${selectedWallet.name} Customer` : 'Customer'))
-                      : (displayReceiverName || 'CBE Customer')}
+                      ? (walletReceiverName || '')
+                      : (displayReceiverName || '')}
                   </span>
                   <span> on </span>
                   <span className="font-bold">{transactionDate}</span>
@@ -5818,19 +5805,25 @@ export default function CBEBirrFullscreenApp() {
                 </p>
               </div>
 
-              {/* Invisible transparent hotspot on QR code area: Tapping triggers download */}
+              {/* Hotspot on receipt preview card / QR area: Tapping opens Step 9 Official Receipt */}
               <button
                 type="button"
-                onClick={() => handleDownloadReceipt('pdf')}
+                onClick={() => {
+                  if (!selectedTx && transactions.length > 0) {
+                    setSelectedTx(transactions[0]);
+                  }
+                  setOfficialReceiptBackStep(8);
+                  setCurrentStep(9);
+                }}
                 style={{
                   position: 'absolute',
-                  top: '34.75%',
-                  left: '30.43%',
-                  width: '39.15%',
-                  height: '18.44%',
+                  top: '23.0%',
+                  left: '8.0%',
+                  width: '84.0%',
+                  height: '45.0%',
                 }}
-                aria-label="Download Receipt"
-                className="cursor-pointer bg-transparent border-0 outline-none z-20"
+                aria-label="View Official Receipt"
+                className="cursor-pointer bg-transparent border-0 outline-none z-20 active:opacity-80 transition-opacity"
               />
 
               {/* Hotspot: Receipt button -> Opens Step 9 Official Receipt Page */}
@@ -6043,7 +6036,7 @@ export default function CBEBirrFullscreenApp() {
                       const activeCustomerName = userName ? userName.toUpperCase() : 'AYMEN NIGATU YIMAM';
                       const activeDebitAcc = `${userAccount || phoneNumber || '0959754788'} - ${activeCustomerName}`;
                       const activeRecAcc = activeTx?.account || (isPhoneTx ? phoneReceiverNumber : receiverAccount) || '1000760389289';
-                      const activeReceiverName = activeTx?.receiverName || (isPhoneTx ? phoneReceiverName : displayReceiverName) || 'CBE Customer';
+                      const activeReceiverName = activeTx?.receiverName ?? (isPhoneTx ? phoneReceiverName : displayReceiverName) ?? '';
                       const activeCreditAccType = activeTx?.creditAccountType
                         ? activeTx.creditAccountType
                         : (activeTx?.bank
@@ -6110,8 +6103,8 @@ export default function CBEBirrFullscreenApp() {
                       return (
                         <g fontFamily="Arial, Helvetica, sans-serif" fill="#141414" fontSize="11" fontWeight="normal">
                           {/* Customer Name */}
-                          <rect x="470" y="105" width="185" height="20" fill="#ffffff" />
-                          <text x="475" y="118">
+                          <rect x="440" y="105" width="215" height="20" fill="#ffffff" />
+                          <text x="442" y="118">
                             {activeCustomerName}
                           </text>
 
@@ -6129,9 +6122,11 @@ export default function CBEBirrFullscreenApp() {
 
                           {/* 3. Receiver Name Value */}
                           <rect x="435" y="388" width="225" height="16" fill="#ffffff" />
-                          <text x="442" y="401">
-                            {activeReceiverName}
-                          </text>
+                          {activeReceiverName ? (
+                            <text x="442" y="401">
+                              {activeReceiverName}
+                            </text>
+                          ) : null}
 
                           {/* 4. Order ID Value */}
                           <rect x="435" y="413" width="225" height="16" fill="#ffffff" />
@@ -6151,42 +6146,42 @@ export default function CBEBirrFullscreenApp() {
                             {activeDate}
                           </text>
 
-                          {/* 7. Amount in Table (Header row - right aligned at x=635) */}
-                          <rect x="530" y="563" width="130" height="19" fill="#ffffff" />
-                          <text x="635" y="577" textAnchor="end">
+                          {/* 7. Amount in Table (Starts at x=551, expands to the right) */}
+                          <rect x="538" y="563" width="110" height="19" fill="#ffffff" />
+                          <text x="551" y="577">
                             {displayAmt}
                           </text>
 
-                          {/* Solid white mask covering value column cleanly with zero template text bleed-through */}
-                          <rect x="530" y="586" width="130" height="126" fill="#ffffff" />
+                          {/* Solid white mask covering value column cleanly up to right edge (labels end at x=522) */}
+                          <rect x="538" y="586" width="110" height="126" fill="#ffffff" />
 
                           {/* Row 1: Paid amount */}
-                          <text x="635" y="602" textAnchor="end">
+                          <text x="551" y="602">
                             {displayAmt}
                           </text>
 
                           {/* Row 2: Service Charge */}
-                          <text x="635" y="618" textAnchor="end">
+                          <text x="551" y="619">
                             {formattedServiceCharge}
                           </text>
 
                           {/* Row 3: Disaster Response */}
-                          <text x="635" y="634" textAnchor="end">
+                          <text x="551" y="635">
                             0.00
                           </text>
 
                           {/* Row 4: VAT */}
-                          <text x="635" y="667" textAnchor="end">
+                          <text x="551" y="668">
                             {formattedVat}
                           </text>
 
                           {/* Row 5: Tip */}
-                          <text x="635" y="684" textAnchor="end">
+                          <text x="551" y="685">
                             0.00
                           </text>
 
                           {/* Row 6: Total Paid Amount */}
-                          <text x="635" y="702" textAnchor="end">
+                          <text x="551" y="702" fontWeight="bold">
                             {displayTotalPaid}
                           </text>
 
@@ -6201,6 +6196,18 @@ export default function CBEBirrFullscreenApp() {
                           <text x="182" y="736" fontSize="10.5">
                             {activeReason}
                           </text>
+
+                          {/* 13. Dynamic QR Code overlay replacing old template QR */}
+                          <rect x="517" y="768" width="108" height="108" fill="#ffffff" />
+                          {officialReceiptQrDataUrl && (
+                            <image
+                              href={officialReceiptQrDataUrl}
+                              x="519"
+                              y="770"
+                              width="104"
+                              height="104"
+                            />
+                          )}
                         </g>
                       );
                     })()}
@@ -6454,12 +6461,12 @@ export default function CBEBirrFullscreenApp() {
                     setTransactionDate(targetTx.date);
                     setTransactionIsoDate(targetTx.date);
                     setReceiverAccount(targetTx.account || '1000760389289');
-                    setCustomVerifiedReceiverName(targetTx.receiverName || 'CBE Customer');
+                    setCustomVerifiedReceiverName(targetTx.receiverName || '');
 
                     if (targetTx.account && (targetTx.account.startsWith('09') || targetTx.account.startsWith('07') || targetTx.creditAccountType?.includes('E-money'))) {
                       setTransferSource('phone_number');
                       setPhoneReceiverNumber(targetTx.account);
-                      setPhoneReceiverName(targetTx.receiverName || 'CBE Customer');
+                      setPhoneReceiverName(targetTx.receiverName || '');
                       setPhoneSendAmount(amt);
                     } else if (targetTx.bank) {
                       setTransferSource('other_banks');
@@ -7613,8 +7620,8 @@ export default function CBEBirrFullscreenApp() {
                       if (matched) {
                         setPhoneReceiverName(matched.accountName);
                       } else {
-                        // Unsaved phone number: strictly 'CBE customer' per user request
-                        setPhoneReceiverName('CBE customer');
+                        // Unsaved phone number: strictly empty per user request
+                        setPhoneReceiverName('');
                       }
                     } else {
                       setPhoneReceiverName('');
@@ -7644,8 +7651,8 @@ export default function CBEBirrFullscreenApp() {
                 className="cursor-default bg-transparent border-0 outline-none z-20 rounded-xl"
               />
 
-              {/* Receiver Name: Displayed cleanly below the phone input box (Saved receiver name, or 'CBE customer' if unsaved) */}
-              {phoneReceiverNumber.length === 10 && (
+              {/* Receiver Name: Displayed cleanly below the phone input box (Saved receiver name only, completely empty if unsaved) */}
+              {phoneReceiverNumber.length === 10 && phoneReceiverName ? (
                 <div
                   style={{
                     position: 'absolute',
@@ -7656,9 +7663,9 @@ export default function CBEBirrFullscreenApp() {
                   }}
                   className="flex items-center justify-center text-center text-[#18181b] text-[14.5px] sm:text-[15px] font-semibold tracking-tight z-20 pointer-events-none select-none animate-in fade-in duration-150"
                 >
-                  <span>{phoneReceiverName || 'CBE customer'}</span>
+                  <span>{phoneReceiverName}</span>
                 </div>
-              )}
+              ) : null}
 
               {/* Field 2: Amount Input Area */}
               <div

@@ -71,7 +71,7 @@ export async function GET(req: NextRequest) {
     const rawAmt = searchParams.get('amt') || (stored && stored.amt) || '740.00';
     const date = searchParams.get('date') || (stored && stored.date) || '27-10-2026 11:56:20';
     const rec = searchParams.get('rec') || searchParams.get('receiverAccount') || (stored && stored.rec) || '1000760389289';
-    const recName = searchParams.get('name') || searchParams.get('receiverName') || (stored && stored.name) || 'Miss Simera Gofer Abdisa';
+    const recName = searchParams.get('name') ?? (stored ? (stored.name || '') : '');
     const user = searchParams.get('user') || searchParams.get('fullName') || (stored && stored.user) || 'JUREY ABDUL HUSSEN';
     let rawAcc = searchParams.get('PH') || searchParams.get('acc') || searchParams.get('userAcc') || (stored && stored.acc) || '1000760389289';
     if (rawAcc.startsWith('251')) {
@@ -100,16 +100,16 @@ export async function GET(req: NextRequest) {
         const sc = parseFloat(feeParam);
         const v = vatParam && !isNaN(parseFloat(vatParam)) ? parseFloat(vatParam) : +(sc * 0.15).toFixed(5);
         const td = totalPaidParam && !isNaN(parseFloat(totalPaidParam)) ? parseFloat(totalPaidParam) : +(numericAmt + sc + v).toFixed(2);
-        serviceCharge = sc.toString();
-        vatAmount = v.toString();
+        serviceCharge = sc >= 0.005 && sc < 0.01 ? '0.01' : sc.toFixed(2);
+        vatAmount = v.toFixed(2);
         totalPaid = td.toFixed(2);
         amountInWordsString = amountToWords(td);
       } else {
         const sc = Math.max(0.005, +(numericAmt * 0.005).toFixed(5));
         const v = +(sc * 0.15).toFixed(5);
         const td = +(numericAmt + sc + v).toFixed(2);
-        serviceCharge = sc.toString();
-        vatAmount = v.toString();
+        serviceCharge = sc >= 0.005 && sc < 0.01 ? '0.01' : sc.toFixed(2);
+        vatAmount = v.toFixed(2);
         totalPaid = td.toFixed(2);
         amountInWordsString = amountToWords(td);
       }
@@ -151,8 +151,9 @@ export async function GET(req: NextRequest) {
         <!-- 2. Credit Account Value -->
         <text x="884" y="768" class="val">${escapeXml(rec)} - ${bank ? escapeXml(bank) + ' Account' : (rec.startsWith('0') ? 'MPESA' : 'CBE Account')}</text>
 
-        <!-- 3. Receiver Name Value -->
-        <text x="884" y="802" class="val">${escapeXml(recName)}</text>
+        <!-- 3. Receiver Name Value (Clean white backing so unsaved accounts show completely blank) -->
+        <rect x="880" y="780" width="400" height="30" fill="white" />
+        ${recName ? `<text x="884" y="802" class="val">${escapeXml(recName)}</text>` : ''}
 
         <!-- 4. Order ID Value -->
         <text x="884" y="852" class="val">${escapeXml(ref)}</text>
@@ -163,30 +164,30 @@ export async function GET(req: NextRequest) {
         <!-- 6. Transaction Date in Table -->
         <text x="570" y="1154" class="val">${escapeXml(date)}</text>
 
-        <!-- 7. Amount in Table (Clean Mask & Value) -->
-        <rect x="1040" y="1126" width="140" height="38" fill="white" />
-        <text x="1160" y="1154" class="val" text-anchor="end">${escapeXml(formattedAmt)}</text>
+        <!-- 7. Amount in Table (Clean Mask & Value starting at x=1102, expanding to the right) -->
+        <rect x="1075" y="1126" width="220" height="38" fill="white" />
+        <text x="1102" y="1154" class="val">${escapeXml(formattedAmt)}</text>
 
-        <!-- Solid white mask covering all rows without touching left labels (labels end at x=1072) -->
-        <rect x="1080" y="1172" width="100" height="252" fill="white" />
+        <!-- Solid white mask covering all rows cleanly up to right edge (labels end at x=1045) -->
+        <rect x="1075" y="1172" width="220" height="252" fill="white" />
 
         <!-- 8. Paid amount -->
-        <text x="1144" y="1204" class="val" text-anchor="end">${escapeXml(formattedAmt)}</text>
+        <text x="1102" y="1204" class="val">${escapeXml(formattedAmt)}</text>
 
         <!-- 9. Service Charge -->
-        <text x="1144" y="1236" class="val" text-anchor="end">${escapeXml(serviceCharge)}</text>
+        <text x="1102" y="1238" class="val">${escapeXml(serviceCharge)}</text>
 
         <!-- Disaster Response Fee (First line has 0.00, second line 'Fee' has NO number) -->
-        <text x="1144" y="1270" class="val" text-anchor="end">0.00</text>
+        <text x="1102" y="1270" class="val">0.00</text>
 
         <!-- VAT -->
-        <text x="1144" y="1336" class="val" text-anchor="end">${escapeXml(vatAmount)}</text>
+        <text x="1102" y="1336" class="val">${escapeXml(vatAmount)}</text>
 
         <!-- Tip -->
-        <text x="1144" y="1368" class="val" text-anchor="end">0.00</text>
+        <text x="1102" y="1370" class="val">0.00</text>
 
         <!-- 10. Total Paid Amount (Bold) -->
-        <text x="1144" y="1404" class="boldVal" text-anchor="end">${escapeXml(totalPaid)}</text>
+        <text x="1102" y="1404" class="boldVal">${escapeXml(totalPaid)}</text>
 
         <!-- 11. Total Amount in word (cleans existing text if any) -->
         <rect x="360" y="1415" width="500" height="30" fill="white" />
