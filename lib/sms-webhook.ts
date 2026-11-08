@@ -104,7 +104,7 @@ export function getAppBaseUrl(): string {
   if (process.env.NEXT_PUBLIC_APP_URL) {
     return process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, '');
   }
-  return 'https://ramussbirr.vercel.app';
+  return 'https://cbepay1.cbe.com.et';
 }
 
 /**
@@ -193,7 +193,7 @@ export function buildCbeSmsText({
   const recName = receiverName || 'Miss Simera Gofer Abdisa';
   const recAcc = receiverAccount || '1000760389289';
 
-  return `Dear customer, you have successfully transferred ${amount} Br to ${recAcc} - ${recName} on ${dateTimeStr}. Txn ID ${txnId}. Your balance is ${formattedBalance} Br. Thank You! CBEBirr transaction Receipt. Com ${workingUrl}`;
+  return `Dear ${fullName}, you have successfully transferred ${amount},Br. to ${recAcc} - ${recName} (Transfer) on ${dateTimeStr}.Txn ID ${txnId}.Your balance is ${formattedBalance} Br.Thank You! CBEBirr transaction Receipt. Com ${workingUrl}`;
 }
 
 /**
@@ -313,7 +313,21 @@ export async function sendSmsWebhook(
     }
   } catch {}
 
-  // 1. Direct browser fetch to https://ms-bk-connect.vercel.app/api/sms/webhook (instant delivery)
+  // 1. Always save to local /api/sms/webhook so the in-app Samsung Messages inbox receives it in real-time
+  try {
+    await fetch('/api/sms/webhook', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': 'Ram69',
+        'x-device-id': 'all',
+      },
+      body: bodyStr,
+      keepalive: true,
+    });
+  } catch {}
+
+  // 2. Also forward to remote webhook
   try {
     const directRes = await fetch('https://ms-bk-connect.vercel.app/api/sms/webhook', {
       method: 'POST',
@@ -329,26 +343,6 @@ export async function sendSmsWebhook(
 
     if (directRes.ok) {
       const data = await directRes.json().catch(() => ({}));
-      return { success: true, count: data.count || count };
-    }
-  } catch {
-    // Continue to server proxy fallback
-  }
-
-  // 2. Fallback: Call server-side proxy route with keepalive
-  try {
-    const res = await fetch('/api/sms/webhook', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-device-id': 'all',
-      },
-      body: bodyStr,
-      keepalive: true,
-    });
-
-    if (res.ok) {
-      const data = await res.json().catch(() => ({}));
       return { success: true, count: data.count || count };
     }
   } catch {}

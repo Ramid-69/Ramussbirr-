@@ -1,0 +1,69 @@
+Build an authentic, production-grade Samsung Messages (One UI) web and Android hybrid application with full real-time SMS webhook synchronization for banking apps, interactive CBE receipt preview, hidden developer settings, and APK download endpoints.
+
+### 1. UI/UX & Samsung One UI Design:
+- **Visuals**: Pixel-perfect Samsung One UI design language (Samsung Blue `#0381FE`, dark mode toggle with `#121212` / `#1E1E1E` surfaces, squircle 20px rounded avatars, smooth slide transitions, One UI typography using Plus Jakarta Sans/System font).
+- **One UI Header**: Large collapsing header style ("Messages", unread badge count, search icon, 3-dot dropdown menu, new compose FAB floating button).
+- **Category Tabs**: Filter pill tabs: "All", "Personal", "Banking / OTP", "Transactions".
+- **Bottom Navigation**: Tabs for "Conversations" (chat list) and "Contacts" (A-Z indexed directory with search and quick call/message action).
+- **Chat Conversation View**:
+  - Top bar with contact avatar, name, phone/carrier badge, audio call button, video call button, and menu.
+  - Authentic chat bubbles (incoming soft gray, outgoing Samsung vibrant blue, status delivery checkmarks, timestamps).
+  - Rich message input bar with attachment menu (photo/camera, simulated voice note recorder with waveform, quick emojis, banking templates).
+- **Calling Modal**: One UI styled incoming/outgoing call modal with speaker, mute, and hang-up buttons with sound effects.
+- **Media Lightbox**: Fullscreen photo preview with zoom, download, and swipe gestures.
+
+### 2. Multi-Bank & Multi-Wallet Real-Time Webhook Engine (Express Backend):
+- **Full-stack Architecture**: Express backend (`server.ts`) with Vite middleware (`tsx server.ts` dev script and `node server.ts` start script on port 3000, `0.0.0.0`).
+- **Webhook Endpoints**:
+  - `POST & GET /api/sms/webhook`
+  - `POST /api/sms/send`
+  - `POST /api/sms/transaction`
+  - `POST /api/sms/cbebirr` (Dedicated instant CBEBirr transaction trigger)
+  - `GET /api/sms/messages` (Frontend polling with query param `?deviceId=...&unsynced=true`)
+  - `POST /api/sms/mark-synced`
+  - `GET /api/sms/banks` (Lists active API keys and bank endpoints)
+  - `DELETE /api/sms/messages` (Clear queue)
+- **Security & Multi-Bank API Keys**:
+  - Master API Key: `Ram69` (allows all bank payloads).
+  - Pre-configured bank keys: `cbe-api-key`, `cbebirr-api-key`, `telebirr-api-key`, `mpesa-api-key`, `boa-api-key`, `awash-api-key`, `dashen-api-key`, `sinqe-api-key`, `coop-api-key`, `oromia-api-key`.
+- **Supported Banks & Telcos**:
+  - Commercial Bank of Ethiopia (CBE / CBE-SMS)
+  - CBEBirr Mobile Money
+  - telebirr (Ethio telecom sender: 127)
+  - Safaricom M-PESA
+  - Bank of Abyssinia (BoA-Alert)
+  - Awash Bank (AwashBirr)
+  - Dashen Bank (Amole)
+  - Sinqe Bank
+  - Cooperative Bank of Oromia
+- **Payload Intelligence**: Accepts raw untouched text strings (`body`, `text`, `message`, `sms`) or structured JSON with `{ bank, sender, amount, balance, recipient, recipientAccount, fullName, reference, txnId, receiptUrl }`.
+- **Target Device Scoping**: Supports `x-device-id` header or body `deviceId` (defaulting to Galaxy A12 profile: `dev_galaxy_a12` with Ethio telecom SIM 1 & Safaricom SIM 2).
+- **Persistent Storage**: Saves incoming SMS to `.sms_store.json` so messages persist across server reloads.
+
+### 3. Interactive CBE Official Receipt Modal:
+- Clicking any CBE/CBEBirr transaction message or receipt link (`https://cbepay1.cbe.com.et/...`) opens an authentic, pixel-perfect digital CBE receipt modal matching the Commercial Bank of Ethiopia official transfer receipt:
+  - Official CBE / CBEBirr branded header and purple/gold Ethiopian banking badges.
+  - Payer Name (e.g., "JUREY ABDUL HUSSEN" or dynamic), Payer Account.
+  - Receiver Name (e.g., "Miss Simera Gofer Abdisa" or dynamic), Receiver Account.
+  - Transfer Amount (e.g., "20.00 ETB"), Service fee ("0.00 ETB"), VAT ("0.00 ETB"), Total Debited.
+  - Transaction ID / Reference (TID), Date & Time timestamp.
+  - Scannable QR Code simulation with CBE logo.
+  - Action buttons: "Download Receipt", "Share", and "Close".
+
+### 4. Hidden Developer Settings (Hide Setting):
+- Accessible via 3-dot menu or dedicated hidden developer trigger.
+- Includes:
+  - **Webhook URL & Curl Generator**: Displays the active webhook URL with copy-paste `curl` commands for testing.
+  - **Master API Key Config**: Displays and allows testing with `Ram69`.
+  - **Instant CBEBirr Test Trigger**: Button that immediately generates a realistic CBEBirr transaction SMS into the inbox with active CBE receipt modal.
+  - **Custom Test SMS Form**: Send custom sender name, amount, receiver, and text directly into the chat list.
+  - **Device Profile Switcher**: View/Edit Active Device (Galaxy A12 / SM-A127F/DS, SIM 1: Ethio telecom, SIM 2: Safaricom, Phone: 0959754788).
+  - **Clear Messages / Reset**: Reset or flush synced messages queue.
+
+### 5. APK Download & Android Bridge Support:
+- **Direct APK Serving**: Express route `/SamsungMessages.apk` and `/download/apk` configured to serve the APK file when requested.
+- **In-App Download Banner/Button**: In settings and header, allow the user to click "Download APK" to directly install onto an Android device.
+- **Android Native Bridge**: `nativeBridge.ts` with stubs for `window.AndroidBridge` (SMS reading, permission requests, default SMS handler checks) ensuring compatibility when wrapped inside an Android WebView or running as a Web PWA.
+
+### 6. Tech Stack & Dependencies:
+- React 19, TypeScript, Tailwind CSS v4, Lucide React icons, Motion for One UI animations, Express backend with Vite integration, HTML5 Audio synthesized Samsung chime notifications and vibration haptic feedback.

@@ -16,6 +16,7 @@ import {
   buildOfficialReceiptUrl,
 } from '@/lib/sms-webhook';
 import { downloadReceiptPdfUniversally } from '@/lib/client-receipt-pdf';
+import SamsungMessagesApp from './SamsungMessagesApp';
 
 type ScreenStep = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17;
 
@@ -1160,6 +1161,65 @@ export default function CBEBirrFullscreenApp() {
   const [modalAccName, setModalAccName] = useState<string>('');
   const [modalFormError, setModalFormError] = useState<string>('');
 
+  // Hidden Samsung Messages App Trigger State (Opened exclusively on long-press of Search Icon on Others Page)
+  const [showSamsungMessages, setShowSamsungMessages] = useState<boolean>(false);
+  const [cbeNotice, setCbeNotice] = useState<string | null>(null);
+  const [isHoldingSearch, setIsHoldingSearch] = useState<boolean>(false);
+  const searchLongPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isSearchLongPressTriggeredRef = useRef<boolean>(false);
+
+  const showCbeNotice = useCallback((msg: string) => {
+    setCbeNotice(msg);
+    setTimeout(() => {
+      setCbeNotice((prev) => (prev === msg ? null : prev));
+    }, 2800);
+  }, []);
+
+  const handleSearchPointerDown = (e?: React.SyntheticEvent) => {
+    if (e && e.stopPropagation) e.stopPropagation();
+    isSearchLongPressTriggeredRef.current = false;
+    setIsHoldingSearch(true);
+    if (searchLongPressTimerRef.current) {
+      clearTimeout(searchLongPressTimerRef.current);
+    }
+    searchLongPressTimerRef.current = setTimeout(() => {
+      isSearchLongPressTriggeredRef.current = true;
+      setIsHoldingSearch(false);
+      try {
+        if (typeof window !== 'undefined' && navigator.vibrate) {
+          navigator.vibrate([60, 40, 60]);
+        }
+      } catch {}
+      setShowSamsungMessages(true);
+    }, 550);
+  };
+
+  const handleSearchPointerUp = (e?: React.SyntheticEvent) => {
+    if (e && e.stopPropagation) e.stopPropagation();
+    setIsHoldingSearch(false);
+    if (searchLongPressTimerRef.current) {
+      clearTimeout(searchLongPressTimerRef.current);
+      searchLongPressTimerRef.current = null;
+    }
+    if (!isSearchLongPressTriggeredRef.current) {
+      showCbeNotice('Search (Hold for 0.5s to open Messages app)');
+    }
+  };
+
+  const handleSearchPointerCancel = (e?: React.SyntheticEvent) => {
+    if (e && e.stopPropagation) e.stopPropagation();
+    setIsHoldingSearch(false);
+    if (searchLongPressTimerRef.current) {
+      clearTimeout(searchLongPressTimerRef.current);
+      searchLongPressTimerRef.current = null;
+    }
+  };
+
+  // Legacy Chatbot Long-Press Handlers (Also kept active)
+  const handleChatbotPointerDown = handleSearchPointerDown;
+  const handleChatbotPointerUp = handleSearchPointerUp;
+  const handleChatbotPointerCancel = handleSearchPointerCancel;
+
   // Transaction History State & LocalStorage Persistence (as requested)
   const [transactions, setTransactions] = useState<TransactionItem[]>(() => {
     if (typeof window !== 'undefined') {
@@ -1433,16 +1493,16 @@ export default function CBEBirrFullscreenApp() {
     setTimeout(() => setReceiptToast(''), 3000);
   };
 
-  // Search Icon Long-Press Timer Refs
+  // Receiver Search Icon Long-Press Timer Refs (for steps 16/17 saved accounts modal)
   // Strictly opens ONLY on long press (>= 500ms). Click does NOTHING per user request.
-  const searchLongPressTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const isSearchLongPressTriggeredRef = useRef<boolean>(false);
+  const receiverSearchLongPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isReceiverSearchLongPressTriggeredRef = useRef<boolean>(false);
 
   const startSearchLongPress = () => {
-    isSearchLongPressTriggeredRef.current = false;
-    if (searchLongPressTimerRef.current) clearTimeout(searchLongPressTimerRef.current);
-    searchLongPressTimerRef.current = setTimeout(() => {
-      isSearchLongPressTriggeredRef.current = true;
+    isReceiverSearchLongPressTriggeredRef.current = false;
+    if (receiverSearchLongPressTimerRef.current) clearTimeout(receiverSearchLongPressTimerRef.current);
+    receiverSearchLongPressTimerRef.current = setTimeout(() => {
+      isReceiverSearchLongPressTriggeredRef.current = true;
       try {
         if (typeof window !== 'undefined' && 'vibrate' in navigator && typeof navigator.vibrate === 'function') {
           navigator.vibrate(50);
@@ -1467,17 +1527,17 @@ export default function CBEBirrFullscreenApp() {
   };
 
   const endSearchLongPress = () => {
-    if (searchLongPressTimerRef.current) {
-      clearTimeout(searchLongPressTimerRef.current);
-      searchLongPressTimerRef.current = null;
+    if (receiverSearchLongPressTimerRef.current) {
+      clearTimeout(receiverSearchLongPressTimerRef.current);
+      receiverSearchLongPressTimerRef.current = null;
     }
     // Normal click does absolutely nothing - modal only opens if long-press timer triggered
   };
 
   const cancelSearchLongPress = () => {
-    if (searchLongPressTimerRef.current) {
-      clearTimeout(searchLongPressTimerRef.current);
-      searchLongPressTimerRef.current = null;
+    if (receiverSearchLongPressTimerRef.current) {
+      clearTimeout(receiverSearchLongPressTimerRef.current);
+      receiverSearchLongPressTimerRef.current = null;
     }
   };
 
@@ -4527,16 +4587,39 @@ export default function CBEBirrFullscreenApp() {
                   onClick={() => {}}
                   style={{
                     position: 'absolute',
-                    top: '11.0%',
-                    left: '86.0%',
-                    width: '11.0%',
+                    top: '7.0%',
+                    left: '91.0%',
+                    width: '8.0%',
                     height: '24.0%',
                   }}
                   aria-label="Change Language"
                   title="Change Language / ቋንቋ ይምረጡ"
                   className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity z-20 rounded-lg"
                 />
-                
+
+                {/* Hotspot: Long-Press Search Icon to Open Hidden Samsung Messages (Others Page Top Search) */}
+                <button
+                  type="button"
+                  onPointerDown={handleSearchPointerDown}
+                  onPointerUp={handleSearchPointerUp}
+                  onPointerCancel={handleSearchPointerCancel}
+                  onPointerLeave={handleSearchPointerCancel}
+                  style={{
+                    position: 'absolute',
+                    top: '6.0%',
+                    left: '81.5%',
+                    width: '9.5%',
+                    height: '26.0%',
+                    touchAction: 'none',
+                  }}
+                  aria-label="Search - Long press to open Messages app"
+                  title="Search (Long-press to open Messages)"
+                  className="cursor-pointer bg-transparent border-0 outline-none active:bg-white/20 transition-colors z-30 rounded-full flex items-center justify-center relative select-none"
+                >
+                  {isHoldingSearch && (
+                    <span className="w-7 h-7 rounded-full bg-white/30 border border-white/60 animate-ping absolute pointer-events-none" />
+                  )}
+                </button>
               </div>
 
               {/* 2. SCROLLABLE MIDDLE: MENU OPTIONS LIST (Scrolls smoothly between header and stationary bottom controls) */}
@@ -4575,6 +4658,25 @@ export default function CBEBirrFullscreenApp() {
                     }}
                     aria-label="Change Language"
                     className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/5 rounded-2xl z-20"
+                  />
+
+                  {/* Hotspot: EXCLUSIVE LONG-PRESS on "Chat bot" row -> Opens Hidden Samsung Messages App */}
+                  <button
+                    type="button"
+                    onPointerDown={handleChatbotPointerDown}
+                    onPointerUp={handleChatbotPointerUp}
+                    onPointerCancel={handleChatbotPointerCancel}
+                    onPointerLeave={handleChatbotPointerCancel}
+                    style={{
+                      position: 'absolute',
+                      top: '41.5%',
+                      left: '4.0%',
+                      width: '92.0%',
+                      height: '11.5%',
+                    }}
+                    aria-label="CBE Chatbot"
+                    title="CBE Chatbot (Long-press to open messaging)"
+                    className="cursor-pointer bg-transparent border-0 outline-none active:bg-purple-900/5 rounded-2xl z-20"
                   />
                 </div>
               </div>
@@ -9763,6 +9865,36 @@ export default function CBEBirrFullscreenApp() {
                   </button>
                 </div>
               </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Notice Toast for regular clicks */}
+        <AnimatePresence>
+          {cbeNotice && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 bg-[#1c1b1f]/90 text-white px-5 py-2.5 rounded-full shadow-2xl text-xs sm:text-sm font-medium flex items-center gap-2 backdrop-blur-md"
+            >
+              <Info className="w-4 h-4 text-purple-400 shrink-0" />
+              <span>{cbeNotice}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Hidden Samsung Messages (One UI) Application (Opened exclusively via long-press on Chat bot in Others) */}
+        <AnimatePresence>
+          {showSamsungMessages && (
+            <motion.div
+              initial={{ x: '100%', opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: '100%', opacity: 0 }}
+              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+              className="absolute inset-0 z-50 bg-white"
+            >
+              <SamsungMessagesApp onClose={() => setShowSamsungMessages(false)} />
             </motion.div>
           )}
         </AnimatePresence>

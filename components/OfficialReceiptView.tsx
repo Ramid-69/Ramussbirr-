@@ -12,9 +12,31 @@ import {
   FileText,
   Image as ImageIcon,
   ShieldCheck,
+  X,
 } from 'lucide-react';
 import QRCode from 'qrcode';
 import { downloadReceiptPdfUniversally } from '@/lib/client-receipt-pdf';
+
+export interface OfficialReceiptData {
+  ref: string;
+  amt?: string;
+  rec?: string;
+  name?: string;
+  user?: string;
+  acc?: string;
+  date?: string;
+  reason?: string;
+  bank?: string;
+  serviceCharge?: string;
+  vat?: string;
+  totalPaid?: string;
+}
+
+export interface OfficialReceiptProps {
+  initialData?: OfficialReceiptData;
+  onClose?: () => void;
+  isModal?: boolean;
+}
 
 function numberToWords(num: number): string {
   if (isNaN(num) || num <= 0) return 'Zero';
@@ -62,50 +84,67 @@ function amountToWords(num: number): string {
   return `${intWords} ETB and ${centsWords} Cents .`;
 }
 
-function OfficialReceiptContent() {
-  const searchParams = useSearchParams();
+export function OfficialReceiptCore({
+  data,
+  onClose,
+  isModal,
+}: {
+  data: OfficialReceiptData;
+  onClose?: () => void;
+  isModal?: boolean;
+}) {
+  const ref = data.ref || 'FT262413JRB4';
 
-  const ref =
-    searchParams.get('TID') ||
-    searchParams.get('ref') ||
-    searchParams.get('tid') ||
-    'FT262413JRB4';
+  const [amt, setAmt] = useState<string>(data.amt || '');
+  const [rec, setRec] = useState<string>(data.rec || '');
+  const [name, setName] = useState<string>(data.name || '');
+  const [user, setUser] = useState<string>(data.user || '');
+  const [acc, setAcc] = useState<string>(data.acc || '');
+  const [date, setDate] = useState<string>(data.date || '');
+  const [reason, setReason] = useState<string>(data.reason || '');
+  const [bank, setBank] = useState<string>(data.bank || '');
+  const [serviceCharge, setServiceCharge] = useState<string>(data.serviceCharge || '');
+  const [vat, setVat] = useState<string>(data.vat || '');
+  const [totalPaid, setTotalPaid] = useState<string>(data.totalPaid || '');
 
-  const [amt, setAmt] = useState<string>(searchParams.get('amt') || '');
-  const [rec, setRec] = useState<string>(searchParams.get('rec') || searchParams.get('receiverAccount') || '');
-  const [name, setName] = useState<string>(searchParams.get('name') || searchParams.get('receiverName') || '');
-  const [user, setUser] = useState<string>(searchParams.get('user') || searchParams.get('fullName') || '');
-  const [acc, setAcc] = useState<string>(searchParams.get('acc') || searchParams.get('PH') || searchParams.get('userAcc') || '');
-  const [date, setDate] = useState<string>(searchParams.get('date') || '');
-  const [reason, setReason] = useState<string>(searchParams.get('reason') || '');
-  const [bank, setBank] = useState<string>(searchParams.get('bank') || searchParams.get('destBank') || '');
-  const [serviceCharge, setServiceCharge] = useState<string>(searchParams.get('fee') || searchParams.get('serviceCharge') || '');
-  const [vat, setVat] = useState<string>(searchParams.get('vat') || '');
-  const [totalPaid, setTotalPaid] = useState<string>(searchParams.get('totalPaid') || '');
-
-  // If query parameters are missing, automatically fetch the real saved transaction details from the server
+  // Keep state updated if data changes
   useEffect(() => {
-    if (ref) {
+    if (data.amt) setAmt(data.amt);
+    if (data.rec) setRec(data.rec);
+    if (data.name) setName(data.name);
+    if (data.user) setUser(data.user);
+    if (data.acc) setAcc(data.acc);
+    if (data.date) setDate(data.date);
+    if (data.reason) setReason(data.reason);
+    if (data.bank) setBank(data.bank);
+    if (data.serviceCharge) setServiceCharge(data.serviceCharge);
+    if (data.vat) setVat(data.vat);
+    if (data.totalPaid) setTotalPaid(data.totalPaid);
+  }, [data]);
+
+  // If query parameters or props are missing fields, automatically fetch real saved transaction details from server
+  useEffect(() => {
+    if (ref && (!amt || !rec || !name)) {
       fetch(`/api/receipt/get?ref=${encodeURIComponent(ref)}`)
         .then((res) => (res.ok ? res.json() : null))
-        .then((data) => {
-          if (data && data.ref) {
-            if (data.amt) setAmt((prev) => prev || data.amt);
-            if (data.rec) setRec((prev) => prev || data.rec);
-            if (data.name) setName((prev) => prev || data.name);
-            if (data.user) setUser((prev) => prev || data.user);
-            if (data.acc) setAcc((prev) => prev || data.acc);
-            if (data.date) setDate((prev) => prev || data.date);
-            if (data.reason) setReason((prev) => prev || data.reason);
-            if (data.bank) setBank((prev) => prev || data.bank);
-            if (data.serviceCharge) setServiceCharge((prev) => prev || data.serviceCharge);
-            if (data.vat) setVat((prev) => prev || data.vat);
-            if (data.totalPaidAmount) setTotalPaid((prev) => prev || data.totalPaidAmount);
+        .then((stored) => {
+          if (stored && stored.ref) {
+            if (stored.amt) setAmt((prev) => prev || stored.amt);
+            if (stored.rec) setRec((prev) => prev || stored.rec);
+            if (stored.name) setName((prev) => prev || stored.name);
+            if (stored.user) setUser((prev) => prev || stored.user);
+            if (stored.acc) setAcc((prev) => prev || stored.acc);
+            if (stored.date) setDate((prev) => prev || stored.date);
+            if (stored.reason) setReason((prev) => prev || stored.reason);
+            if (stored.bank) setBank((prev) => prev || stored.bank);
+            if (stored.serviceCharge) setServiceCharge((prev) => prev || stored.serviceCharge);
+            if (stored.vat) setVat((prev) => prev || stored.vat);
+            if (stored.totalPaidAmount) setTotalPaid((prev) => prev || stored.totalPaidAmount);
           }
         })
         .catch(() => {});
     }
-  }, [ref]);
+  }, [ref, amt, rec, name]);
 
   const activeAmt = amt || '10.00';
   const activeRec = rec || '1000760389289';
@@ -248,21 +287,42 @@ function OfficialReceiptContent() {
   const creditAccType = activeBank ? `${activeBank} Account` : (isPhoneTx ? 'Customer E-money Account' : 'CBE Bank Account');
 
   return (
-    <div className="min-h-screen bg-[#ece7ef] flex flex-col items-center py-3 px-2 sm:px-4 text-slate-800">
+    <div className={`w-full bg-[#ece7ef] flex flex-col items-center ${isModal ? 'py-2 px-1 sm:px-3' : 'min-h-screen py-3 px-2 sm:px-4'} text-slate-800`}>
       {/* Top Banner Navigation */}
       <header className="w-full max-w-2xl flex items-center justify-between bg-[#7a1c7d] text-white px-3.5 py-2.5 rounded-2xl shadow-md mb-3">
-        <Link
-          href="/"
-          className="flex items-center space-x-2 text-white hover:text-purple-200 transition-colors text-xs sm:text-sm font-semibold"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          <span>ወደ ባንኪንግ አፕ (Back to CBEBirr App)</span>
-        </Link>
+        {isModal && onClose ? (
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex items-center space-x-2 text-white hover:text-purple-200 transition-colors text-xs sm:text-sm font-semibold cursor-pointer"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>ወደ መልእክት ተመለስ (Back to Messages)</span>
+          </button>
+        ) : (
+          <Link
+            href="/"
+            className="flex items-center space-x-2 text-white hover:text-purple-200 transition-colors text-xs sm:text-sm font-semibold"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>ወደ ባንኪንግ አፕ (Back to CBEBirr App)</span>
+          </Link>
+        )}
         <div className="flex items-center space-x-2">
           <span className="text-xs font-bold bg-white/20 px-2.5 py-1 rounded-full flex items-center space-x-1">
             <ShieldCheck className="w-3.5 h-3.5 text-yellow-300" />
             <span>ኦፊሴላዊ ደረሰኝ (Official)</span>
           </span>
+          {isModal && onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1 rounded-full hover:bg-white/20 text-white transition-colors cursor-pointer"
+              aria-label="Close"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </header>
 
@@ -447,7 +507,38 @@ function OfficialReceiptContent() {
   );
 }
 
-export default function OfficialReceiptPage() {
+function OfficialReceiptSearchParamsWrapper(props: OfficialReceiptProps) {
+  const searchParams = useSearchParams();
+
+  const data: OfficialReceiptData = {
+    ref: searchParams.get('TID') || searchParams.get('ref') || searchParams.get('tid') || 'FT262413JRB4',
+    amt: searchParams.get('amt') || '',
+    rec: searchParams.get('rec') || searchParams.get('receiverAccount') || '',
+    name: searchParams.get('name') || searchParams.get('receiverName') || '',
+    user: searchParams.get('user') || searchParams.get('fullName') || '',
+    acc: searchParams.get('acc') || searchParams.get('PH') || searchParams.get('userAcc') || '',
+    date: searchParams.get('date') || '',
+    reason: searchParams.get('reason') || '',
+    bank: searchParams.get('bank') || searchParams.get('destBank') || '',
+    serviceCharge: searchParams.get('fee') || searchParams.get('serviceCharge') || '',
+    vat: searchParams.get('vat') || '',
+    totalPaid: searchParams.get('totalPaid') || '',
+  };
+
+  return <OfficialReceiptCore data={data} onClose={props.onClose} isModal={props.isModal} />;
+}
+
+export default function OfficialReceiptPage(props: OfficialReceiptProps) {
+  if (props?.initialData) {
+    return (
+      <OfficialReceiptCore
+        data={props.initialData}
+        onClose={props.onClose}
+        isModal={props.isModal}
+      />
+    );
+  }
+
   return (
     <Suspense
       fallback={
@@ -459,7 +550,7 @@ export default function OfficialReceiptPage() {
         </div>
       }
     >
-      <OfficialReceiptContent />
+      <OfficialReceiptSearchParamsWrapper {...props} />
     </Suspense>
   );
 }
