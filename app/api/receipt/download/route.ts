@@ -85,13 +85,41 @@ export async function GET(req: NextRequest) {
 
     const numericAmt = parseFloat(rawAmt) || 740.0;
     const formattedAmt = numericAmt.toFixed(2);
-    const amountInWordsString = amountToWords(numericAmt);
+    const feeParam = searchParams.get('fee') || searchParams.get('serviceCharge') || (stored && stored.serviceCharge);
+    const vatParam = searchParams.get('vat') || (stored && stored.vat);
+    const totalPaidParam = searchParams.get('totalPaid') || (stored && stored.totalPaidAmount);
+
+    const isBankOrWallet = Boolean(bank) || Boolean(feeParam) || (reason && (reason.toLowerCase().includes('bank') || reason.toLowerCase().includes('wallet')));
+    let serviceCharge = '0.00';
+    let vatAmount = '0.00';
+    let totalPaid = formattedAmt;
+    let amountInWordsString = amountToWords(numericAmt);
+
+    if (isBankOrWallet) {
+      if (feeParam && !isNaN(parseFloat(feeParam)) && parseFloat(feeParam) > 0) {
+        const sc = parseFloat(feeParam);
+        const v = vatParam && !isNaN(parseFloat(vatParam)) ? parseFloat(vatParam) : +(sc * 0.15).toFixed(5);
+        const td = totalPaidParam && !isNaN(parseFloat(totalPaidParam)) ? parseFloat(totalPaidParam) : +(numericAmt + sc + v).toFixed(2);
+        serviceCharge = sc.toString();
+        vatAmount = v.toString();
+        totalPaid = td.toFixed(2);
+        amountInWordsString = amountToWords(td);
+      } else {
+        const sc = Math.max(0.005, +(numericAmt * 0.005).toFixed(5));
+        const v = +(sc * 0.15).toFixed(5);
+        const td = +(numericAmt + sc + v).toFixed(2);
+        serviceCharge = sc.toString();
+        vatAmount = v.toString();
+        totalPaid = td.toFixed(2);
+        amountInWordsString = amountToWords(td);
+      }
+    }
 
     // Build the dynamic receipt URL that will be encoded inside the QR code
     const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || 'localhost:3000';
     const proto = req.headers.get('x-forwarded-proto') || 'https';
     const origin = `${proto}://${host}`;
-    const qrTargetUrl = `${origin}/official-receipt?TID=${encodeURIComponent(ref)}&PH=${encodeURIComponent(userAcc)}${bank ? `&bank=${encodeURIComponent(bank)}` : ''}`;
+    const qrTargetUrl = `${origin}/official-receipt?TID=${encodeURIComponent(ref)}&PH=${encodeURIComponent(userAcc)}${bank ? `&bank=${encodeURIComponent(bank)}` : ''}${serviceCharge !== '0.00' ? `&fee=${encodeURIComponent(serviceCharge)}&vat=${encodeURIComponent(vatAmount)}&totalPaid=${encodeURIComponent(totalPaid)}` : ''}`;
 
     // Official VAT receipt QR code has NO center logo, matching authentic CBE invoice design
     const styledQrSvg = generateStyledQrSvg(qrTargetUrl, {
@@ -142,10 +170,18 @@ export async function GET(req: NextRequest) {
         <text x="1150" y="1204" class="val" text-anchor="end">${escapeXml(formattedAmt)}</text>
 
         <!-- 9. Service Charge -->
-        <text x="1150" y="1234" class="val" text-anchor="end">0.00</text>
+        <rect x="980" y="1210" width="180" height="28" fill="white" />
+        <text x="1150" y="1234" class="val" text-anchor="end">${escapeXml(serviceCharge)}</text>
+
+        ${vatAmount !== '0.00' ? `
+        <!-- VAT -->
+        <rect x="980" y="1295" width="180" height="28" fill="white" />
+        <text x="1150" y="1318" class="val" text-anchor="end">${escapeXml(vatAmount)}</text>
+        ` : ''}
 
         <!-- 10. Total Paid Amount (Bold, aligned with amount column at x=1150) -->
-        <text x="1150" y="1406" class="boldVal" text-anchor="end">${escapeXml(formattedAmt)}</text>
+        <rect x="980" y="1380" width="180" height="34" fill="white" />
+        <text x="1150" y="1406" class="boldVal" text-anchor="end">${escapeXml(totalPaid)}</text>
 
         <!-- 11. Total Amount in word (cleans existing text if any) -->
         <rect x="360" y="1415" width="500" height="30" fill="white" />

@@ -44,21 +44,33 @@
     opacity: 1;
     transform: scale(1.15);
   }
-  16% {
-    opacity: 0.8;
-    transform: scale(1);
+  12.5% {
+    opacity: 0.85;
+    transform: scale(1.05);
   }
-  32% {
+  25% {
+    opacity: 0.65;
+    transform: scale(0.95);
+  }
+  37.5% {
     opacity: 0.45;
     transform: scale(0.85);
   }
-  48% {
-    opacity: 0.2;
-    transform: scale(0.7);
+  50% {
+    opacity: 0.28;
+    transform: scale(0.75);
   }
-  64%, 100% {
-    opacity: 0.08;
+  62.5% {
+    opacity: 0.16;
+    transform: scale(0.65);
+  }
+  75% {
+    opacity: 0.09;
     transform: scale(0.55);
+  }
+  87.5%, 100% {
+    opacity: 0.05;
+    transform: scale(0.5);
   }
 }
 

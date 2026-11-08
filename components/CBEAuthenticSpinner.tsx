@@ -7,18 +7,18 @@ interface CBEAuthenticSpinnerProps {
   color?: string; // dot color (brand purple #8b278e)
   className?: string;
   speed?: number; // animation cycle duration in seconds
-  dotCount?: number; // authentic 12 dots
+  dotCount?: number; // authentic 8 dots in CBEBirr
 }
 
 export default function CBEAuthenticSpinner({
   size = 38,
   color = '#8b278e',
   className = '',
-  speed = 0.95,
-  dotCount = 12,
+  speed = 0.85,
+  dotCount = 8,
 }: CBEAuthenticSpinnerProps) {
   // Dot diameter proportional to spinner size (matches CBEBirr authentic dot chaser)
-  const dotDiameter = Math.max(3, Math.round(size * 0.17));
+  const dotDiameter = Math.max(4, Math.round(size * 0.19));
   const radius = Math.round(size * 0.36);
 
   return (

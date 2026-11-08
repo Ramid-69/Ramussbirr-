@@ -78,6 +78,9 @@ function OfficialReceiptContent() {
   const [date, setDate] = useState<string>(searchParams.get('date') || '');
   const [reason, setReason] = useState<string>(searchParams.get('reason') || '');
   const [bank, setBank] = useState<string>(searchParams.get('bank') || searchParams.get('destBank') || '');
+  const [serviceCharge, setServiceCharge] = useState<string>(searchParams.get('fee') || searchParams.get('serviceCharge') || '');
+  const [vat, setVat] = useState<string>(searchParams.get('vat') || '');
+  const [totalPaid, setTotalPaid] = useState<string>(searchParams.get('totalPaid') || '');
 
   // If query parameters are missing, automatically fetch the real saved transaction details from the server
   useEffect(() => {
@@ -94,6 +97,9 @@ function OfficialReceiptContent() {
             setDate((prev) => prev || data.date || '22-10-2026 21:36:00');
             setReason((prev) => prev || data.reason || 'Customer transfer to CBE account');
             if (data.bank) setBank((prev) => prev || data.bank);
+            if (data.serviceCharge) setServiceCharge((prev) => prev || data.serviceCharge);
+            if (data.vat) setVat((prev) => prev || data.vat);
+            if (data.totalPaidAmount) setTotalPaid((prev) => prev || data.totalPaidAmount);
           }
         })
         .catch(() => {});
@@ -111,7 +117,40 @@ function OfficialReceiptContent() {
 
   const numericAmt = parseFloat(activeAmt) || 10.00;
   const formattedAmt = numericAmt.toFixed(2);
-  const words = amountToWords(numericAmt);
+
+  // Compute exact fee breakdown if Other Bank or Other Wallet transfer
+  const isOtherBankOrWallet = Boolean(activeBank) || Boolean(serviceCharge && parseFloat(serviceCharge) > 0) || (activeReason && (activeReason.toLowerCase().includes('bank') || activeReason.toLowerCase().includes('wallet')));
+  let feeObj: { serviceCharge: string; vat: string; totalPaid: string; totalPaidNum: number } | null = null;
+
+  if (isOtherBankOrWallet) {
+    const scNum = parseFloat(serviceCharge);
+    const vNum = parseFloat(vat);
+    if (!isNaN(scNum) && scNum > 0) {
+      const v = !isNaN(vNum) ? vNum : +(scNum * 0.15).toFixed(5);
+      const td = totalPaid && !isNaN(parseFloat(totalPaid)) ? parseFloat(totalPaid) : +(numericAmt + scNum + v).toFixed(2);
+      feeObj = {
+        serviceCharge: scNum.toString(),
+        vat: v.toString(),
+        totalPaid: td.toFixed(2),
+        totalPaidNum: td,
+      };
+    } else {
+      const sc = Math.max(0.005, +(numericAmt * 0.005).toFixed(5));
+      const v = +(sc * 0.15).toFixed(5);
+      const td = +(numericAmt + sc + v).toFixed(2);
+      feeObj = {
+        serviceCharge: sc.toString(),
+        vat: v.toString(),
+        totalPaid: td.toFixed(2),
+        totalPaidNum: td,
+      };
+    }
+  }
+
+  const finalServiceCharge = feeObj ? feeObj.serviceCharge : '0.00';
+  const finalVat = feeObj ? feeObj.vat : '0.00';
+  const finalTotalPaid = feeObj ? feeObj.totalPaid : formattedAmt;
+  const words = amountToWords(feeObj ? feeObj.totalPaidNum : numericAmt);
 
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
   const [downloadToast, setDownloadToast] = useState<string>('');
@@ -386,7 +425,7 @@ function OfficialReceiptContent() {
               </div>
               <div className="flex justify-between text-slate-500">
                 <span>Service Charge:</span>
-                <span>0.00</span>
+                <span className={feeObj ? 'font-bold text-slate-900' : ''}>{finalServiceCharge}</span>
               </div>
               <div className="flex justify-between text-slate-500">
                 <span>Disaster Response Fee:</span>
@@ -394,7 +433,7 @@ function OfficialReceiptContent() {
               </div>
               <div className="flex justify-between text-slate-500">
                 <span>VAT:</span>
-                <span>0.00</span>
+                <span className={feeObj ? 'font-bold text-slate-900' : ''}>{finalVat}</span>
               </div>
               <div className="flex justify-between text-slate-500">
                 <span>Tip:</span>
@@ -402,7 +441,7 @@ function OfficialReceiptContent() {
               </div>
               <div className="flex justify-between border-t border-slate-300 pt-1.5 text-sm font-bold text-[#7a1c7d]">
                 <span>Total Paid Amount:</span>
-                <span>{formattedAmt} ETB</span>
+                <span>{finalTotalPaid} ETB</span>
               </div>
             </div>
           </div>

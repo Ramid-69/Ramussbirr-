@@ -1,0 +1,18 @@
+{
+  "name": "CBEBirr",
+  "short_name": "CBEBirr",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#7a1c7d",
+  "theme_color": "#7a1c7d",
+  "orientation": "portrait",
+  "description": "Commercial Bank of Ethiopia CBEBirr Mobile Banking",
+  "icons": [
+    {
+      "src": "/assets/cbe_qr_center_badge_crisp.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

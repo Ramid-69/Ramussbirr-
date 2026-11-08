@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, Download, Share2, Printer, Search, Trash2, Edit2, Plus, User, ChevronRight, Receipt, MapPin, Phone, Info, HelpCircle, Fingerprint, WifiOff, CheckCircle2, MessageSquare, RefreshCw, Send, Check } from 'lucide-react';
+import { ArrowLeft, Download, Share2, Printer, Search, Trash2, Edit2, Plus, User, ChevronRight, Receipt, MapPin, Phone, Info, HelpCircle, Fingerprint, WifiOff, CheckCircle2, MessageSquare, RefreshCw, Send, Check, X } from 'lucide-react';
 import CBEAuthenticSpinner from './CBEAuthenticSpinner';
 import QRCode from 'qrcode';
 import { generateStyledQrDataUrl } from '@/lib/styled-qr';
@@ -178,6 +178,10 @@ interface TransactionItem {
   debitAccountType?: string;
   creditAccountType?: string;
   bank?: string;
+  serviceCharge?: string | number;
+  vat?: string | number;
+  totalCharges?: string | number;
+  totalPaidAmount?: string | number;
 }
 
 const DEFAULT_TRANSACTIONS: TransactionItem[] = [
@@ -598,6 +602,10 @@ export default function CBEBirrFullscreenApp() {
   const [transactionRef, setTransactionRef] = useState<string>('DJM51SKYIQ3');
   const [transactionDate, setTransactionDate] = useState<string>('22 Oct 2026 9:36 PM');
   const [transactionIsoDate, setTransactionIsoDate] = useState<string>('2026-10-22 21:36');
+  const [transactionServiceCharge, setTransactionServiceCharge] = useState<number>(0);
+  const [transactionVat, setTransactionVat] = useState<number>(0);
+  const [transactionTotalCharges, setTransactionTotalCharges] = useState<number>(0);
+  const [transactionTotalDeductions, setTransactionTotalDeductions] = useState<number>(0);
   const [receiptToast, setReceiptToast] = useState<string>('');
   const [receiptQrDataUrl, setReceiptQrDataUrl] = useState<string>('');
   const [officialReceiptQrDataUrl, setOfficialReceiptQrDataUrl] = useState<string>('');
@@ -620,25 +628,6 @@ export default function CBEBirrFullscreenApp() {
   const [phoneTransferError, setPhoneTransferError] = useState<string>('');
   const [isPhoneTransferring, setIsPhoneTransferring] = useState<boolean>(false);
   const [isSendMoneyMenuOpen, setIsSendMoneyMenuOpen] = useState<boolean>(false);
-
-  // App Language State ('en' | 'am') - Switchable via top bar EN / English button on all pages
-  const [currentLanguage, setCurrentLanguage] = useState<'en' | 'am'>('en');
-  const [isLanguageModalOpen, setIsLanguageModalOpen] = useState<boolean>(false);
-
-  const handleOpenLanguageModal = () => {
-    setIsLanguageModalOpen(true);
-  };
-
-  const handleSelectLanguage = (lang: 'en' | 'am') => {
-    setCurrentLanguage(lang);
-    setIsLanguageModalOpen(false);
-    setReceiptToast(
-      lang === 'am'
-        ? 'ቋንቋ ወደ አማርኛ (አማ) ተቀይሯል'
-        : 'Language changed to English (EN)'
-    );
-    setTimeout(() => setReceiptToast(''), 2500);
-  };
 
   // Step 16: Bank Transfer (Transfer to Other Banks) State
   const [selectedBank, setSelectedBank] = useState<BankItem | null>(null);
@@ -705,6 +694,51 @@ export default function CBEBirrFullscreenApp() {
       (w) => w.name.toLowerCase().includes(term) || w.id.toLowerCase().includes(term)
     );
   }, [walletSearchTerm]);
+
+  // Step 16 & 17 Transfer Confirmation Bottom Sheet State (Matches User Screenshots)
+  const [isBankConfirmOpen, setIsBankConfirmOpen] = useState<boolean>(false);
+  const [isWalletConfirmOpen, setIsWalletConfirmOpen] = useState<boolean>(false);
+
+  // Dynamic fee calculation matching authentic CBE charges & user screenshots:
+  // e.g. 1 ETB -> Service Charge: 0.005 ETB, Disaster: 0 ETB, Tax: 0.00075 ETB, Total charges: 0.006 ETB, Total Deductions: 1.01 ETB
+  const calculateTransferFees = useCallback((rawAmount: string | number) => {
+    const amount = typeof rawAmount === 'number' ? rawAmount : parseFloat(rawAmount) || 0;
+    if (amount <= 0) {
+      return {
+        amount: 0,
+        serviceCharge: 0,
+        serviceChargeFormatted: '0 ETB',
+        disasterFund: 0,
+        disasterFundFormatted: '0 ETB',
+        taxAmount: 0,
+        taxAmountFormatted: '0 ETB',
+        totalCharges: 0,
+        totalChargesFormatted: '0 ETB',
+        totalDeductions: 0,
+        totalDeductionsFormatted: '0 ETB',
+      };
+    }
+    const serviceCharge = Math.max(0.005, +(amount * 0.005).toFixed(5));
+    const disasterFund = 0;
+    const taxAmount = +(serviceCharge * 0.15).toFixed(5);
+    const rawTotalCharges = serviceCharge + disasterFund + taxAmount;
+    const totalCharges = +(rawTotalCharges).toFixed(3);
+    const totalDeductions = +(amount + rawTotalCharges).toFixed(2);
+
+    return {
+      amount,
+      serviceCharge,
+      serviceChargeFormatted: `${serviceCharge} ETB`,
+      disasterFund,
+      disasterFundFormatted: `${disasterFund} ETB`,
+      taxAmount,
+      taxAmountFormatted: `${taxAmount} ETB`,
+      totalCharges,
+      totalChargesFormatted: `${totalCharges.toFixed(3)} ETB`,
+      totalDeductions,
+      totalDeductionsFormatted: `${totalDeductions.toFixed(2)} ETB`,
+    };
+  }, []);
 
   // 5 Promotional Banners Horizontal Sliding Carousel (Swipeable, Real-time Drag, Smooth Auto-slide)
   const [activeBannerIndex, setActiveBannerIndex] = useState<number>(0);
@@ -1768,13 +1802,24 @@ export default function CBEBirrFullscreenApp() {
       setBankTransferError('እባክዎ ትክክለኛ የገንዘብ መጠን ያስገቡ (Please enter a valid amount)');
       return;
     }
-    if (balance < amt) {
-      setBankTransferError(`ቀሪ ሂሳብዎ በቂ አይደለም (አሁን ያለው: ${formatAmount(balance)} ETB)`);
+    const fees = calculateTransferFees(amt);
+    if (balance < fees.totalDeductions) {
+      setBankTransferError(`ቀሪ ሂሳብዎ በቂ አይደለም (አሁን ያለው: ${formatAmount(balance)} ETB, የሚያስፈልገው: ${fees.totalDeductionsFormatted})`);
       return;
     }
-    setTransferSource('other_banks');
-    setTransferPin('');
-    setCurrentStep(7);
+    // Open Confirmation Bottom Sheet per user request
+    setIsBankConfirmOpen(true);
+  };
+
+  const handleConfirmBankTransfer = () => {
+    setIsBankConfirmOpen(false);
+    setIsBankTransferring(true);
+    setTimeout(() => {
+      setIsBankTransferring(false);
+      setTransferSource('other_banks');
+      setTransferPin('');
+      setCurrentStep(7);
+    }, 700);
   };
 
   const handleProceedToWalletTransferPin = () => {
@@ -1793,13 +1838,24 @@ export default function CBEBirrFullscreenApp() {
       setWalletTransferError('እባክዎ ትክክለኛ የገንዘብ መጠን ያስገቡ (Please enter a valid amount)');
       return;
     }
-    if (balance < amt) {
-      setWalletTransferError(`ቀሪ ሂሳብዎ በቂ አይደለም (አሁን ያለው: ${formatAmount(balance)} ETB)`);
+    const fees = calculateTransferFees(amt);
+    if (balance < fees.totalDeductions) {
+      setWalletTransferError(`ቀሪ ሂሳብዎ በቂ አይደለም (አሁን ያለው: ${formatAmount(balance)} ETB, የሚያስፈልገው: ${fees.totalDeductionsFormatted})`);
       return;
     }
-    setTransferSource('other_wallets');
-    setTransferPin('');
-    setCurrentStep(7);
+    // Open Confirmation Bottom Sheet per user request
+    setIsWalletConfirmOpen(true);
+  };
+
+  const handleConfirmWalletTransfer = () => {
+    setIsWalletConfirmOpen(false);
+    setIsWalletTransferring(true);
+    setTimeout(() => {
+      setIsWalletTransferring(false);
+      setTransferSource('other_wallets');
+      setTransferPin('');
+      setCurrentStep(7);
+    }, 700);
   };
 
   const handleTransferKeypadClick = (val: string) => {
@@ -1847,7 +1903,14 @@ export default function CBEBirrFullscreenApp() {
             ? parseFloat(walletAmount)
             : (isPhone ? parseFloat(phoneSendAmount) : parseFloat(sendAmount)));
         const amt = isNaN(rawAmt) || rawAmt <= 0 ? 10 : rawAmt;
-        const newBal = Math.max(0, balance - amt);
+        const feeInfo = (isOtherBanks || isOtherWallets) ? calculateTransferFees(amt) : null;
+        const totalDeducted = feeInfo ? feeInfo.totalDeductions : amt;
+        setTransactionServiceCharge(feeInfo ? feeInfo.serviceCharge : 0);
+        setTransactionVat(feeInfo ? feeInfo.taxAmount : 0);
+        setTransactionTotalCharges(feeInfo ? feeInfo.totalCharges : 0);
+        setTransactionTotalDeductions(totalDeducted);
+
+        const newBal = Math.max(0, balance - totalDeducted);
         setBalance(newBal);
         const newRef = generateTxRef();
         setTransactionRef(newRef);
@@ -1903,6 +1966,10 @@ export default function CBEBirrFullscreenApp() {
           debitAccountType: 'Customer E-money Account',
           creditAccountType: activeCreditAccountType,
           bank: isOtherBanks && selectedBank ? selectedBank.name : (isOtherWallets && selectedWallet ? selectedWallet.name : undefined),
+          serviceCharge: feeInfo ? feeInfo.serviceCharge.toString() : '0.00',
+          vat: feeInfo ? feeInfo.taxAmount.toString() : '0.00',
+          totalCharges: feeInfo ? feeInfo.totalCharges.toString() : '0.00',
+          totalPaidAmount: totalDeducted.toFixed(2),
         };
         setTransactions((prev) => [newTx, ...prev]);
         setSelectedTx(newTx);
@@ -1928,6 +1995,10 @@ export default function CBEBirrFullscreenApp() {
               bank: isOtherBanks && selectedBank ? selectedBank.name : (isOtherWallets && selectedWallet ? selectedWallet.name : undefined),
               status: 'Completed',
               orderId: newRef,
+              serviceCharge: feeInfo ? feeInfo.serviceCharge.toString() : '0.00',
+              vat: feeInfo ? feeInfo.taxAmount.toString() : '0.00',
+              totalCharges: feeInfo ? feeInfo.totalCharges.toString() : '0.00',
+              totalPaidAmount: totalDeducted.toFixed(2),
             }),
           }).catch(() => {});
         } catch {}
@@ -1950,7 +2021,10 @@ export default function CBEBirrFullscreenApp() {
               : (isOtherWallets
                 ? (walletReason || 'Wallet Transfer')
                 : (isPhone ? (phoneReason || 'Wallet Transfer') : (sendReason || 'Customer transfer to CBE account'))),
-            isOtherBanks && selectedBank ? selectedBank.name : (isOtherWallets && selectedWallet ? selectedWallet.name : undefined)
+            isOtherBanks && selectedBank ? selectedBank.name : (isOtherWallets && selectedWallet ? selectedWallet.name : undefined),
+            feeInfo ? feeInfo.serviceCharge.toString() : undefined,
+            feeInfo ? feeInfo.taxAmount.toString() : undefined,
+            totalDeducted.toFixed(2)
           );
 
           sendTransactionSms({
@@ -2505,41 +2579,6 @@ export default function CBEBirrFullscreenApp() {
                 draggable={false}
               />
 
-              {/* Hotspot: Top Left Language Switcher ("English ⌄") */}
-              <button
-                type="button"
-                onClick={handleOpenLanguageModal}
-                style={{
-                  position: 'absolute',
-                  top: '2.8%',
-                  left: '4.5%',
-                  width: '32.0%',
-                  height: '5.2%',
-                }}
-                aria-label="Change Language"
-                title="Change Language / ቋንቋ ይምረጡ"
-                className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity z-20 rounded-xl"
-              />
-              {currentLanguage === 'am' && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: '3.6%',
-                    left: '5.2%',
-                    width: '24.0%',
-                    height: '3.8%',
-                  }}
-                  className="bg-[#dedede] flex items-center space-x-1.5 z-10 pointer-events-none select-none"
-                >
-                  <span className="text-[#49454f] font-semibold text-[13px] tracking-tight">
-                    አማርኛ
-                  </span>
-                  <span className="text-[#7a1c7d] text-[10px] font-bold">
-                    ▼
-                  </span>
-                </div>
-              )}
-
               {/* Animated Horizontal Marquee for 'Welcome to CBEBirr Plus app!' */}
               {/* Strictly bounded to entry & exit points (left: 20.0%, width: 58.0%) */}
               {/* As 'Welcome to' enters from the right, it simultaneously begins exiting from the left (Duration: 3.5s) */}
@@ -2623,7 +2662,7 @@ export default function CBEBirrFullscreenApp() {
                   height: '6.5%',
                 }}
                 aria-label="Next to PIN Page"
-                className={`cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity ${isLoggingIn ? 'pointer-events-none' : ''}`}
+                className={`cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity z-20 ${isLoggingIn ? 'pointer-events-none' : ''}`}
               />
 
               {/* CBE Birr Authenticated Loading Box (exact match with Screenshot_20261027-145909_9889e698.png & Screenshot_20261022-221139_a22748fd.png) */}
@@ -2672,41 +2711,6 @@ export default function CBEBirrFullscreenApp() {
                 className="w-full h-full object-fill pointer-events-none block select-none"
                 draggable={false}
               />
-
-              {/* Hotspot: Top Left Language Switcher ("English ⌄") */}
-              <button
-                type="button"
-                onClick={handleOpenLanguageModal}
-                style={{
-                  position: 'absolute',
-                  top: '2.8%',
-                  left: '4.5%',
-                  width: '32.0%',
-                  height: '5.2%',
-                }}
-                aria-label="Change Language"
-                title="Change Language / ቋንቋ ይምረጡ"
-                className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity z-20 rounded-xl"
-              />
-              {currentLanguage === 'am' && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: '3.6%',
-                    left: '5.2%',
-                    width: '24.0%',
-                    height: '3.8%',
-                  }}
-                  className="bg-[#c7cbd0] flex items-center space-x-1.5 z-10 pointer-events-none select-none"
-                >
-                  <span className="text-[#49454f] font-semibold text-[13px] tracking-tight">
-                    አማርኛ
-                  </span>
-                  <span className="text-[#7a1c7d] text-[10px] font-bold">
-                    ▼
-                  </span>
-                </div>
-              )}
 
               {/* Hotspot: Top Purple Chevron-Down (Back to Phone page) */}
               <button
@@ -3270,6 +3274,8 @@ export default function CBEBirrFullscreenApp() {
                     aria-label="Toggle Reward Visibility or Long Press to Edit Reward"
                     className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity z-20"
                   />
+
+                  {/* Hotspot: Top Header Language Switcher (EN / አማ) */}
                 </div>
               </div>
 
@@ -3374,7 +3380,7 @@ export default function CBEBirrFullscreenApp() {
                                   height: '50%',
                                 }}
                                 aria-label="To Individual"
-                                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/[0.06] transition-colors z-10"
+                                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/[0.06] transition-colors z-20"
                               />
                               {/* Option 2: To Group */}
                               <button
@@ -3392,7 +3398,7 @@ export default function CBEBirrFullscreenApp() {
                                   height: '50%',
                                 }}
                                 aria-label="To Group"
-                                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/[0.06] transition-colors z-10"
+                                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/[0.06] transition-colors z-20"
                               />
                             </motion.div>
                           </>
@@ -4233,7 +4239,7 @@ export default function CBEBirrFullscreenApp() {
                 {/* Hotspot: Top Right Language Switcher (EN) */}
                 <button
                   type="button"
-                  onClick={handleOpenLanguageModal}
+                  onClick={() => {}}
                   style={{
                     position: 'absolute',
                     top: '11.0%',
@@ -4245,22 +4251,7 @@ export default function CBEBirrFullscreenApp() {
                   title="Change Language / ቋንቋ ይምረጡ"
                   className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity z-20 rounded-lg"
                 />
-                {currentLanguage === 'am' && (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: '13.2%',
-                      left: '87.5%',
-                      width: '8.4%',
-                      height: '19.5%',
-                    }}
-                    className="bg-[#8c288e] flex items-center justify-center z-10 pointer-events-none select-none"
-                  >
-                    <span className="text-white text-[12px] font-bold tracking-wider leading-none">
-                      አማ
-                    </span>
-                  </div>
-                )}
+                
               </div>
 
               {/* 2. SCROLLABLE MIDDLE: MENU OPTIONS LIST (Scrolls smoothly between header and stationary bottom controls) */}
@@ -4284,6 +4275,21 @@ export default function CBEBirrFullscreenApp() {
                     alt="CBEBirr Others Menu Options"
                     className="w-full h-auto block object-contain pointer-events-none"
                     draggable={false}
+                  />
+
+                  {/* Hotspot: Click "Change Language" row in the menu list */}
+                  <button
+                    type="button"
+                    onClick={() => {}}
+                    style={{
+                      position: 'absolute',
+                      top: '22.5%',
+                      left: '5.0%',
+                      width: '90.0%',
+                      height: '8.2%',
+                    }}
+                    aria-label="Change Language"
+                    className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/5 rounded-2xl z-20"
                   />
                 </div>
               </div>
@@ -4336,7 +4342,7 @@ export default function CBEBirrFullscreenApp() {
                       height: '54%',
                     }}
                     aria-label="Log Out"
-                    className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity"
+                    className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity z-20"
                   />
                 </div>
               </div>
@@ -4490,7 +4496,7 @@ export default function CBEBirrFullscreenApp() {
               {/* Hotspot: Top Header Language Switcher (EN) */}
               <button
                 type="button"
-                onClick={handleOpenLanguageModal}
+                onClick={() => {}}
                 style={{
                   position: 'absolute',
                   top: '1.2%',
@@ -4502,22 +4508,7 @@ export default function CBEBirrFullscreenApp() {
                 title="Change Language / ቋንቋ ይምረጡ"
                 className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity z-20 rounded-lg"
               />
-              {currentLanguage === 'am' && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: '2.8%',
-                    left: '92.2%',
-                    width: '5.8%',
-                    height: '2.4%',
-                  }}
-                  className="bg-[#7a1c7d] flex items-center justify-center pointer-events-none z-10"
-                >
-                  <span className="text-white text-[11.5px] font-bold tracking-wider leading-none">
-                    አማ
-                  </span>
-                </div>
-              )}
+              
 
               {/* Interactive Input: Receivers Account Number (Strictly 13 Digits) */}
               <input
@@ -4767,7 +4758,7 @@ export default function CBEBirrFullscreenApp() {
             </motion.div>
           )}
 
-          {/* STEP 7: TRANSFER PIN AUTHENTICATION SCREEN */}
+          {/* STEP 7: TRANSFER PIN AUTHENTICATION SCREEN (Authentic CBE Design from Screenshot_20261107-231751_750ff58f.png) */}
           {currentStep === 7 && (
             <motion.div
               key="step-7-pin-transfer"
@@ -4775,51 +4766,48 @@ export default function CBEBirrFullscreenApp() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.08, ease: 'easeOut' }}
-              className="relative w-full h-full bg-[#c7cbd0] flex flex-col overflow-hidden select-none"
+              className="relative w-full h-full bg-[#dedede] flex flex-col overflow-hidden select-none"
             >
-              {/* Underlying exact PIN Screen PNG */}
+              {/* Underlying exact clean Transfer PIN Screen PNG */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src="/screens/screen_3_pin.png"
+                src="/screens/screen_transfer_pin_clean.png"
                 alt="CBEBirr Transfer PIN Authentication"
                 className="w-full h-full object-fill pointer-events-none block select-none"
                 draggable={false}
               />
 
-              {/* Hotspot: Top Left Language Switcher ("English ⌄") */}
+              {/* Hotspot: Top Bar Back Button (rounded outline) */}
               <button
                 type="button"
-                onClick={handleOpenLanguageModal}
+                onClick={handleBackFromTransferPin}
                 style={{
                   position: 'absolute',
-                  top: '2.8%',
-                  left: '4.5%',
-                  width: '32.0%',
-                  height: '5.2%',
+                  top: '1.2%',
+                  left: '2.8%',
+                  width: '9.5%',
+                  height: '5.5%',
+                }}
+                aria-label="Back to Transfer Page"
+                className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity z-20 rounded-xl"
+              />
+
+              {/* Hotspot: Top Right Language Switcher (EN / አማ) */}
+              <button
+                type="button"
+                onClick={() => {}}
+                style={{
+                  position: 'absolute',
+                  top: '1.2%',
+                  right: '3.5%',
+                  width: '9.0%',
+                  height: '5.5%',
                 }}
                 aria-label="Change Language"
                 title="Change Language / ቋንቋ ይምረጡ"
-                className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity z-20 rounded-xl"
+                className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity z-20 rounded-lg"
               />
-              {currentLanguage === 'am' && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: '3.6%',
-                    left: '5.2%',
-                    width: '24.0%',
-                    height: '3.8%',
-                  }}
-                  className="bg-[#c7cbd0] flex items-center space-x-1.5 z-10 pointer-events-none select-none"
-                >
-                  <span className="text-[#49454f] font-semibold text-[13px] tracking-tight">
-                    አማርኛ
-                  </span>
-                  <span className="text-[#7a1c7d] text-[10px] font-bold">
-                    ▼
-                  </span>
-                </div>
-              )}
+              
 
               {/* Hotspot: Top Purple Chevron-Down (Back to originating transfer page) */}
               <button
@@ -4830,7 +4818,7 @@ export default function CBEBirrFullscreenApp() {
                   top: '6.8%',
                   left: '44.0%',
                   width: '12.0%',
-                  height: '4.8%',
+                  height: '4.2%',
                 }}
                 aria-label="Back to Transfer Page"
                 className="cursor-pointer bg-transparent border-0 outline-none active:opacity-50 transition-opacity z-20 rounded-full"
@@ -4840,10 +4828,10 @@ export default function CBEBirrFullscreenApp() {
               <div
                 style={{
                   position: 'absolute',
-                  top: '25.41%',
+                  top: '25.0%',
                   left: '26.0%',
-                  width: '46.0%',
-                  height: '5.83%',
+                  width: '48.0%',
+                  height: '5.2%',
                 }}
                 className="z-20 flex items-center justify-center pointer-events-none select-none"
               >
@@ -4852,7 +4840,7 @@ export default function CBEBirrFullscreenApp() {
                     PIN
                   </span>
                 ) : showTransferPin ? (
-                  <span className="text-[#1c1b1f] font-bold text-[17px] sm:text-[18px] tracking-[4px]">
+                  <span className="text-[#1c1b1f] font-bold text-[17px] sm:text-[18px] tracking-[6px]">
                     {transferPin}
                   </span>
                 ) : (
@@ -4868,22 +4856,14 @@ export default function CBEBirrFullscreenApp() {
                 onClick={() => setShowTransferPin((prev) => !prev)}
                 style={{
                   position: 'absolute',
-                  top: '26.2%',
+                  top: '25.0%',
                   left: '73.0%',
-                  width: '8.5%',
-                  height: '4.2%',
+                  width: '9.0%',
+                  height: '5.2%',
                 }}
                 aria-label={showTransferPin ? "Hide PIN" : "Show PIN"}
                 className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity z-20 flex items-center justify-center p-0"
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={showTransferPin ? "/assets/eye_open_icon.png" : "/assets/eye_off_icon.png"}
-                  alt={showTransferPin ? "Show PIN" : "Hide PIN"}
-                  className="w-full h-full object-contain pointer-events-none select-none block"
-                  draggable={false}
-                />
-              </button>
+              />
 
               {/* Incorrect PIN feedback message */}
               {transferPinError && (
@@ -4893,7 +4873,7 @@ export default function CBEBirrFullscreenApp() {
                   exit={{ opacity: 0 }}
                   style={{
                     position: 'absolute',
-                    top: '32.5%',
+                    top: '31.5%',
                     left: '12%',
                     width: '76%',
                   }}
@@ -4903,19 +4883,94 @@ export default function CBEBirrFullscreenApp() {
                 </motion.div>
               )}
 
-              {/* KEYPAD ON-SCREEN BUTTONS HOTSPOTS */}
+              {/* Card 1: Recipient Name & Account Number (Dynamic Injection into white card) */}
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '49.1%',
+                  left: '15.3%',
+                  width: '68.0%',
+                  height: '8.8%',
+                }}
+                className="z-10 flex flex-col justify-center pointer-events-none select-none"
+              >
+                {transferSource === 'phone_number' ? (
+                  <>
+                    <span className="text-[#1c1b1f] font-semibold text-[13px] leading-tight">
+                      Name
+                    </span>
+                    <span className="text-[#1c1b1f] font-bold text-[14.5px] sm:text-[15.5px] leading-tight truncate mt-0.5">
+                      {displayReceiverName || 'Mequanint Animaw Gashu'}
+                    </span>
+                  </>
+                ) : transferSource === 'other_banks' ? (
+                  <>
+                    <span className="text-[#1c1b1f] font-bold text-[14.5px] sm:text-[15.5px] leading-tight truncate">
+                      {bankReceiverName || (selectedBank ? `${selectedBank.name} Customer` : 'Awash International Bank')}
+                    </span>
+                    <span className="text-[#49454f] font-mono text-[11.5px] sm:text-[12.5px] leading-tight mt-1">
+                      {bankAccountNumber || '1110000000'}
+                    </span>
+                  </>
+                ) : transferSource === 'other_wallets' ? (
+                  <>
+                    <span className="text-[#1c1b1f] font-bold text-[14.5px] sm:text-[15.5px] leading-tight truncate">
+                      {walletReceiverName || (selectedWallet ? `${selectedWallet.name} User` : 'Fayyee Lammeessa Didhaa')}
+                    </span>
+                    <span className="text-[#49454f] font-mono text-[11.5px] sm:text-[12.5px] leading-tight mt-1">
+                      {walletAccountNumber || '0715095670'}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-[#1c1b1f] font-bold text-[14.5px] sm:text-[15.5px] leading-tight truncate">
+                      {displayReceiverName || 'Sani Ahmed Mohammed'}
+                    </span>
+                    <span className="text-[#49454f] font-mono text-[11.5px] sm:text-[12.5px] leading-tight mt-1">
+                      {receiverAccount || '1000440979843'}
+                    </span>
+                  </>
+                )}
+              </div>
+
+              {/* Card 2: Amount Label & Value (Dynamic Injection into white card) */}
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '57.0%',
+                  left: '15.3%',
+                  width: '68.0%',
+                  height: '8.2%',
+                }}
+                className="z-10 flex flex-col justify-center pointer-events-none select-none"
+              >
+                <span className="text-[#1c1b1f] font-semibold text-[13px] leading-tight">
+                  Amount
+                </span>
+                <span className="text-[#1c1b1f] font-bold text-[14.5px] sm:text-[15px] leading-tight mt-0.5">
+                  {transferSource === 'other_banks'
+                    ? (bankAmount || '1')
+                    : transferSource === 'other_wallets'
+                    ? (walletAmount || '1')
+                    : transferSource === 'phone_number'
+                    ? (phoneSendAmount || '5')
+                    : (sendAmount || '5')}
+                </span>
+              </div>
+
+              {/* 4-ROW IN-APP NUMBER PAD (Exact match to Screenshot_20261107-231751_750ff58f.png) */}
               {/* Row 1: Keys 1, 2, 3 */}
               <button
                 type="button"
                 onClick={() => handleTransferKeypadClick('1')}
                 style={{
                   position: 'absolute',
-                  top: '62.61%',
-                  left: '2.78%',
-                  width: '29.31%',
-                  height: '6.42%',
+                  top: '70.6%',
+                  left: '2.8%',
+                  width: '29.3%',
+                  height: '6.0%',
                 }}
-                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/5 rounded-2xl transition-colors z-20"
+                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/10 rounded-xl transition-colors z-20"
                 aria-label="1"
               />
               <button
@@ -4923,12 +4978,12 @@ export default function CBEBirrFullscreenApp() {
                 onClick={() => handleTransferKeypadClick('2')}
                 style={{
                   position: 'absolute',
-                  top: '62.61%',
-                  left: '35.28%',
-                  width: '29.44%',
-                  height: '6.42%',
+                  top: '70.6%',
+                  left: '35.3%',
+                  width: '29.4%',
+                  height: '6.0%',
                 }}
-                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/5 rounded-2xl transition-colors z-20"
+                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/10 rounded-xl transition-colors z-20"
                 aria-label="2"
               />
               <button
@@ -4936,12 +4991,12 @@ export default function CBEBirrFullscreenApp() {
                 onClick={() => handleTransferKeypadClick('3')}
                 style={{
                   position: 'absolute',
-                  top: '62.61%',
-                  left: '67.92%',
-                  width: '29.31%',
-                  height: '6.42%',
+                  top: '70.6%',
+                  left: '67.9%',
+                  width: '29.3%',
+                  height: '6.0%',
                 }}
-                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/5 rounded-2xl transition-colors z-20"
+                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/10 rounded-xl transition-colors z-20"
                 aria-label="3"
               />
 
@@ -4951,12 +5006,12 @@ export default function CBEBirrFullscreenApp() {
                 onClick={() => handleTransferKeypadClick('4')}
                 style={{
                   position: 'absolute',
-                  top: '69.42%',
-                  left: '2.78%',
-                  width: '29.31%',
-                  height: '6.42%',
+                  top: '78.2%',
+                  left: '2.8%',
+                  width: '29.3%',
+                  height: '6.0%',
                 }}
-                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/5 rounded-2xl transition-colors z-20"
+                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/10 rounded-xl transition-colors z-20"
                 aria-label="4"
               />
               <button
@@ -4964,12 +5019,12 @@ export default function CBEBirrFullscreenApp() {
                 onClick={() => handleTransferKeypadClick('5')}
                 style={{
                   position: 'absolute',
-                  top: '69.42%',
-                  left: '35.28%',
-                  width: '29.44%',
-                  height: '6.42%',
+                  top: '78.2%',
+                  left: '35.3%',
+                  width: '29.4%',
+                  height: '6.0%',
                 }}
-                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/5 rounded-2xl transition-colors z-20"
+                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/10 rounded-xl transition-colors z-20"
                 aria-label="5"
               />
               <button
@@ -4977,12 +5032,12 @@ export default function CBEBirrFullscreenApp() {
                 onClick={() => handleTransferKeypadClick('6')}
                 style={{
                   position: 'absolute',
-                  top: '69.42%',
-                  left: '67.92%',
-                  width: '29.31%',
-                  height: '6.42%',
+                  top: '78.2%',
+                  left: '67.9%',
+                  width: '29.3%',
+                  height: '6.0%',
                 }}
-                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/5 rounded-2xl transition-colors z-20"
+                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/10 rounded-xl transition-colors z-20"
                 aria-label="6"
               />
 
@@ -4992,12 +5047,12 @@ export default function CBEBirrFullscreenApp() {
                 onClick={() => handleTransferKeypadClick('7')}
                 style={{
                   position: 'absolute',
-                  top: '76.23%',
-                  left: '2.78%',
-                  width: '29.31%',
-                  height: '6.42%',
+                  top: '85.8%',
+                  left: '2.8%',
+                  width: '29.3%',
+                  height: '6.0%',
                 }}
-                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/5 rounded-2xl transition-colors z-20"
+                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/10 rounded-xl transition-colors z-20"
                 aria-label="7"
               />
               <button
@@ -5005,12 +5060,12 @@ export default function CBEBirrFullscreenApp() {
                 onClick={() => handleTransferKeypadClick('8')}
                 style={{
                   position: 'absolute',
-                  top: '76.23%',
-                  left: '35.28%',
-                  width: '29.44%',
-                  height: '6.42%',
+                  top: '85.8%',
+                  left: '35.3%',
+                  width: '29.4%',
+                  height: '6.0%',
                 }}
-                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/5 rounded-2xl transition-colors z-20"
+                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/10 rounded-xl transition-colors z-20"
                 aria-label="8"
               />
               <button
@@ -5018,93 +5073,77 @@ export default function CBEBirrFullscreenApp() {
                 onClick={() => handleTransferKeypadClick('9')}
                 style={{
                   position: 'absolute',
-                  top: '76.23%',
-                  left: '67.92%',
-                  width: '29.31%',
-                  height: '6.42%',
+                  top: '85.8%',
+                  left: '67.9%',
+                  width: '29.3%',
+                  height: '6.0%',
                 }}
-                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/5 rounded-2xl transition-colors z-20"
+                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/10 rounded-xl transition-colors z-20"
                 aria-label="9"
               />
 
-              {/* Row 4: Keys Clear, 0, Backspace */}
-              <button
-                type="button"
-                onClick={handleClearTransferPinClick}
-                style={{
-                  position: 'absolute',
-                  top: '83.04%',
-                  left: '2.78%',
-                  width: '29.31%',
-                  height: '6.42%',
-                }}
-                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/5 rounded-2xl transition-colors z-20"
-                aria-label="Clear"
-              />
-              <button
-                type="button"
-                onClick={() => handleTransferKeypadClick('0')}
-                style={{
-                  position: 'absolute',
-                  top: '83.04%',
-                  left: '35.28%',
-                  width: '29.44%',
-                  height: '6.42%',
-                }}
-                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/5 rounded-2xl transition-colors z-20"
-                aria-label="0"
-              />
+              {/* Row 4: Key Backspace (⌫), Key 0, Key Next */}
+              {/* Backspace Button */}
               <button
                 type="button"
                 onClick={handleTransferBackspace}
                 style={{
                   position: 'absolute',
-                  top: '83.04%',
-                  left: '67.92%',
-                  width: '29.31%',
-                  height: '6.42%',
+                  top: '92.8%',
+                  left: '2.8%',
+                  width: '29.3%',
+                  height: '6.0%',
                 }}
-                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/5 rounded-2xl transition-colors z-20"
+                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/10 rounded-xl transition-colors z-20"
                 aria-label="Backspace"
               />
 
-              {/* Active Next Button Image (Shown ONLY when exactly 4 digits entered) */}
+              {/* 0 Button */}
+              <button
+                type="button"
+                onClick={() => handleTransferKeypadClick('0')}
+                style={{
+                  position: 'absolute',
+                  top: '92.8%',
+                  left: '35.3%',
+                  width: '29.4%',
+                  height: '6.0%',
+                }}
+                className="cursor-pointer bg-transparent border-0 outline-none active:bg-black/10 rounded-xl transition-colors z-20"
+                aria-label="0"
+              />
+
+              {/* Next Button (Active Purple when transferPin.length === 4) */}
               {transferPin.length === 4 && (
                 <div
                   style={{
                     position: 'absolute',
-                    top: '89.91%',
-                    left: '3.06%',
-                    width: '93.89%',
-                    height: '7.47%',
+                    top: '92.8%',
+                    left: '67.9%',
+                    width: '29.3%',
+                    height: '6.0%',
                   }}
-                  className="pointer-events-none select-none z-10 animate-in fade-in duration-100"
+                  className="bg-[#8b278e] rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-md pointer-events-none z-15"
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src="/assets/next_button_active.png"
-                    alt="Next Button Active"
-                    className="w-full h-full object-fill pointer-events-none select-none block rounded-2xl"
-                    draggable={false}
-                  />
+                  Next
                 </div>
               )}
 
-              {/* Next Button Hotspot (Clickable only when transferPin.length === 4) */}
+              {/* Next Button Hotspot */}
               <button
                 type="button"
                 onClick={handleProceedToTransferSubmit}
                 disabled={transferPin.length < 4}
                 style={{
                   position: 'absolute',
-                  top: '89.91%',
-                  left: '3.06%',
-                  width: '93.89%',
-                  height: '7.47%',
+                  top: '92.8%',
+                  left: '67.9%',
+                  width: '29.3%',
+                  height: '6.0%',
                 }}
-                className={`z-20 border-0 outline-none rounded-2xl transition-all ${
+                className={`z-20 border-0 outline-none rounded-xl transition-all ${
                   transferPin.length === 4
-                    ? 'cursor-pointer active:opacity-80'
+                    ? 'cursor-pointer active:scale-95'
                     : 'cursor-not-allowed opacity-0'
                 }`}
                 aria-label="Next"
@@ -5134,7 +5173,7 @@ export default function CBEBirrFullscreenApp() {
               {/* Hotspot: Top Header Language Switcher (EN) */}
               <button
                 type="button"
-                onClick={handleOpenLanguageModal}
+                onClick={() => {}}
                 style={{
                   position: 'absolute',
                   top: '1.8%',
@@ -5146,22 +5185,7 @@ export default function CBEBirrFullscreenApp() {
                 title="Change Language / ቋንቋ ይምረጡ"
                 className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity z-20 rounded-lg"
               />
-              {currentLanguage === 'am' && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: '3.0%',
-                    left: '88.0%',
-                    width: '6.5%',
-                    height: '2.8%',
-                  }}
-                  className="bg-[#8c288e] flex items-center justify-center pointer-events-none z-10"
-                >
-                  <span className="text-white text-[11.5px] font-bold tracking-wider leading-none">
-                    አማ
-                  </span>
-                </div>
-              )}
+              
 
               {/* Dynamic Transaction Summary Paragraph Overlay with seamless authentic background match */}
               <div
@@ -5480,35 +5504,104 @@ export default function CBEBirrFullscreenApp() {
                         {transactionIsoDate || '2026-10-22 21:36'}
                       </text>
 
-                      {/* 7. Amount in Table (Starts at 548, grows to right into open whitespace, never covers left column labels) */}
-                      <rect x="540" y="563" width="120" height="18" fill="#ffffff" />
-                      <text x="548" y="577" textAnchor="start">
-                        {(parseFloat(transferSource === 'phone_number' ? (phoneSendAmount || '10.00') : transferSource === 'other_banks' ? (bankAmount || '10.00') : transferSource === 'other_wallets' ? (walletAmount || '10.00') : (sendAmount || '1.01')) || 10.00).toFixed(2)}
-                      </text>
+                      {/* Dynamic Fee & Total Calculations on Official Receipt */}
+                      {(() => {
+                        const rawAmt = parseFloat(
+                          transferSource === 'phone_number'
+                            ? (phoneSendAmount || '10.00')
+                            : transferSource === 'other_banks'
+                            ? (bankAmount || '10.00')
+                            : transferSource === 'other_wallets'
+                            ? (walletAmount || '10.00')
+                            : (selectedTx?.amount ? String(selectedTx.amount) : (sendAmount || '1.01'))
+                        ) || 10.00;
 
-                      {/* 8. Paid amount */}
-                      <rect x="540" y="588" width="120" height="18" fill="#ffffff" />
-                      <text x="548" y="602" textAnchor="start">
-                        {(parseFloat(transferSource === 'phone_number' ? (phoneSendAmount || '10.00') : transferSource === 'other_banks' ? (bankAmount || '10.00') : transferSource === 'other_wallets' ? (walletAmount || '10.00') : (sendAmount || '1.01')) || 10.00).toFixed(2)}
-                      </text>
+                        const isOther =
+                          transferSource === 'other_banks' ||
+                          transferSource === 'other_wallets' ||
+                          Boolean(selectedTx?.bank) ||
+                          Boolean(selectedTx?.serviceCharge && parseFloat(String(selectedTx.serviceCharge)) > 0);
 
-                      {/* 9. Service Charge */}
-                      <rect x="540" y="605" width="120" height="18" fill="#ffffff" />
-                      <text x="548" y="619" textAnchor="start">
-                        0.00
-                      </text>
+                        let feeData: { serviceCharge: string; vat: string; totalPaid: string; totalPaidNum: number } | null = null;
+                        if (isOther) {
+                          if (transactionServiceCharge > 0) {
+                            feeData = {
+                              serviceCharge: transactionServiceCharge.toString(),
+                              vat: transactionVat.toString(),
+                              totalPaid: (transactionTotalDeductions || (rawAmt + transactionServiceCharge + transactionVat)).toFixed(2),
+                              totalPaidNum: transactionTotalDeductions || (rawAmt + transactionServiceCharge + transactionVat),
+                            };
+                          } else if (selectedTx?.serviceCharge && parseFloat(String(selectedTx.serviceCharge)) > 0) {
+                            const sc = parseFloat(String(selectedTx.serviceCharge));
+                            const v = selectedTx.vat ? parseFloat(String(selectedTx.vat)) : +(sc * 0.15).toFixed(5);
+                            const td = selectedTx.totalPaidAmount ? parseFloat(String(selectedTx.totalPaidAmount)) : +(rawAmt + sc + v).toFixed(2);
+                            feeData = {
+                              serviceCharge: sc.toString(),
+                              vat: v.toString(),
+                              totalPaid: td.toFixed(2),
+                              totalPaidNum: td,
+                            };
+                          } else {
+                            const calc = calculateTransferFees(rawAmt);
+                            feeData = {
+                              serviceCharge: calc.serviceCharge.toString(),
+                              vat: calc.taxAmount.toString(),
+                              totalPaid: calc.totalDeductions.toFixed(2),
+                              totalPaidNum: calc.totalDeductions,
+                            };
+                          }
+                        }
 
-                      {/* 10. Total Paid Amount (Starts at 548, grows to right, bold, never touches 'Total Paid Amount' label on the left) */}
-                      <rect x="540" y="688" width="120" height="20" fill="#ffffff" />
-                      <text x="548" y="703" textAnchor="start" fontWeight="bold">
-                        {(parseFloat(transferSource === 'phone_number' ? (phoneSendAmount || '10.00') : transferSource === 'other_banks' ? (bankAmount || '10.00') : transferSource === 'other_wallets' ? (walletAmount || '10.00') : (sendAmount || '1.01')) || 10.00).toFixed(2)}
-                      </text>
+                        const displayAmt = rawAmt.toFixed(2);
+                        const displayServiceCharge = feeData ? feeData.serviceCharge : '0.00';
+                        const displayVat = feeData ? feeData.vat : '0.00';
+                        const displayTotalPaid = feeData ? feeData.totalPaid : displayAmt;
+                        const displayWords = amountToWords(feeData ? feeData.totalPaidNum : rawAmt);
 
-                      {/* 11. Total Amount in word */}
-                      <rect x="175" y="706" width="480" height="18" fill="#ffffff" />
-                      <text x="182" y="719" fontSize="10.5">
-                        {amountToWords(parseFloat(transferSource === 'phone_number' ? (phoneSendAmount || '10.00') : transferSource === 'other_banks' ? (bankAmount || '10.00') : transferSource === 'other_wallets' ? (walletAmount || '10.00') : (sendAmount || '1.01')) || 10.00)}
-                      </text>
+                        return (
+                          <>
+                            {/* 7. Amount in Table */}
+                            <rect x="540" y="563" width="120" height="18" fill="#ffffff" />
+                            <text x="548" y="577" textAnchor="start">
+                              {displayAmt}
+                            </text>
+
+                            {/* 8. Paid amount */}
+                            <rect x="540" y="588" width="120" height="18" fill="#ffffff" />
+                            <text x="548" y="602" textAnchor="start">
+                              {displayAmt}
+                            </text>
+
+                            {/* 9. Service Charge */}
+                            <rect x="540" y="605" width="120" height="18" fill="#ffffff" />
+                            <text x="548" y="619" textAnchor="start">
+                              {displayServiceCharge}
+                            </text>
+
+                            {/* VAT / Tax Amount */}
+                            {feeData && parseFloat(displayVat) > 0 && (
+                              <>
+                                <rect x="540" y="652" width="120" height="18" fill="#ffffff" />
+                                <text x="548" y="665" textAnchor="start">
+                                  {displayVat}
+                                </text>
+                              </>
+                            )}
+
+                            {/* 10. Total Paid Amount */}
+                            <rect x="540" y="688" width="120" height="20" fill="#ffffff" />
+                            <text x="548" y="703" textAnchor="start" fontWeight="bold">
+                              {displayTotalPaid}
+                            </text>
+
+                            {/* 11. Total Amount in word */}
+                            <rect x="175" y="706" width="480" height="18" fill="#ffffff" />
+                            <text x="182" y="719" fontSize="10.5">
+                              {displayWords}
+                            </text>
+                          </>
+                        );
+                      })()}
 
                       {/* 12. Payment Reason */}
                       <rect x="175" y="723" width="480" height="18" fill="#ffffff" />
@@ -5592,18 +5685,18 @@ export default function CBEBirrFullscreenApp() {
                     <ArrowLeft className="w-5 h-5 text-white" />
                   </button>
                   <h2 className="text-[15px] sm:text-[16px] font-bold text-white tracking-wide">
-                    Transaction Detail
+                    
                   </h2>
                 </div>
                 <div className="flex items-center space-x-2.5">
                   <Search className="w-5 h-5 text-white/90 cursor-pointer" />
                   <button
                     type="button"
-                    onClick={handleOpenLanguageModal}
+                    onClick={() => {}}
                     className="cursor-pointer text-white text-xs font-semibold tracking-wider hover:opacity-80 transition-opacity bg-white/10 px-1.5 py-0.5 rounded"
                     title="Change Language / ቋንቋ ይምረጡ"
                   >
-                    {currentLanguage === 'am' ? 'አማ' : 'EN'}
+                    
                   </button>
                 </div>
               </div>
@@ -5768,6 +5861,31 @@ export default function CBEBirrFullscreenApp() {
                   setTransactionRef(selectedTx?.ref || selectedTx?.orderId || transactionRef || 'FT1384476084');
                   setTransactionDate(selectedTx?.date || transactionDate);
                   setReceiverAccount(selectedTx?.account || receiverAccount || '1000278947339');
+
+                  if (selectedTx?.bank) {
+                    setTransferSource('other_banks');
+                  } else if (selectedTx?.title?.includes('Wallet')) {
+                    setTransferSource('other_wallets');
+                  }
+
+                  if (selectedTx?.serviceCharge && parseFloat(String(selectedTx.serviceCharge)) > 0) {
+                    setTransactionServiceCharge(parseFloat(String(selectedTx.serviceCharge)) || 0);
+                    setTransactionVat(parseFloat(String(selectedTx.vat)) || 0);
+                    setTransactionTotalCharges(parseFloat(String(selectedTx.totalCharges)) || 0);
+                    setTransactionTotalDeductions(parseFloat(String(selectedTx.totalPaidAmount)) || 0);
+                  } else if (selectedTx?.bank || selectedTx?.title?.includes('Wallet')) {
+                    const calc = calculateTransferFees(amt);
+                    setTransactionServiceCharge(calc.serviceCharge);
+                    setTransactionVat(calc.taxAmount);
+                    setTransactionTotalCharges(calc.totalCharges);
+                    setTransactionTotalDeductions(calc.totalDeductions);
+                  } else {
+                    setTransactionServiceCharge(0);
+                    setTransactionVat(0);
+                    setTransactionTotalCharges(0);
+                    setTransactionTotalDeductions(0);
+                  }
+
                   setCurrentStep(9); // Opens Official Receipt (Step 9) per user request
                 }}
                 className="absolute bottom-6 right-5 w-[88px] h-[88px] bg-[#7a1c7d] hover:bg-[#68146a] active:scale-95 text-white rounded-2xl shadow-2xl flex flex-col items-center justify-center space-y-1 cursor-pointer z-40 transition-all border border-purple-300/30"
@@ -5819,7 +5937,7 @@ export default function CBEBirrFullscreenApp() {
                 {/* Hotspot: Top Header Language Switcher (EN) */}
                 <button
                   type="button"
-                  onClick={handleOpenLanguageModal}
+                  onClick={() => {}}
                   style={{
                     position: 'absolute',
                     top: '12.0%',
@@ -5831,22 +5949,7 @@ export default function CBEBirrFullscreenApp() {
                   title="Change Language / ቋንቋ ይምረጡ"
                   className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity z-40 rounded-lg"
                 />
-                {currentLanguage === 'am' && (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: '19.0%',
-                      left: '88.5%',
-                      width: '7.8%',
-                      height: '24.0%',
-                    }}
-                    className="bg-[#7a1c7d] flex items-center justify-center pointer-events-none z-30"
-                  >
-                    <span className="text-white text-[11.5px] font-bold tracking-wider leading-none">
-                      አማ
-                    </span>
-                  </div>
-                )}
+                
 
                 {/* Filter Tabs Hotspots & Active Indicators */}
                 <div
@@ -6088,7 +6191,7 @@ export default function CBEBirrFullscreenApp() {
               {/* Top Bar: Language Toggle */}
               <button
                 type="button"
-                onClick={handleOpenLanguageModal}
+                onClick={() => {}}
                 style={{
                   position: 'absolute',
                   top: '2.4%',
@@ -6100,22 +6203,7 @@ export default function CBEBirrFullscreenApp() {
                 title="Change Language / ቋንቋ ይምረጡ"
                 className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity z-20 rounded-lg"
               />
-              {currentLanguage === 'am' && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: '2.8%',
-                    right: '4.6%',
-                    width: '6.0%',
-                    height: '2.8%',
-                  }}
-                  className="bg-[#7a1c7d] flex items-center justify-center pointer-events-none z-10"
-                >
-                  <span className="text-white text-[11.5px] font-bold tracking-wider leading-none">
-                    አማ
-                  </span>
-                </div>
-              )}
+              
 
               {/* Ordinary Tab Hotspot */}
               <button
@@ -6345,10 +6433,7 @@ export default function CBEBirrFullscreenApp() {
               {/* Top Bar: Language Toggle */}
               <button
                 type="button"
-                onClick={() => {
-                  setReceiptToast('ቋንቋ: English (EN)');
-                  setTimeout(() => setReceiptToast(''), 2000);
-                }}
+                onClick={() => {}}
                 style={{
                   position: 'absolute',
                   top: '2.4%',
@@ -6542,10 +6627,7 @@ export default function CBEBirrFullscreenApp() {
                 {/* Hotspot: Language Toggle */}
                 <button
                   type="button"
-                  onClick={() => {
-                    setReceiptToast('ቋንቋ: English (EN)');
-                    setTimeout(() => setReceiptToast(''), 2000);
-                  }}
+                  onClick={() => {}}
                   style={{
                     position: 'absolute',
                     top: '15.0%',
@@ -6882,6 +6964,22 @@ export default function CBEBirrFullscreenApp() {
                 aria-label="Manage Receivers (Long-press)"
                 title="Long press to manage saved receivers"
                 className="cursor-pointer bg-transparent border-0 outline-none active:opacity-50 transition-opacity z-20 rounded-full touch-none"
+              />
+
+              {/* Hotspot: Top Header Language Switcher (EN) */}
+              <button
+                type="button"
+                onClick={() => {}}
+                style={{
+                  position: 'absolute',
+                  top: '1.2%',
+                  left: '91.0%',
+                  width: '8.0%',
+                  height: '5.2%',
+                }}
+                aria-label="Change Language"
+                title="Change Language / ቋንቋ ይምረጡ"
+                className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity z-20 rounded-lg"
               />
 
               {/* Field 1: Receivers Phone Input Area (Strictly 10 digits, e.g. 0969096909) */}
@@ -7404,6 +7502,94 @@ export default function CBEBirrFullscreenApp() {
                   {bankTransferError}
                 </motion.div>
               )}
+
+              {/* AUTHENTIC CONFIRMATION BOTTOM SHEET FOR OTHER BANK TRANSFER (Screenshot_20261108-002341.png) */}
+              <AnimatePresence>
+                {isBankConfirmOpen && (
+                  <motion.div
+                    key="bank-confirm-backdrop"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.18 }}
+                    className="absolute inset-0 z-50 bg-black/55 backdrop-blur-[0.5px] flex flex-col justify-end select-none"
+                    onClick={() => setIsBankConfirmOpen(false)}
+                  >
+                    <motion.div
+                      key="bank-confirm-sheet"
+                      initial={{ y: '100%' }}
+                      animate={{ y: 0 }}
+                      exit={{ y: '100%' }}
+                      transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="w-full bg-white rounded-t-[32px] pt-4 pb-7 px-6 sm:px-7 shadow-2xl relative flex flex-col"
+                    >
+                      {/* Top Right Close 'X' Button */}
+                      <button
+                        type="button"
+                        onClick={() => setIsBankConfirmOpen(false)}
+                        className="absolute top-4 right-5 text-gray-700 hover:text-black p-1 transition-colors cursor-pointer"
+                        aria-label="Close"
+                      >
+                        <X className="w-6 h-6 stroke-[2]" />
+                      </button>
+
+                      {/* Title */}
+                      <h3 className="text-center font-normal text-[#2b2b2b] text-[15px] pt-1">
+                        Bank Transfer
+                      </h3>
+
+                      {/* Centered Large Amount */}
+                      <div className="text-center mt-1 mb-5 flex items-baseline justify-center gap-1.5">
+                        <span className="text-[26px] font-bold text-black tracking-tight">
+                          {bankAmount || '1'}
+                        </span>
+                        <span className="text-xs font-semibold text-black tracking-wide">
+                          ETB
+                        </span>
+                      </div>
+
+                      {/* Dynamic Fee Breakdown Rows */}
+                      {(() => {
+                        const fees = calculateTransferFees(bankAmount || '1');
+                        return (
+                          <div className="w-full space-y-1.5 text-[12.5px] sm:text-[13px]">
+                            <div className="flex items-center justify-between text-[#4b5563]">
+                              <span>Service Charge</span>
+                              <span className="text-[#1f2937] font-medium">{fees.serviceChargeFormatted}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-[#4b5563]">
+                              <span>Disaster Response Fund</span>
+                              <span className="text-[#1f2937] font-medium">{fees.disasterFundFormatted}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-[#4b5563]">
+                              <span>Tax amount</span>
+                              <span className="text-[#1f2937] font-medium">{fees.taxAmountFormatted}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-[#4b5563]">
+                              <span>Total charges</span>
+                              <span className="text-[#1f2937] font-medium">{fees.totalChargesFormatted}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-[#4b5563]">
+                              <span>Total Deductions</span>
+                              <span className="text-[#1f2937] font-medium">{fees.totalDeductionsFormatted}</span>
+                            </div>
+                          </div>
+                        );
+                      })()}
+
+                      {/* Purple Confirm Button */}
+                      <button
+                        type="button"
+                        onClick={handleConfirmBankTransfer}
+                        className="w-full mt-6 py-3.5 bg-[#8b278e] hover:bg-[#7a227d] active:scale-[0.99] text-white font-medium text-[15px] rounded-[16px] shadow-sm transition-all duration-150 cursor-pointer"
+                      >
+                        Confirm
+                      </button>
+                    </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </motion.div>
           )}
 
@@ -7692,6 +7878,94 @@ export default function CBEBirrFullscreenApp() {
                   {walletTransferError}
                 </motion.div>
               )}
+
+              {/* AUTHENTIC CONFIRMATION BOTTOM SHEET FOR OTHER WALLET TRANSFER (Screenshot_20261108-132811.png) */}
+              <AnimatePresence>
+                {isWalletConfirmOpen && (
+                  <motion.div
+                    key="wallet-confirm-backdrop"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.18 }}
+                    className="absolute inset-0 z-50 bg-black/55 backdrop-blur-[0.5px] flex flex-col justify-end select-none"
+                    onClick={() => setIsWalletConfirmOpen(false)}
+                  >
+                    <motion.div
+                      key="wallet-confirm-sheet"
+                      initial={{ y: '100%' }}
+                      animate={{ y: 0 }}
+                      exit={{ y: '100%' }}
+                      transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="w-full bg-white rounded-t-[32px] pt-4 pb-7 px-6 sm:px-7 shadow-2xl relative flex flex-col"
+                    >
+                      {/* Top Right Close 'X' Button */}
+                      <button
+                        type="button"
+                        onClick={() => setIsWalletConfirmOpen(false)}
+                        className="absolute top-4 right-5 text-gray-700 hover:text-black p-1 transition-colors cursor-pointer"
+                        aria-label="Close"
+                      >
+                        <X className="w-6 h-6 stroke-[2]" />
+                      </button>
+
+                      {/* Title */}
+                      <h3 className="text-center font-normal text-[#2b2b2b] text-[15px] pt-1">
+                        Wallet Transfer
+                      </h3>
+
+                      {/* Centered Large Amount */}
+                      <div className="text-center mt-1 mb-5 flex items-baseline justify-center gap-1.5">
+                        <span className="text-[26px] font-bold text-black tracking-tight">
+                          {walletAmount || '1'}
+                        </span>
+                        <span className="text-xs font-semibold text-black tracking-wide">
+                          ETB
+                        </span>
+                      </div>
+
+                      {/* Dynamic Fee Breakdown Rows */}
+                      {(() => {
+                        const fees = calculateTransferFees(walletAmount || '1');
+                        return (
+                          <div className="w-full space-y-1.5 text-[12.5px] sm:text-[13px]">
+                            <div className="flex items-center justify-between text-[#4b5563]">
+                              <span>Service Charge</span>
+                              <span className="text-[#1f2937] font-medium">{fees.serviceChargeFormatted}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-[#4b5563]">
+                              <span>Disaster Response Fund</span>
+                              <span className="text-[#1f2937] font-medium">{fees.disasterFundFormatted}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-[#4b5563]">
+                              <span>Tax amount</span>
+                              <span className="text-[#1f2937] font-medium">{fees.taxAmountFormatted}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-[#4b5563]">
+                              <span>Total charges</span>
+                              <span className="text-[#1f2937] font-medium">{fees.totalChargesFormatted}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-[#4b5563]">
+                              <span>Total Deductions</span>
+                              <span className="text-[#1f2937] font-medium">{fees.totalDeductionsFormatted}</span>
+                            </div>
+                          </div>
+                        );
+                      })()}
+
+                      {/* Purple Confirm Button */}
+                      <button
+                        type="button"
+                        onClick={handleConfirmWalletTransfer}
+                        className="w-full mt-6 py-3.5 bg-[#8b278e] hover:bg-[#7a227d] active:scale-[0.99] text-white font-medium text-[15px] rounded-[16px] shadow-sm transition-all duration-150 cursor-pointer"
+                      >
+                        Confirm
+                      </button>
+                    </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </motion.div>
           )}
         </AnimatePresence>

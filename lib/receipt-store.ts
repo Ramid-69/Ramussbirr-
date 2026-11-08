@@ -13,6 +13,10 @@ export interface StoredReceipt {
   bank?: string;
   status?: string;
   orderId?: string;
+  serviceCharge?: string;
+  vat?: string;
+  totalCharges?: string;
+  totalPaidAmount?: string;
 }
 
 const STORAGE_FILE = '/tmp/cbe_receipts.json';

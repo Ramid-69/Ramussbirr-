@@ -4,6 +4,7 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'CBEBirr Demo',
   description: 'CBEBirr demo mobile application clone featuring Splash, Login, PIN, and Home screens.',
+  manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',

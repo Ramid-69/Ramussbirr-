@@ -119,7 +119,10 @@ export function buildOfficialReceiptUrl(
   rec?: string,
   date?: string,
   reason?: string,
-  bank?: string
+  bank?: string,
+  fee?: string,
+  vat?: string,
+  totalPaid?: string
 ): string {
   const baseUrl = getAppBaseUrl();
   const cleanPhone = (phone || '251959842829').replace(/\D/g, '');
@@ -142,6 +145,9 @@ export function buildOfficialReceiptUrl(
   if (date) params.set('date', date);
   if (reason) params.set('reason', reason);
   if (bank) params.set('bank', bank);
+  if (fee) params.set('fee', fee);
+  if (vat) params.set('vat', vat);
+  if (totalPaid) params.set('totalPaid', totalPaid);
 
   return `${baseUrl}/aureceipt?${params.toString()}`;
 }
