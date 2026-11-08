@@ -14,6 +14,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import QRCode from 'qrcode';
+import { downloadReceiptPdfUniversally } from '@/lib/client-receipt-pdf';
 
 function numberToWords(num: number): string {
   if (isNaN(num) || num <= 0) return 'Zero';
@@ -107,7 +108,7 @@ function OfficialReceiptContent() {
   }, [ref]);
 
   const activeAmt = amt || '10.00';
-  const activeRec = rec || '1000278947339';
+  const activeRec = rec || '1000760389289';
   const activeName = name || '';
   const activeUser = user || 'AYMEN NIGATU YIMAM';
   const activeAcc = acc || '0959754788';
@@ -129,8 +130,8 @@ function OfficialReceiptContent() {
       const v = !isNaN(vNum) ? vNum : +(scNum * 0.15).toFixed(5);
       const td = totalPaid && !isNaN(parseFloat(totalPaid)) ? parseFloat(totalPaid) : +(numericAmt + scNum + v).toFixed(2);
       feeObj = {
-        serviceCharge: scNum.toString(),
-        vat: v.toString(),
+        serviceCharge: scNum >= 0.005 && scNum < 0.01 ? '0.01' : scNum.toFixed(2),
+        vat: v.toFixed(2),
         totalPaid: td.toFixed(2),
         totalPaidNum: td,
       };
@@ -139,8 +140,8 @@ function OfficialReceiptContent() {
       const v = +(sc * 0.15).toFixed(5);
       const td = +(numericAmt + sc + v).toFixed(2);
       feeObj = {
-        serviceCharge: sc.toString(),
-        vat: v.toString(),
+        serviceCharge: sc >= 0.005 && sc < 0.01 ? '0.01' : sc.toFixed(2),
+        vat: v.toFixed(2),
         totalPaid: td.toFixed(2),
         totalPaidNum: td,
       };
@@ -157,7 +158,7 @@ function OfficialReceiptContent() {
 
   useEffect(() => {
     const currentUrl = typeof window !== 'undefined' ? window.location.href : '';
-    QRCode.toDataURL(currentUrl || `https://cbepay1.cbe.com.et/aureceipt?TID=${ref}&PH=${activeAcc}${activeBank ? `&bank=${encodeURIComponent(activeBank)}` : ''}`, {
+    QRCode.toDataURL(currentUrl || `https://cbepay1.cbe.com.et/official-receipt?TID=${ref}&PH=${activeAcc}${activeBank ? `&bank=${encodeURIComponent(activeBank)}` : ''}`, {
       margin: 1,
       width: 240,
       errorCorrectionLevel: 'M',
@@ -166,26 +167,63 @@ function OfficialReceiptContent() {
       .catch(() => {});
   }, [ref, activeAcc, activeBank]);
 
-  const handleDownload = (format: 'pdf' | 'png') => {
-    setDownloadToast(`Preparing ${format.toUpperCase()} receipt...`);
-    const downloadUrl = `/api/receipt/download?format=${format}&ref=${encodeURIComponent(ref)}&amt=${encodeURIComponent(formattedAmt)}&rec=${encodeURIComponent(activeRec)}&name=${encodeURIComponent(activeName)}&user=${encodeURIComponent(activeUser)}&acc=${encodeURIComponent(activeAcc)}&date=${encodeURIComponent(activeDate)}&reason=${encodeURIComponent(activeReason)}${activeBank ? `&bank=${encodeURIComponent(activeBank)}` : ''}${finalServiceCharge !== '0.00' ? `&fee=${encodeURIComponent(finalServiceCharge)}` : ''}${finalVat !== '0.00' ? `&vat=${encodeURIComponent(finalVat)}` : ''}&totalPaid=${encodeURIComponent(finalTotalPaid)}`;
-
-    // Android APK Native Bridge Call
-    if (typeof window !== 'undefined' && (window as any).Android && typeof (window as any).Android.downloadReceipt === 'function') {
-      const fullUrl = window.location.origin + downloadUrl;
-      (window as any).Android.downloadReceipt(fullUrl);
+  const handleDownload = async (format: 'pdf' | 'png') => {
+    if (format === 'pdf') {
+      await downloadReceiptPdfUniversally(
+        {
+          ref,
+          amt: formattedAmt,
+          rec: activeRec,
+          name: activeName,
+          user: activeUser,
+          acc: activeAcc,
+          date: activeDate,
+          reason: activeReason,
+          bank: activeBank,
+          serviceCharge: finalServiceCharge,
+          vat: finalVat,
+          totalPaid: finalTotalPaid,
+        },
+        (msg) => setDownloadToast(msg)
+      );
+      setTimeout(() => setDownloadToast(''), 3500);
+      return;
     }
 
-    const link = document.createElement('a');
-    link.href = downloadUrl;
-    link.download = `CBEBirr_Official_Receipt_${ref}.${format}`;
-    document.body.appendChild(link);
-    link.click();
-    setTimeout(() => {
-      if (document.body.contains(link)) document.body.removeChild(link);
-      setDownloadToast(`Official receipt downloaded (${format.toUpperCase()})`);
+    setDownloadToast('Preparing PNG receipt...');
+    const downloadUrl = `/api/receipt/download?format=png&ref=${encodeURIComponent(ref)}&amt=${encodeURIComponent(formattedAmt)}&rec=${encodeURIComponent(activeRec)}&name=${encodeURIComponent(activeName)}&user=${encodeURIComponent(activeUser)}&acc=${encodeURIComponent(activeAcc)}&date=${encodeURIComponent(activeDate)}&reason=${encodeURIComponent(activeReason)}${activeBank ? `&bank=${encodeURIComponent(activeBank)}` : ''}`;
+
+    try {
+      const res = await fetch(downloadUrl);
+      if (!res.ok) throw new Error('Download failed');
+      const blob = await res.blob();
+      const fileName = `CBEBirr_Official_Receipt_${ref}.png`;
+
+      if (typeof window !== 'undefined' && (window as any).Android?.saveBase64Pdf) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const b64 = (reader.result as string).split(',')[1];
+          if (b64) (window as any).Android.saveBase64Pdf(b64, fileName);
+        };
+        reader.readAsDataURL(blob);
+      }
+
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        if (document.body.contains(link)) document.body.removeChild(link);
+        window.URL.revokeObjectURL(blobUrl);
+        setDownloadToast('Official receipt downloaded (PNG)');
+        setTimeout(() => setDownloadToast(''), 3000);
+      }, 1000);
+    } catch {
+      setDownloadToast('Failed to download PNG receipt');
       setTimeout(() => setDownloadToast(''), 3000);
-    }, 1000);
+    }
   };
 
   const handleShare = async () => {
@@ -206,10 +244,13 @@ function OfficialReceiptContent() {
     }
   };
 
+  const isPhoneTx = activeRec.startsWith('09') || activeRec.startsWith('07') || activeRec.length === 10;
+  const creditAccType = activeBank ? `${activeBank} Account` : (isPhoneTx ? 'Customer E-money Account' : 'CBE Bank Account');
+
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col items-center py-4 px-2 sm:px-4 text-slate-800">
+    <div className="min-h-screen bg-[#ece7ef] flex flex-col items-center py-3 px-2 sm:px-4 text-slate-800">
       {/* Top Banner Navigation */}
-      <header className="w-full max-w-3xl flex items-center justify-between bg-[#7a1c7d] text-white px-4 py-3 rounded-2xl shadow-md mb-4">
+      <header className="w-full max-w-2xl flex items-center justify-between bg-[#7a1c7d] text-white px-3.5 py-2.5 rounded-2xl shadow-md mb-3">
         <Link
           href="/"
           className="flex items-center space-x-2 text-white hover:text-purple-200 transition-colors text-xs sm:text-sm font-semibold"
@@ -226,12 +267,12 @@ function OfficialReceiptContent() {
       </header>
 
       {/* Floating Action Controls */}
-      <div className="w-full max-w-3xl flex flex-wrap items-center justify-between gap-2 mb-3 bg-white p-3 rounded-2xl shadow-sm border border-slate-200">
+      <div className="w-full max-w-2xl flex flex-wrap items-center justify-between gap-2 mb-3 bg-white p-2.5 rounded-2xl shadow-sm border border-slate-200">
         <div className="flex items-center space-x-2 text-xs text-slate-600">
           <CheckCircle2 className="w-4 h-4 text-emerald-600" />
           <span className="font-semibold text-slate-800">Verified Electronic VAT Receipt</span>
         </div>
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-1.5">
           <button
             type="button"
             onClick={() => handleDownload('pdf')}
@@ -246,7 +287,7 @@ function OfficialReceiptContent() {
             className="flex items-center space-x-1 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl shadow transition-colors cursor-pointer"
           >
             <ImageIcon className="w-3.5 h-3.5" />
-            <span>Save Image (PNG)</span>
+            <span>Save Image</span>
           </button>
           <button
             type="button"
@@ -267,218 +308,132 @@ function OfficialReceiptContent() {
         </div>
       </div>
 
-      {/* Main Official Receipt Document Container */}
-      <main className="w-full max-w-3xl bg-white shadow-xl rounded-2xl border border-slate-300 overflow-hidden font-sans relative">
-        {/* Document Header (Purple) */}
-        <div className="bg-[#7a1c7d] text-white p-4 sm:p-5 flex items-center justify-between relative overflow-hidden">
-          {/* Circular Gold Emblem Graphic */}
-          <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-white/10 border-2 border-yellow-300/40 flex items-center justify-center shrink-0 shadow-inner">
-            <span className="text-xl sm:text-2xl font-black text-yellow-300">CBE</span>
-          </div>
+      {/* Main Official Receipt Document Container - 100% IDENTICAL TO IN-APP STEP 9 */}
+      <main className="w-full max-w-2xl bg-white shadow-xl rounded-md border border-slate-300 overflow-hidden font-sans relative">
+        <svg
+          id="official-vat-receipt-svg"
+          viewBox="0 0 665 912"
+          className="w-full h-auto block select-none pointer-events-none"
+          style={{ shapeRendering: 'geometricPrecision', textRendering: 'geometricPrecision' }}
+        >
+          {/* Clean background template with high-definition crisp scaling */}
+          <image
+            href="/screens/official_receipt_hq.png"
+            width="665"
+            height="912"
+            preserveAspectRatio="none"
+            style={{ imageRendering: '-webkit-optimize-contrast' }}
+          />
 
-          <div className="text-center flex-1 px-2">
-            <h1 className="text-sm sm:text-base font-bold tracking-wide">
-              Commercial Bank of Ethiopia
-            </h1>
-            <p className="text-xs sm:text-sm font-semibold text-purple-100 mt-0.5">
-              VAT Invoice / Customer Receipt
-            </p>
-            <p className="text-[11px] sm:text-xs font-medium text-purple-200 mt-0.5">
-              CBEBirr Electronic Channel
-            </p>
-          </div>
+          <g fontFamily="Arial, Helvetica, sans-serif" fill="#141414" fontSize="11" fontWeight="normal">
+            {/* Customer Name */}
+            <rect x="440" y="105" width="215" height="20" fill="#ffffff" />
+            <text x="442" y="118">
+              {activeUser.toUpperCase()}
+            </text>
 
-          {/* CBE Birr Plus Badge */}
-          <div className="shrink-0 bg-white text-[#7a1c7d] px-2.5 py-1 rounded-xl shadow font-black text-xs sm:text-sm tracking-wider flex items-center space-x-1">
-            <span>CBE</span>
-            <span className="text-yellow-600">Birr</span>
-            <span className="text-[9px] bg-[#7a1c7d] text-white px-1 rounded-md">Plus</span>
-          </div>
-        </div>
+            {/* 1. Debit Account Value */}
+            <rect x="435" y="354" width="225" height="17" fill="#ffffff" />
+            <text x="442" y="368">
+              {`${activeAcc} - ${activeUser.toUpperCase()}`}
+            </text>
 
-        {/* Section 1: Company Address vs Customer Information */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 sm:p-5 text-xs border-b border-slate-200 bg-slate-50/50">
-          <div>
-            <h3 className="font-bold text-[#7a1c7d] text-[13px] mb-2 pb-1 border-b border-purple-200">
-              Company Address &amp; Other Information
-            </h3>
-            <div className="space-y-1 text-slate-700">
-              <p><span className="font-semibold text-slate-900">Country:</span> Ethiopia</p>
-              <p><span className="font-semibold text-slate-900">City:</span> Addis Ababa</p>
-              <p><span className="font-semibold text-slate-900">Address:</span> Ras Desta Damtew St, 01, Kirkos</p>
-              <p><span className="font-semibold text-slate-900">Postal code:</span> 255</p>
-              <p><span className="font-semibold text-slate-900">SWIFT Code:</span> CBETETAA</p>
-              <p><span className="font-semibold text-slate-900">Email:</span> info@cbe.com.et</p>
-              <p><span className="font-semibold text-slate-900">Tel:</span> 251-551-50-04 | <span className="font-semibold text-slate-900">Fax:</span> 251-551-45-22</p>
-              <p><span className="font-semibold text-slate-900">TIN:</span> 0000006966</p>
-              <p><span className="font-semibold text-slate-900">VAT Registration No:</span> 011140</p>
-              <p><span className="font-semibold text-slate-900">VAT Registration Date:</span> 01/01/2003</p>
-            </div>
-          </div>
+            {/* 2. Credit Account Value */}
+            <rect x="435" y="371" width="225" height="16" fill="#ffffff" />
+            <text x="442" y="384">
+              {`${activeRec} - ${creditAccType}`}
+            </text>
 
-          <div>
-            <h3 className="font-bold text-[#7a1c7d] text-[13px] mb-2 pb-1 border-b border-purple-200">
-              Customer Information
-            </h3>
-            <div className="space-y-1 text-slate-700">
-              <p><span className="font-semibold text-slate-900">Customer Name:</span> <span className="font-bold text-slate-900">{activeUser.toUpperCase()}</span></p>
-              <p><span className="font-semibold text-slate-900">Region:</span> Addis Ababa</p>
-              <p><span className="font-semibold text-slate-900">City:</span> Addis Ababa</p>
-              <p><span className="font-semibold text-slate-900">Sub city:</span> Kirkos</p>
-              <p><span className="font-semibold text-slate-900">Wereda/kebele:</span> 01</p>
-              <p><span className="font-semibold text-slate-900">VAT Registration No:</span> -</p>
-              <p><span className="font-semibold text-slate-900">TIN (TAX ID):</span> -</p>
-              <p><span className="font-semibold text-slate-900">Branch:</span> E-Payment / Mobile Banking</p>
-            </div>
-          </div>
-        </div>
+            {/* 3. Receiver Name Value */}
+            <rect x="435" y="388" width="225" height="16" fill="#ffffff" />
+            {activeName ? (
+              <text x="442" y="401">
+                {activeName}
+              </text>
+            ) : null}
 
-        {/* Section 2: Transaction Information */}
-        <div className="p-4 sm:p-5 border-b border-slate-200">
-          <div className="bg-[#7a1c7d] text-white py-1 px-3 rounded-lg text-xs font-bold mb-3">
-            Transaction Information
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-            {/* Authentic Stamp Graphic */}
-            <div className="flex items-center justify-center p-3">
-              <div className="w-32 h-32 rounded-full border-4 border-purple-900/60 flex flex-col items-center justify-center text-center p-2 rotate-[-6deg] shadow-inner">
-                <span className="text-[10px] font-bold text-purple-900">የኢትዮጵያ ንግድ ባንክ</span>
-                <span className="text-[9px] font-bold text-purple-900">Commercial Bank of Ethiopia</span>
-                <span className="text-[12px] font-black text-purple-900 my-0.5">★ PAID ★</span>
-                <span className="text-[8px] font-mono text-purple-800">{activeDate}</span>
-              </div>
-            </div>
+            {/* 4. Order ID Value */}
+            <rect x="435" y="413" width="225" height="16" fill="#ffffff" />
+            <text x="442" y="426">
+              {ref}
+            </text>
 
-            {/* Transaction Data */}
-            <div className="space-y-2 text-slate-700">
-              <div className="flex justify-between border-b border-slate-100 pb-1">
-                <span className="font-semibold text-slate-900">Debit Account:</span>
-                <span className="font-mono">{activeAcc} - {activeUser.toUpperCase()}</span>
-              </div>
-              <div className="flex justify-between border-b border-slate-100 pb-1">
-                <span className="font-semibold text-slate-900">Credit Account:</span>
-                <span className="font-mono">{activeRec} - {activeBank ? `${activeBank} Account` : (activeRec.length === 10 ? 'Customer E-money Account' : 'CBE Account')}</span>
-              </div>
-              <div className="flex justify-between border-b border-slate-100 pb-1">
-                <span className="font-semibold text-slate-900">Receiver Name:</span>
-                <span className="font-bold text-slate-900">{activeName}</span>
-              </div>
-              <div className="flex justify-between border-b border-slate-100 pb-1">
-                <span className="font-semibold text-slate-900">Order ID:</span>
-                <span className="font-mono font-bold text-[#7a1c7d]">{ref}</span>
-              </div>
-              <div className="flex justify-between border-b border-slate-100 pb-1">
-                <span className="font-semibold text-slate-900">Transaction Status:</span>
-                <span className="font-bold text-emerald-600 flex items-center space-x-1">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>Completed</span>
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="font-semibold text-slate-900">Reference:</span>
-                <span className="font-mono text-slate-600">{ref}</span>
-              </div>
-            </div>
-          </div>
-        </div>
+            {/* 5. Receipt Number in Table */}
+            <rect x="14" y="563" width="250" height="18" fill="#ffffff" />
+            <text x="16" y="577">
+              {ref}
+            </text>
 
-        {/* Section 3: Transaction Details Table */}
-        <div className="p-4 sm:p-5">
-          <div className="bg-[#7a1c7d] text-white py-1 px-3 rounded-lg text-xs font-bold mb-3">
-            Transaction Details
-          </div>
+            {/* 6. Transaction Date in Table */}
+            <rect x="275" y="563" width="200" height="18" fill="#ffffff" />
+            <text x="285" y="577">
+              {activeDate}
+            </text>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs text-left">
-              <thead>
-                <tr className="border-b border-slate-300 text-slate-900 font-bold">
-                  <th className="py-2 pr-2">Receipt Number</th>
-                  <th className="py-2 px-2">Transaction Date</th>
-                  <th className="py-2 pl-2 text-right">Amount</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                <tr>
-                  <td className="py-2.5 pr-2 font-mono text-[#7a1c7d] font-bold">{ref}</td>
-                  <td className="py-2.5 px-2 font-mono">{activeDate}</td>
-                  <td className="py-2.5 pl-2 text-right font-mono font-bold text-slate-900">{formattedAmt}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+            {/* 7. Amount in Table (Starts at x=551, expands to the right) */}
+            <rect x="538" y="563" width="110" height="19" fill="#ffffff" />
+            <text x="551" y="577">
+              {formattedAmt}
+            </text>
 
-          {/* Amount Breakdown */}
-          <div className="mt-4 pt-3 border-t border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 text-xs">
-            <div className="space-y-1.5 flex-1">
-              <p>
-                <span className="font-semibold text-slate-900">Total Amount in word: </span>
-                <span className="font-bold text-slate-900">{words}</span>
-              </p>
-              <p>
-                <span className="font-semibold text-slate-900">Payment Reason: </span>
-                <span>{activeReason}</span>
-              </p>
-              <p>
-                <span className="font-semibold text-slate-900">Payment Channel: </span>
-                <span className="font-mono">API / CBEBirr</span>
-              </p>
-            </div>
+            {/* Solid white mask covering value column cleanly up to right edge */}
+            <rect x="538" y="586" width="110" height="126" fill="#ffffff" />
 
-            <div className="w-full sm:w-64 bg-white p-3.5 rounded-xl border border-slate-200 space-y-1.5 font-mono text-xs">
-              <div className="flex justify-between">
-                <span className="text-slate-700">Paid amount</span>
-                <span className="font-semibold text-slate-900">{formattedAmt}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-700">Service Charge</span>
-                <span className="font-semibold text-slate-900">{finalServiceCharge}</span>
-              </div>
-              <div className="flex justify-between leading-tight">
-                <div className="flex flex-col">
-                  <span className="text-slate-700">Disaster Response</span>
-                  <span className="text-slate-700">Fee</span>
-                </div>
-                <span className="font-semibold text-slate-900 self-start">0.00</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-700">VAT</span>
-                <span className="font-semibold text-slate-900">{finalVat}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-700">Tip</span>
-                <span className="font-semibold text-slate-900">0.00</span>
-              </div>
-              <div className="flex justify-between border-t border-slate-300 pt-1 text-xs font-bold text-slate-900">
-                <span>Total Paid Amount</span>
-                <span>{finalTotalPaid}</span>
-              </div>
-            </div>
-          </div>
-        </div>
+            {/* Row 1: Paid amount */}
+            <text x="551" y="602">
+              {formattedAmt}
+            </text>
 
-        {/* Footer with Bank Slogan and QR Code */}
-        <div className="p-4 sm:p-5 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
-          <div>
-            <p className="text-sm font-bold text-[#7a1c7d] italic">
-              The Bank you can always rely on!
-            </p>
-            <p className="text-[11px] text-slate-500 mt-1">
-              © 2026 Commercial Bank of Ethiopia. All rights reserved.
-            </p>
-          </div>
+            {/* Row 2: Service Charge */}
+            <text x="551" y="619">
+              {finalServiceCharge}
+            </text>
 
-          {qrDataUrl && (
-            <div className="flex flex-col items-center">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={qrDataUrl}
-                alt="Receipt Verification QR Code"
-                className="w-24 h-24 border border-slate-200 rounded-lg p-1 bg-white shadow-xs"
+            {/* Row 3: Disaster Response */}
+            <text x="551" y="635">
+              0.00
+            </text>
+
+            {/* Row 4: VAT */}
+            <text x="551" y="668">
+              {finalVat}
+            </text>
+
+            {/* Row 5: Tip */}
+            <text x="551" y="685">
+              0.00
+            </text>
+
+            {/* Row 6: Total Paid Amount */}
+            <text x="551" y="702" fontWeight="bold">
+              {finalTotalPaid}
+            </text>
+
+            {/* 11. Total Amount in word */}
+            <rect x="175" y="706" width="480" height="18" fill="#ffffff" />
+            <text x="182" y="719" fontSize="10.5">
+              {words}
+            </text>
+
+            {/* 12. Payment Reason */}
+            <rect x="175" y="723" width="480" height="18" fill="#ffffff" />
+            <text x="182" y="736" fontSize="10.5">
+              {activeReason}
+            </text>
+
+            {/* 13. Dynamic QR Code overlay replacing old template QR */}
+            <rect x="517" y="768" width="108" height="108" fill="#ffffff" />
+            {qrDataUrl && (
+              <image
+                href={qrDataUrl}
+                x="519"
+                y="770"
+                width="104"
+                height="104"
               />
-              <span className="text-[9px] text-slate-400 mt-1 font-mono">Scan to Verify</span>
-            </div>
-          )}
-        </div>
+            )}
+          </g>
+        </svg>
       </main>
 
       {/* Toast Notification */}

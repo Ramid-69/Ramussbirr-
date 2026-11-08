@@ -37,6 +37,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className="h-full w-full">
       <body className="h-full w-full overflow-hidden" suppressHydrationWarning>
         {children}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ('serviceWorker' in navigator) {
+                window.addEventListener('load', function() {
+                  navigator.serviceWorker.register('/sw.js').catch(function(err) {
+                    console.log('SW registration failed:', err);
+                  });
+                });
+              }
+            `,
+          }}
+        />
       </body>
     </html>
   );

@@ -24,6 +24,10 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Toast;
+import java.io.File;
+import java.io.FileOutputStream;
+import android.util.Base64;
+import android.media.MediaScannerConnection;
 import java.net.URLDecoder;
 
 public class MainActivity extends Activity {
@@ -260,11 +264,20 @@ public class MainActivity extends Activity {
 
     private void checkPermissions() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            java.util.List<String> perms = new java.util.ArrayList<>();
             if (checkSelfPermission(Manifest.permission.CALL_PHONE) != PackageManager.PERMISSION_GRANTED) {
-                requestPermissions(new String[]{
-                        Manifest.permission.CALL_PHONE,
-                        Manifest.permission.READ_PHONE_STATE
-                }, PERMISSION_REQ_CODE);
+                perms.add(Manifest.permission.CALL_PHONE);
+            }
+            if (checkSelfPermission(Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) {
+                perms.add(Manifest.permission.READ_PHONE_STATE);
+            }
+            if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
+                if (checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                    perms.add(Manifest.permission.WRITE_EXTERNAL_STORAGE);
+                }
+            }
+            if (!perms.isEmpty()) {
+                requestPermissions(perms.toArray(new String[0]), PERMISSION_REQ_CODE);
             }
         }
     }
@@ -302,6 +315,16 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
+        public void saveBase64Pdf(final String base64Data, final String filename) {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    savePdfBytesToStorage(base64Data, filename);
+                }
+            });
+        }
+
+        @JavascriptInterface
         public void downloadReceipt(final String url) {
             runOnUiThread(new Runnable() {
                 @Override
@@ -309,6 +332,47 @@ public class MainActivity extends Activity {
                     downloadFileFromUrl(url, null, "application/pdf");
                 }
             });
+        }
+    }
+
+    public void savePdfBytesToStorage(String base64Data, String filename) {
+        if (base64Data == null || base64Data.trim().isEmpty()) {
+            Toast.makeText(this, "የደረሰኝ ዳታ ባዶ ነው (Empty receipt data)", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        try {
+            String cleanData = base64Data;
+            if (cleanData.contains(",")) {
+                cleanData = cleanData.substring(cleanData.indexOf(",") + 1);
+            }
+            byte[] pdfBytes = Base64.decode(cleanData, Base64.DEFAULT);
+
+            String safeName = (filename != null && !filename.trim().isEmpty()) ? filename : "CBEBirr_Official_Receipt.pdf";
+            if (!safeName.toLowerCase().endsWith(".pdf")) {
+                safeName += ".pdf";
+            }
+
+            File downloadDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS);
+            if (!downloadDir.exists()) {
+                downloadDir.mkdirs();
+            }
+            File pdfFile = new File(downloadDir, safeName);
+            FileOutputStream fos = new FileOutputStream(pdfFile);
+            fos.write(pdfBytes);
+            fos.flush();
+            fos.close();
+
+            MediaScannerConnection.scanFile(
+                    this,
+                    new String[]{pdfFile.getAbsolutePath()},
+                    new String[]{"application/pdf"},
+                    null
+            );
+
+            Toast.makeText(this, "ደረሰኝ በስልክዎ Downloads ፎልደር ተቀምጧል (" + safeName + ")", Toast.LENGTH_LONG).show();
+        } catch (Exception e) {
+            Toast.makeText(this, "ደረሰኝ ማስቀመጥ አልተቻለም: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         }
     }
 

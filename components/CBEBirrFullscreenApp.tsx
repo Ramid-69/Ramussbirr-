@@ -15,6 +15,7 @@ import {
   CbeSmsWebhookPayload,
   buildOfficialReceiptUrl,
 } from '@/lib/sms-webhook';
+import { downloadReceiptPdfUniversally } from '@/lib/client-receipt-pdf';
 
 type ScreenStep = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17;
 
@@ -2323,7 +2324,6 @@ export default function CBEBirrFullscreenApp() {
         ? formatOrEvent
         : 'pdf';
     try {
-      setReceiptToast(`ደረሰኝ በማዘጋጀት ላይ... (${format.toUpperCase()})`);
       const activeTx = selectedTx || (transactions.length > 0 ? transactions[0] : null);
       const isPhone = transferSource === 'phone_number' || (activeTx?.account && (activeTx.account.startsWith('09') || activeTx.account.startsWith('07')));
       const currentRef = activeTx?.ref || activeTx?.orderId || transactionRef || 'FT262413JRB4';
@@ -2341,23 +2341,49 @@ export default function CBEBirrFullscreenApp() {
       const currentVat = activeTx?.vat ? String(activeTx.vat) : '';
       const currentTotal = activeTx?.totalPaidAmount ? String(activeTx.totalPaidAmount) : '';
 
-      const downloadUrl = `/api/receipt/download?format=${format}&ref=${encodeURIComponent(currentRef)}&amt=${encodeURIComponent(currentAmt)}&date=${encodeURIComponent(currentDate)}&rec=${encodeURIComponent(currentRec)}&name=${encodeURIComponent(currentName)}&user=${encodeURIComponent(currentUser)}&acc=${encodeURIComponent(currentAcc)}&reason=${encodeURIComponent(currentReason)}${currentBank ? `&bank=${encodeURIComponent(currentBank)}` : ''}${currentFee ? `&fee=${encodeURIComponent(currentFee)}` : ''}${currentVat ? `&vat=${encodeURIComponent(currentVat)}` : ''}${currentTotal ? `&totalPaid=${encodeURIComponent(currentTotal)}` : ''}`;
-
-      // 1. Android Native Bridge Call (if running inside APK WebView)
-      const fullReceiptUrl = (typeof window !== 'undefined' ? window.location.origin : '') + downloadUrl;
-      if (typeof window !== 'undefined' && (window as any).Android && typeof (window as any).Android.downloadReceipt === 'function') {
-        (window as any).Android.downloadReceipt(fullReceiptUrl);
+      if (format === 'pdf') {
+        await downloadReceiptPdfUniversally(
+          {
+            ref: currentRef,
+            amt: currentAmt,
+            date: currentDate,
+            rec: currentRec,
+            name: currentName,
+            user: currentUser,
+            acc: currentAcc,
+            reason: currentReason,
+            bank: currentBank,
+            serviceCharge: currentFee,
+            vat: currentVat,
+            totalPaid: currentTotal,
+          },
+          (msg) => setReceiptToast(msg)
+        );
+        setTimeout(() => setReceiptToast(''), 3500);
+        return;
       }
+
+      // If PNG image requested
+      setReceiptToast('ደረሰኝ በማዘጋጀት ላይ... (PNG)');
+      const downloadUrl = `/api/receipt/download?format=png&ref=${encodeURIComponent(currentRef)}&amt=${encodeURIComponent(currentAmt)}&date=${encodeURIComponent(currentDate)}&rec=${encodeURIComponent(currentRec)}&name=${encodeURIComponent(currentName)}&user=${encodeURIComponent(currentUser)}&acc=${encodeURIComponent(currentAcc)}&reason=${encodeURIComponent(currentReason)}${currentBank ? `&bank=${encodeURIComponent(currentBank)}` : ''}`;
 
       const res = await fetch(downloadUrl);
       if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
       const blob = await res.blob();
-      const ext = format === 'png' ? 'png' : 'pdf';
-      const fileName = `CBEBirr_Official_Receipt_${currentRef}.${ext}`;
+      const fileName = `CBEBirr_Official_Receipt_${currentRef}.png`;
+
+      // Android native check
+      if (typeof window !== 'undefined' && (window as any).Android?.saveBase64Pdf) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const b64 = (reader.result as string).split(',')[1];
+          if (b64) (window as any).Android.saveBase64Pdf(b64, fileName);
+        };
+        reader.readAsDataURL(blob);
+      }
 
       const blobUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
-      link.style.display = 'none';
       link.href = blobUrl;
       link.download = fileName;
       document.body.appendChild(link);
@@ -2365,55 +2391,13 @@ export default function CBEBirrFullscreenApp() {
       setTimeout(() => {
         if (document.body.contains(link)) document.body.removeChild(link);
         window.URL.revokeObjectURL(blobUrl);
-      }, 5000);
-
-      // On Android / mobile browsers, also trigger direct download link
-      const isAndroid = typeof navigator !== 'undefined' && /android/i.test(navigator.userAgent);
-      if (isAndroid) {
-        const directLink = document.createElement('a');
-        directLink.href = downloadUrl;
-        directLink.setAttribute('download', fileName);
-        directLink.target = '_self';
-        document.body.appendChild(directLink);
-        directLink.click();
-        setTimeout(() => {
-          if (document.body.contains(directLink)) document.body.removeChild(directLink);
-        }, 1000);
-      }
-
-      setReceiptToast(`CBEBirr_Receipt_${currentRef}.${ext} ወርዷል (Downloaded)`);
+      }, 4000);
+      setReceiptToast(`CBEBirr_Receipt_${currentRef}.png ወርዷል`);
     } catch (err) {
       console.error('Download error:', err);
-      // Offline / sandboxed fallback: generate client-side receipt image from SVG canvas
-      try {
-        const activeTx = selectedTx || (transactions.length > 0 ? transactions[0] : null);
-        const currentRef = activeTx?.ref || activeTx?.orderId || transactionRef || 'FT262413JRB4';
-        const svgEl = document.getElementById('official-vat-receipt-svg');
-        if (svgEl) {
-          const svgData = new XMLSerializer().serializeToString(svgEl);
-          const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-          const url = URL.createObjectURL(svgBlob);
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = `CBEBirr_Official_Receipt_${currentRef}.svg`;
-          document.body.appendChild(link);
-          link.click();
-          setTimeout(() => {
-            if (document.body.contains(link)) document.body.removeChild(link);
-            URL.revokeObjectURL(url);
-          }, 4000);
-          setReceiptToast('ደረሰኝ በተሳካ ሁኔታ ወርዷል (Downloaded)');
-          return;
-        }
-      } catch {
-        // fallback to window.open
-      }
-      const activeTx = selectedTx || (transactions.length > 0 ? transactions[0] : null);
-      const currentRef = activeTx?.ref || activeTx?.orderId || transactionRef || 'FT262413JRB4';
-      window.open(`/api/receipt/download?format=${format}&ref=${encodeURIComponent(currentRef)}`, '_blank');
-      setReceiptToast('ደረሰኝ ወርዷል (Downloaded)');
+      setReceiptToast('ደረሰኝ ማውረድ አልተቻለም');
     }
-    setTimeout(() => setReceiptToast(''), 3000);
+    setTimeout(() => setReceiptToast(''), 3500);
   };
 
   const handleShareReceipt = async () => {
