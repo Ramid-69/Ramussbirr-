@@ -68,7 +68,7 @@ function OfficialReceiptContent() {
     searchParams.get('TID') ||
     searchParams.get('ref') ||
     searchParams.get('tid') ||
-    'DJM51SKYIQ3';
+    'FT262413JRB4';
 
   const [amt, setAmt] = useState<string>(searchParams.get('amt') || '');
   const [rec, setRec] = useState<string>(searchParams.get('rec') || searchParams.get('receiverAccount') || '');
@@ -89,13 +89,13 @@ function OfficialReceiptContent() {
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
           if (data && data.ref) {
-            setAmt((prev) => prev || data.amt || '10.00');
-            setRec((prev) => prev || data.rec || '1000355447788');
-            setName((prev) => prev || data.name || 'Fayyee Lammeessa Didhaa');
-            setUser((prev) => prev || data.user || 'AYMEN NIGATU YIMAM');
-            setAcc((prev) => prev || data.acc || '0959754788');
-            setDate((prev) => prev || data.date || '22-10-2026 21:36:00');
-            setReason((prev) => prev || data.reason || 'Customer transfer to CBE account');
+            if (data.amt) setAmt((prev) => prev || data.amt);
+            if (data.rec) setRec((prev) => prev || data.rec);
+            if (data.name) setName((prev) => prev || data.name);
+            if (data.user) setUser((prev) => prev || data.user);
+            if (data.acc) setAcc((prev) => prev || data.acc);
+            if (data.date) setDate((prev) => prev || data.date);
+            if (data.reason) setReason((prev) => prev || data.reason);
             if (data.bank) setBank((prev) => prev || data.bank);
             if (data.serviceCharge) setServiceCharge((prev) => prev || data.serviceCharge);
             if (data.vat) setVat((prev) => prev || data.vat);
@@ -107,11 +107,11 @@ function OfficialReceiptContent() {
   }, [ref]);
 
   const activeAmt = amt || '10.00';
-  const activeRec = rec || '1000355447788';
-  const activeName = name || 'Fayyee Lammeessa Didhaa';
+  const activeRec = rec || '1000278947339';
+  const activeName = name || (rec ? `CBE Customer` : 'Customer');
   const activeUser = user || 'AYMEN NIGATU YIMAM';
   const activeAcc = acc || '0959754788';
-  const activeDate = date || '22-10-2026 21:36:00';
+  const activeDate = date || '2026-10-27 11:56:20';
   const activeReason = reason || 'Customer transfer to CBE account';
   const activeBank = bank || '';
 

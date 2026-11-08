@@ -388,6 +388,7 @@ function amountToWords(num: number): string {
 
 export default function CBEBirrFullscreenApp() {
   const [currentStep, setCurrentStep] = useState<ScreenStep>(1);
+  const [officialReceiptBackStep, setOfficialReceiptBackStep] = useState<ScreenStep>(8);
   const [splashStep, setSplashStep] = useState<1 | 2>(1);
   const [pin, setPin] = useState<string>('');
   const [showLoginPin, setShowLoginPin] = useState<boolean>(false);
@@ -614,9 +615,9 @@ export default function CBEBirrFullscreenApp() {
   const [isTransferSuccess, setIsTransferSuccess] = useState<boolean>(false);
   const [isTransferring, setIsTransferring] = useState<boolean>(false);
   const [transferError, setTransferError] = useState<string>('');
-  const [transactionRef, setTransactionRef] = useState<string>('DJM51SKYIQ3');
-  const [transactionDate, setTransactionDate] = useState<string>('22 Oct 2026 9:36 PM');
-  const [transactionIsoDate, setTransactionIsoDate] = useState<string>('2026-10-22 21:36');
+  const [transactionRef, setTransactionRef] = useState<string>('FT262413JRB4');
+  const [transactionDate, setTransactionDate] = useState<string>('27 Oct 2026 11:56 AM');
+  const [transactionIsoDate, setTransactionIsoDate] = useState<string>('2026-10-27 11:56:20');
   const [transactionServiceCharge, setTransactionServiceCharge] = useState<number>(0);
   const [transactionVat, setTransactionVat] = useState<number>(0);
   const [transactionTotalCharges, setTransactionTotalCharges] = useState<number>(0);
@@ -1604,7 +1605,7 @@ export default function CBEBirrFullscreenApp() {
     (r) => r.accountNumber.replace(/\D/g, '') === cleanAccount
   );
   const activeReceiverName = customVerifiedReceiverName || (matchedSavedReceiver ? matchedSavedReceiver.accountName : '');
-  const displayReceiverName = customVerifiedReceiverName || (matchedSavedReceiver ? matchedSavedReceiver.accountName : 'CBE customer');
+  const displayReceiverName = customVerifiedReceiverName || (matchedSavedReceiver ? matchedSavedReceiver.accountName : '');
 
   // CBEBirr USSD *847# Dialer Execution
   const triggerCbeUssdDialer = (targetAccount: string, targetAmount: string) => {
@@ -1659,7 +1660,7 @@ export default function CBEBirrFullscreenApp() {
       // Wait for receiver name to be resolved; generous safety timeout so loading NEVER cuts off early while USSD is running
       if (ussdSafetyTimeoutRef.current) clearTimeout(ussdSafetyTimeoutRef.current);
       ussdSafetyTimeoutRef.current = setTimeout(() => {
-        setCustomVerifiedReceiverName((prev) => prev || 'CBE Customer');
+        setCustomVerifiedReceiverName((prev) => prev || '');
         setIsResolvingUssdReceiver(false);
       }, 12000);
     } else {
@@ -1769,14 +1770,22 @@ export default function CBEBirrFullscreenApp() {
   // - Official Receipt (Step 9): WITHOUT center logo
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const currentRef = transactionRef || 'FT1384476084';
-    const currentAcc = userAccount || phoneNumber || '959754788';
-    const currentAmt = sendAmount ? parseFloat(sendAmount).toFixed(2) : '10.00';
-    const currentDate = transactionDate || '29 Oct 2026 3:50 PM';
-    const currentRec = receiverAccount || '1000278947339';
-    const currentName = displayReceiverName || 'Ram';
+    const activeTx = selectedTx || (transactions.length > 0 ? transactions[0] : null);
+    const isPhone = transferSource === 'phone_number' || (activeTx?.account && (activeTx.account.startsWith('09') || activeTx.account.startsWith('07')));
+    const currentRef = activeTx?.ref || activeTx?.orderId || transactionRef || 'FT262413JRB4';
+    const currentAcc = userAccount || phoneNumber || '0959754788';
+    const currentAmt = (parseFloat(activeTx?.amount ? String(activeTx.amount) : (isPhone ? phoneSendAmount : sendAmount)) || 10.00).toFixed(2);
+    const currentDate = activeTx?.date || transactionDate || '2026-10-27 11:56:20';
+    const currentRec = activeTx?.account || (isPhone ? phoneReceiverNumber : receiverAccount) || '1000760389289';
+    const currentName = activeTx?.receiverName || (isPhone ? phoneReceiverName : displayReceiverName) || 'CBE Customer';
     const currentUser = userName || 'AYMEN NIGATU YIMAM';
-    const currentReason = sendReason || 'Wallet Transfer';
+    const currentReason = activeTx?.title
+      ? (activeTx.title === 'Bank Transfer' ? 'Transfer to Other Bank' : (activeTx.title === 'Wallet Transfer' ? 'Wallet Transfer' : 'Customer transfer to CBE account'))
+      : (isPhone ? (phoneReason || 'Wallet Transfer') : (sendReason || 'Customer transfer to CBE account'));
+    const currentBank = activeTx?.bank || (transferSource === 'other_banks' && selectedBank ? selectedBank.name : undefined);
+    const currentFee = activeTx?.serviceCharge ? String(activeTx.serviceCharge) : undefined;
+    const currentVat = activeTx?.vat ? String(activeTx.vat) : undefined;
+    const currentTotalPaid = activeTx?.totalPaidAmount ? String(activeTx.totalPaidAmount) : undefined;
 
     // Persist to server receipt store so any external phone scanner gets exact details
     fetch('/api/receipt/save', {
@@ -1793,16 +1802,27 @@ export default function CBEBirrFullscreenApp() {
         reason: currentReason,
         status: 'Completed',
         orderId: currentRef,
+        bank: currentBank,
+        serviceCharge: currentFee,
+        vat: currentVat,
+        totalPaidAmount: currentTotalPaid,
       }),
     }).catch(() => {});
 
-    // Authentic CBE Birr Plus electronic receipt URL opening this app official receipt
+    // Authentic CBE Birr Plus electronic receipt URL with all real-time transaction parameters
     const scanUrl = buildOfficialReceiptUrl(
-      currentRef || '9V8GPL5D',
+      currentRef,
       currentAcc,
       currentAmt,
       currentName,
-      currentUser
+      currentUser,
+      currentRec,
+      currentDate,
+      currentReason,
+      currentBank,
+      currentFee,
+      currentVat,
+      currentTotalPaid
     );
 
     // 1. Transaction receipt QR code (WITH authentic CBE Birr Plus center logo)
@@ -1847,7 +1867,25 @@ export default function CBEBirrFullscreenApp() {
         .then((data) => setOfficialReceiptQrDataUrl(data))
         .catch(() => {});
     }
-  }, [transactionRef, userAccount, phoneNumber, sendAmount, transactionDate, receiverAccount, displayReceiverName, userName, sendReason]);
+  }, [
+    selectedTx,
+    transactions,
+    transactionRef,
+    userAccount,
+    phoneNumber,
+    sendAmount,
+    phoneSendAmount,
+    transactionDate,
+    receiverAccount,
+    phoneReceiverNumber,
+    displayReceiverName,
+    phoneReceiverName,
+    userName,
+    sendReason,
+    phoneReason,
+    transferSource,
+    selectedBank,
+  ]);
 
   const handleStartAddReceiver = () => {
     setEditingReceiverId(null);
@@ -2135,12 +2173,12 @@ export default function CBEBirrFullscreenApp() {
               ? (phoneReceiverNumber || '0959597544')
               : (receiverAccount || '1000278947339')));
         const activeReceiverName = isOtherBanks
-          ? (bankReceiverName || (selectedBank ? `${selectedBank.name} Customer` : 'Customer'))
+          ? (bankReceiverName || '')
           : (isOtherWallets
-            ? (walletReceiverName || (selectedWallet ? `${selectedWallet.name} Customer` : 'Customer'))
+            ? (walletReceiverName || '')
             : (isPhone
-              ? (phoneReceiverName || 'CBE customer')
-              : (displayReceiverName || 'CBE customer')));
+              ? (phoneReceiverName || '')
+              : (displayReceiverName || '')));
         const activeCreditAccountType = isOtherBanks
           ? (selectedBank ? selectedBank.name : 'Other Bank Account')
           : (isOtherWallets
@@ -2286,39 +2324,87 @@ export default function CBEBirrFullscreenApp() {
         : 'pdf';
     try {
       setReceiptToast(`ደረሰኝ በማዘጋጀት ላይ... (${format.toUpperCase()})`);
-      const isPhone = transferSource === 'phone_number';
-      const currentRef = transactionRef || 'FT2639841030';
-      const currentAmt = (parseFloat(isPhone ? phoneSendAmount : sendAmount) || 10.00).toFixed(2);
-      const currentDate = transactionIsoDate || '2026-10-29 14:05';
-      const currentRec = isPhone ? (phoneReceiverNumber || '0959597544') : (receiverAccount || '1000278947339');
-      const currentName = isPhone ? (phoneReceiverName || 'CBE customer') : (displayReceiverName || 'CBE customer');
-      const currentUser = userName || 'Aymen Nigatu Yimam';
-      const currentAcc = userAccount || phoneNumber || '1000627787889';
-      const currentReason = isPhone ? (phoneReason || 'Wallet Transfer') : (sendReason || 'Customer transfer to CBE account');
+      const activeTx = selectedTx || (transactions.length > 0 ? transactions[0] : null);
+      const isPhone = transferSource === 'phone_number' || (activeTx?.account && (activeTx.account.startsWith('09') || activeTx.account.startsWith('07')));
+      const currentRef = activeTx?.ref || activeTx?.orderId || transactionRef || 'FT262413JRB4';
+      const currentAmt = (parseFloat(activeTx?.amount ? String(activeTx.amount) : (isPhone ? phoneSendAmount : sendAmount)) || 10.00).toFixed(2);
+      const currentDate = activeTx?.date || transactionIsoDate || '2026-10-27 11:56:20';
+      const currentRec = activeTx?.account || (isPhone ? (phoneReceiverNumber || '0959597544') : (receiverAccount || '1000760389289'));
+      const currentName = activeTx?.receiverName || (isPhone ? (phoneReceiverName || '') : (displayReceiverName || '')) || '';
+      const currentUser = userName || 'AYMEN NIGATU YIMAM';
+      const currentAcc = userAccount || phoneNumber || '0959754788';
+      const currentReason = activeTx?.title
+        ? (activeTx.title === 'Bank Transfer' ? 'Transfer to Other Bank' : (activeTx.title === 'Wallet Transfer' ? 'Wallet Transfer' : 'Customer transfer to CBE account'))
+        : (isPhone ? (phoneReason || 'Wallet Transfer') : (sendReason || 'Customer transfer to CBE account'));
+      const currentBank = activeTx?.bank || (transferSource === 'other_banks' && selectedBank ? selectedBank.name : '');
+      const currentFee = activeTx?.serviceCharge ? String(activeTx.serviceCharge) : '';
+      const currentVat = activeTx?.vat ? String(activeTx.vat) : '';
+      const currentTotal = activeTx?.totalPaidAmount ? String(activeTx.totalPaidAmount) : '';
 
-      const downloadUrl = `/api/receipt/download?format=${format}&ref=${encodeURIComponent(currentRef)}&amt=${encodeURIComponent(currentAmt)}&date=${encodeURIComponent(currentDate)}&rec=${encodeURIComponent(currentRec)}&name=${encodeURIComponent(currentName)}&user=${encodeURIComponent(currentUser)}&acc=${encodeURIComponent(currentAcc)}&reason=${encodeURIComponent(currentReason)}`;
+      const downloadUrl = `/api/receipt/download?format=${format}&ref=${encodeURIComponent(currentRef)}&amt=${encodeURIComponent(currentAmt)}&date=${encodeURIComponent(currentDate)}&rec=${encodeURIComponent(currentRec)}&name=${encodeURIComponent(currentName)}&user=${encodeURIComponent(currentUser)}&acc=${encodeURIComponent(currentAcc)}&reason=${encodeURIComponent(currentReason)}${currentBank ? `&bank=${encodeURIComponent(currentBank)}` : ''}${currentFee ? `&fee=${encodeURIComponent(currentFee)}` : ''}${currentVat ? `&vat=${encodeURIComponent(currentVat)}` : ''}${currentTotal ? `&totalPaid=${encodeURIComponent(currentTotal)}` : ''}`;
+
+      // Android Native Bridge Call (if running inside APK WebView)
+      if (typeof window !== 'undefined' && (window as any).Android && typeof (window as any).Android.downloadReceipt === 'function') {
+        const fullReceiptUrl = window.location.origin + downloadUrl;
+        (window as any).Android.downloadReceipt(fullReceiptUrl);
+      }
 
       const res = await fetch(downloadUrl);
       if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
       const blob = await res.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
       const ext = format === 'png' ? 'png' : 'pdf';
+      const mime = format === 'png' ? 'image/png' : 'application/pdf';
+      const fileName = `CBEBirr_Official_Receipt_${currentRef}.${ext}`;
+
+      // Native mobile file sharing (Allows direct save / open in OneDrive, Drive, or Files on Android / iOS)
+      if (typeof navigator !== 'undefined' && typeof (navigator as any).canShare === 'function') {
+        try {
+          const file = new File([blob], fileName, { type: mime });
+          if ((navigator as any).canShare({ files: [file] })) {
+            await (navigator as any).share({
+              files: [file],
+              title: fileName,
+            });
+            setReceiptToast(`CBEBirr_Receipt_${currentRef}.${ext} ተከፍቷል/ወርዷል`);
+            setTimeout(() => setReceiptToast(''), 3000);
+            return;
+          }
+        } catch {
+          // If user cancels system sheet, proceed to browser/APK download
+        }
+      }
+
+      const blobUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.style.display = 'none';
       link.href = blobUrl;
-      link.download = `CBEBirr_Official_Receipt_${currentRef}.${ext}`;
+      link.download = fileName;
       document.body.appendChild(link);
       link.click();
       setTimeout(() => {
         if (document.body.contains(link)) document.body.removeChild(link);
         window.URL.revokeObjectURL(blobUrl);
       }, 5000);
+
+      // On Android WebViews where blob anchor click does not trigger native download, navigate directly
+      const isAndroid = typeof navigator !== 'undefined' && /android/i.test(navigator.userAgent);
+      if (isAndroid) {
+        const iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        iframe.src = downloadUrl;
+        document.body.appendChild(iframe);
+        setTimeout(() => {
+          if (document.body.contains(iframe)) document.body.removeChild(iframe);
+        }, 6000);
+      }
+
       setReceiptToast(`CBEBirr_Receipt_${currentRef}.${ext} ወርዷል (Downloaded)`);
     } catch (err) {
       console.error('Download error:', err);
       // Offline / sandboxed fallback: generate client-side receipt image from SVG canvas
       try {
-        const currentRef = transactionRef || 'FT2639841030';
+        const activeTx = selectedTx || (transactions.length > 0 ? transactions[0] : null);
+        const currentRef = activeTx?.ref || activeTx?.orderId || transactionRef || 'FT262413JRB4';
         const svgEl = document.getElementById('official-vat-receipt-svg');
         if (svgEl) {
           const svgData = new XMLSerializer().serializeToString(svgEl);
@@ -2339,7 +2425,8 @@ export default function CBEBirrFullscreenApp() {
       } catch {
         // fallback to window.open
       }
-      const currentRef = transactionRef || 'FT2639841030';
+      const activeTx = selectedTx || (transactions.length > 0 ? transactions[0] : null);
+      const currentRef = activeTx?.ref || activeTx?.orderId || transactionRef || 'FT262413JRB4';
       window.open(`/api/receipt/download?format=${format}&ref=${encodeURIComponent(currentRef)}`, '_blank');
       setReceiptToast('ደረሰኝ ወርዷል (Downloaded)');
     }
@@ -2347,11 +2434,17 @@ export default function CBEBirrFullscreenApp() {
   };
 
   const handleShareReceipt = async () => {
+    const activeTx = selectedTx || (transactions.length > 0 ? transactions[0] : null);
+    const isPhone = transferSource === 'phone_number' || (activeTx?.account && (activeTx.account.startsWith('09') || activeTx.account.startsWith('07')));
+    const currentRef = activeTx?.ref || activeTx?.orderId || transactionRef || 'FT262413JRB4';
+    const currentAmt = (parseFloat(activeTx?.amount ? String(activeTx.amount) : (isPhone ? phoneSendAmount : sendAmount)) || 10.00).toFixed(2);
+    const currentDate = activeTx?.date || transactionDate || '2026-10-27 11:56:20';
+
     if (typeof navigator !== 'undefined' && navigator.share) {
       try {
         await navigator.share({
           title: 'CBEBirr Official Receipt',
-          text: `CBEBirr VAT Invoice / Customer Receipt for ETB ${sendAmount || '1.01'} - Ref: ${transactionRef || 'DJM51SKYIQ3'}`,
+          text: `CBEBirr VAT Invoice / Customer Receipt for ETB ${currentAmt} - Ref: ${currentRef}`,
           url: window.location.href,
         });
         setReceiptToast('ደረሰኝ ተጋርቷል (Receipt shared)');
@@ -2362,7 +2455,7 @@ export default function CBEBirrFullscreenApp() {
       try {
         if (typeof navigator !== 'undefined' && navigator.clipboard) {
           await navigator.clipboard.writeText(
-            `CBEBirr Official Receipt - Ref: ${transactionRef || 'DJM51SKYIQ3'} - Amount: ETB ${sendAmount || '1.01'} - Date: ${transactionDate}`
+            `CBEBirr Official Receipt - Ref: ${currentRef} - Amount: ETB ${currentAmt} - Date: ${currentDate}`
           );
           setReceiptToast('የደረሰኝ ዝርዝር ተቀድቷል (Receipt info copied)');
         } else {
@@ -2432,7 +2525,7 @@ export default function CBEBirrFullscreenApp() {
         // Auto-save this transfer account into savedAccountReceivers if not already saved!
         const cleanAcc = receiverAccount.replace(/\D/g, '');
         if (cleanAcc.length === 13) {
-          const recName = activeReceiverName || customVerifiedReceiverName || 'Fayyee Lammeessa Didhaa';
+          const recName = activeReceiverName || customVerifiedReceiverName || displayReceiverName || 'CBE Customer';
           const alreadySaved = savedAccountReceivers.some(
             (r) => r.accountNumber.replace(/\D/g, '') === cleanAcc
           );
@@ -2450,7 +2543,7 @@ export default function CBEBirrFullscreenApp() {
       }, 2200);
       return () => clearTimeout(timer);
     }
-  }, [currentStep, isTransferring, receiverAccount, activeReceiverName, customVerifiedReceiverName, savedAccountReceivers]);
+  }, [currentStep, isTransferring, receiverAccount, activeReceiverName, customVerifiedReceiverName, displayReceiverName, savedAccountReceivers]);
 
   // Auto-transition to Receipt page after loading spinner on Step 15 (Phone Number Send Money page)
   useEffect(() => {
@@ -2691,6 +2784,36 @@ export default function CBEBirrFullscreenApp() {
     isPayDraggingRef.current = false;
     if (payScrollRef.current) {
       payScrollRef.current.style.scrollBehavior = 'smooth';
+    }
+  };
+
+  // Smooth Drag-to-Scroll handlers for Step 7 Other Bank / Wallet PIN screen
+  const step7ScrollRef = useRef<HTMLDivElement>(null);
+  const isStep7DraggingRef = useRef(false);
+  const step7StartYRef = useRef(0);
+  const step7ScrollTopRef = useRef(0);
+
+  const handleStep7PointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    const el = step7ScrollRef.current;
+    if (!el) return;
+    isStep7DraggingRef.current = true;
+    step7StartYRef.current = e.clientY;
+    step7ScrollTopRef.current = el.scrollTop;
+    el.style.scrollBehavior = 'auto';
+  };
+
+  const handleStep7PointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isStep7DraggingRef.current) return;
+    const el = step7ScrollRef.current;
+    if (!el) return;
+    const deltaY = e.clientY - step7StartYRef.current;
+    el.scrollTop = step7ScrollTopRef.current - deltaY;
+  };
+
+  const handleStep7PointerUp = () => {
+    isStep7DraggingRef.current = false;
+    if (step7ScrollRef.current) {
+      step7ScrollRef.current.style.scrollBehavior = 'smooth';
     }
   };
 
@@ -4955,7 +5078,7 @@ export default function CBEBirrFullscreenApp() {
               className="relative w-full h-full flex flex-col overflow-hidden select-none"
             >
               {(transferSource === 'other_banks' || transferSource === 'other_wallets') ? (
-                /* AUTHENTIC OTHER BANK & OTHER WALLET TRANSFER PIN PAGE (Matches IMG_20261108_143229_296.jpg & IMG_20261108_143232_012.jpg) */
+                /* AUTHENTIC OTHER BANK & OTHER WALLET TRANSFER PIN PAGE (Matches Screenshot_20261108-132819.png & authentic CBE design) */
                 <div className="relative w-full h-full bg-[#D4CFD8] flex flex-col overflow-hidden">
                   {/* 1. FIXED TOP HEADER BAR */}
                   <div className="shrink-0 w-full h-[52px] sm:h-[54px] bg-[#7a1c7d] flex items-center justify-between px-3.5 z-30 shadow-xs">
@@ -4989,13 +5112,13 @@ export default function CBEBirrFullscreenApp() {
                     </div>
                   </div>
 
-                  {/* 2. FIXED AUTHENTICATION & PIN INPUT SECTION */}
-                  <div className="shrink-0 w-full px-5 pt-1.5 pb-2.5 bg-[#D4CFD8] flex flex-col items-center z-20">
+                  {/* 2. AUTHENTICATION SECTION (Fixed directly below Header, matching authentic Screenshot_20261108-132819.png) */}
+                  <div className="shrink-0 w-full bg-[#D4CFD8] px-4 pt-2.5 pb-2 flex flex-col items-center z-20">
                     {/* Top Purple Chevron Down */}
                     <button
                       type="button"
                       onClick={handleBackFromTransferPin}
-                      className="p-1 -mt-1 text-[#8b278e] hover:opacity-80 active:scale-95 transition-transform cursor-pointer"
+                      className="p-1 -mt-0.5 text-[#8b278e] hover:opacity-80 active:scale-95 transition-transform cursor-pointer"
                       aria-label="Back to transfer"
                     >
                       <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
@@ -5012,7 +5135,7 @@ export default function CBEBirrFullscreenApp() {
                     </p>
 
                     {/* PIN Input Box */}
-                    <div className="w-full bg-white rounded-xl border border-gray-400 h-12 mt-2 px-3.5 flex items-center justify-between shadow-xs">
+                    <div className="w-full bg-white rounded-xl border border-gray-400 h-11 sm:h-12 mt-2 px-3.5 flex items-center justify-between shadow-xs">
                       {/* Warning triangle */}
                       <div className="text-[#f59e0b] shrink-0">
                         <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
@@ -5070,8 +5193,21 @@ export default function CBEBirrFullscreenApp() {
                     )}
                   </div>
 
-                  {/* 3. SCROLLABLE MIDDLE CONTAINER: Cleanly cropped cards with authentic smooth scroll & purple scrollbar */}
-                  <div className="flex-1 min-h-0 w-full px-4 overflow-y-auto overflow-x-hidden relative scroll-smooth space-y-2.5 py-1.5 [scrollbar-width:thin] [scrollbar-color:#8b278e_transparent] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-[#8b278e] [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-transparent">
+                  {/* 3. SCROLLABLE CONFIRMATION CARDS (In Middle, Scrolls Smoothly on Web & APK) */}
+                  <div
+                    ref={step7ScrollRef}
+                    onPointerDown={handleStep7PointerDown}
+                    onPointerMove={handleStep7PointerMove}
+                    onPointerUp={handleStep7PointerUp}
+                    onPointerCancel={handleStep7PointerUp}
+                    onPointerLeave={handleStep7PointerUp}
+                    className="flex-1 min-h-[100px] w-full px-4 overflow-y-auto overflow-x-hidden relative space-y-2.5 pt-1 pb-2 touch-pan-y [scrollbar-width:thin] [scrollbar-color:#8b278e_transparent] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-[#8b278e] [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-transparent"
+                    style={{
+                      WebkitOverflowScrolling: 'touch',
+                      overscrollBehaviorY: 'contain',
+                      touchAction: 'pan-y',
+                    }}
+                  >
                     {/* Card 1: Bank / Wallet Name */}
                     <div className="w-full bg-[#fcfbfe] rounded-2xl p-3.5 flex items-center justify-between shadow-xs border border-white/60">
                       <div className="flex items-center gap-3 min-w-0">
@@ -5080,7 +5216,7 @@ export default function CBEBirrFullscreenApp() {
                         </div>
                         <div className="flex flex-col min-w-0">
                           <span className="text-[11.5px] text-[#4b5563] font-medium leading-none">
-                            {transferSource === 'other_wallets' ? 'Bank' : 'Bank'}
+                            Bank
                           </span>
                           <span className="text-[13.5px] text-[#1c1b1f] font-semibold mt-1 leading-tight truncate">
                             {transferSource === 'other_wallets'
@@ -5092,7 +5228,7 @@ export default function CBEBirrFullscreenApp() {
                       <Check className="w-4 h-4 text-black stroke-[2.5] shrink-0" />
                     </div>
 
-                    {/* Card 2: Customer Name */}
+                    {/* Card 2: Customer Name (Completely blank if unsaved, never shows CBE customer) */}
                     <div className="w-full bg-[#fcfbfe] rounded-2xl p-3.5 flex items-center justify-between shadow-xs border border-white/60">
                       <div className="flex items-center gap-3 min-w-0">
                         <div className="w-5 h-5 rounded-full bg-black text-white flex items-center justify-center shrink-0">
@@ -5104,8 +5240,8 @@ export default function CBEBirrFullscreenApp() {
                           </span>
                           <span className="text-[13.5px] text-[#1c1b1f] font-semibold mt-1 leading-tight truncate">
                             {transferSource === 'other_wallets'
-                              ? (walletReceiverName || 'Fayyee Lammeessa Didhaa')
-                              : (bankReceiverName || 'KEMAL AHMED OMAR')}
+                              ? (walletReceiverName || '')
+                              : (bankReceiverName || '')}
                           </span>
                         </div>
                       </div>
@@ -5170,59 +5306,61 @@ export default function CBEBirrFullscreenApp() {
                       </div>
                     ) : null}
 
-                    {/* Bottom scroll spacer */}
-                    <div className="h-2 w-full" />
+                    {/* Bottom spacer inside scroll container */}
+                    <div className="h-2 w-full shrink-0" />
                   </div>
 
-                  {/* 4. FIXED BOTTOM NUMERIC KEYPAD */}
-                  <div className="shrink-0 w-full bg-[#D4CFD8] pt-1 pb-2 sm:pb-3 px-3 z-30">
-                    <div className="grid grid-cols-3 gap-2 sm:gap-2.5">
-                      {/* Keys 1-9 */}
-                      {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit) => (
+                  {/* 4. FIXED NUMERIC KEYPAD (Anchored at Bottom) */}
+                  <div className="shrink-0 w-full bg-[#D4CFD8] px-3 pb-3 pt-1 border-t border-black/5 z-20">
+                    <div className="w-full">
+                      <div className="grid grid-cols-3 gap-2 sm:gap-2.5">
+                        {/* Keys 1-9 */}
+                        {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit) => (
+                          <button
+                            key={digit}
+                            type="button"
+                            onClick={() => handleTransferKeypadClick(digit)}
+                            className="h-[44px] sm:h-12 bg-white active:bg-gray-200 text-[#1c1b1f] font-bold text-[19px] sm:text-[20px] rounded-xl shadow-xs flex items-center justify-center active:scale-95 transition-all cursor-pointer"
+                          >
+                            {digit}
+                          </button>
+                        ))}
+
+                        {/* Backspace */}
                         <button
-                          key={digit}
                           type="button"
-                          onClick={() => handleTransferKeypadClick(digit)}
+                          onClick={handleTransferBackspace}
+                          className="h-[44px] sm:h-12 bg-white active:bg-gray-200 text-[#1c1b1f] rounded-xl shadow-xs flex items-center justify-center active:scale-95 transition-all cursor-pointer"
+                          aria-label="Backspace"
+                        >
+                          <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                            <path d="M22 3H7c-.69 0-1.23.35-1.59.88L0 12l5.41 8.11c.36.53.9.89 1.59.89h15c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-3 12.59L17.59 17 14 13.41 10.41 17 9 15.59 12.59 12 9 8.41 10.41 7 14 10.59 17.59 7 19 8.41 15.41 12 19 15.59z"/>
+                          </svg>
+                        </button>
+
+                        {/* 0 */}
+                        <button
+                          type="button"
+                          onClick={() => handleTransferKeypadClick('0')}
                           className="h-[44px] sm:h-12 bg-white active:bg-gray-200 text-[#1c1b1f] font-bold text-[19px] sm:text-[20px] rounded-xl shadow-xs flex items-center justify-center active:scale-95 transition-all cursor-pointer"
                         >
-                          {digit}
+                          0
                         </button>
-                      ))}
 
-                      {/* Backspace */}
-                      <button
-                        type="button"
-                        onClick={handleTransferBackspace}
-                        className="h-[44px] sm:h-12 bg-white active:bg-gray-200 text-[#1c1b1f] rounded-xl shadow-xs flex items-center justify-center active:scale-95 transition-all cursor-pointer"
-                        aria-label="Backspace"
-                      >
-                        <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
-                          <path d="M22 3H7c-.69 0-1.23.35-1.59.88L0 12l5.41 8.11c.36.53.9.89 1.59.89h15c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-3 12.59L17.59 17 14 13.41 10.41 17 9 15.59 12.59 12 9 8.41 10.41 7 14 10.59 17.59 7 19 8.41 15.41 12 19 15.59z"/>
-                        </svg>
-                      </button>
-
-                      {/* 0 */}
-                      <button
-                        type="button"
-                        onClick={() => handleTransferKeypadClick('0')}
-                        className="h-[44px] sm:h-12 bg-white active:bg-gray-200 text-[#1c1b1f] font-bold text-[19px] sm:text-[20px] rounded-xl shadow-xs flex items-center justify-center active:scale-95 transition-all cursor-pointer"
-                      >
-                        0
-                      </button>
-
-                      {/* Next */}
-                      <button
-                        type="button"
-                        onClick={handleProceedToTransferSubmit}
-                        disabled={transferPin.length < 4}
-                        className={`h-[44px] sm:h-12 rounded-xl flex items-center justify-center font-semibold text-[15px] shadow-xs transition-all ${
-                          transferPin.length === 4
-                            ? 'bg-[#8b278e] text-white active:scale-95 cursor-pointer shadow-md'
-                            : 'bg-[#C3B8C7] text-[#86768B] cursor-not-allowed opacity-90'
-                        }`}
-                      >
-                        Next
-                      </button>
+                        {/* Next */}
+                        <button
+                          type="button"
+                          onClick={handleProceedToTransferSubmit}
+                          disabled={transferPin.length < 4}
+                          className={`h-[44px] sm:h-12 rounded-xl flex items-center justify-center font-semibold text-[15px] shadow-xs transition-all ${
+                            transferPin.length === 4
+                              ? 'bg-[#8b278e] text-white active:scale-95 cursor-pointer shadow-md'
+                              : 'bg-[#C3B8C7] text-[#86768B] cursor-not-allowed opacity-90'
+                          }`}
+                        >
+                          Next
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -5355,19 +5493,23 @@ export default function CBEBirrFullscreenApp() {
                     className="z-10 flex flex-col justify-center pointer-events-none select-none"
                   >
                     {transferSource === 'phone_number' ? (
-                      <>
-                        <span className="text-[#1c1b1f] font-semibold text-[13px] leading-tight">
-                          Name
-                        </span>
-                        <span className="text-[#1c1b1f] font-bold text-[14.5px] sm:text-[15.5px] leading-tight truncate mt-0.5">
-                          {displayReceiverName || 'Mequanint Animaw Gashu'}
-                        </span>
-                      </>
+                      phoneReceiverName ? (
+                        <>
+                          <span className="text-[#1c1b1f] font-semibold text-[13px] leading-tight">
+                            Name
+                          </span>
+                          <span className="text-[#1c1b1f] font-bold text-[14.5px] sm:text-[15.5px] leading-tight truncate mt-0.5">
+                            {phoneReceiverName}
+                          </span>
+                        </>
+                      ) : null
                     ) : (
                       <>
-                        <span className="text-[#1c1b1f] font-bold text-[14.5px] sm:text-[15.5px] leading-tight truncate">
-                          {displayReceiverName || 'Sani Ahmed Mohammed'}
-                        </span>
+                        {displayReceiverName ? (
+                          <span className="text-[#1c1b1f] font-bold text-[14.5px] sm:text-[15.5px] leading-tight truncate">
+                            {displayReceiverName}
+                          </span>
+                        ) : null}
                         <span className="text-[#49454f] font-mono text-[11.5px] sm:text-[12.5px] leading-tight mt-1">
                           {receiverAccount || '1000440979843'}
                         </span>
@@ -5644,7 +5786,7 @@ export default function CBEBirrFullscreenApp() {
                       ? (bankAmount ? parseFloat(bankAmount).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '10.00')
                       : transferSource === 'other_wallets'
                       ? (walletAmount ? parseFloat(walletAmount).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '10.00')
-                      : (sendAmount ? parseFloat(sendAmount).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '1.01')}
+                      : (sendAmount ? parseFloat(sendAmount).toLocaleString('en-US', { minimumFractionDigits: 2 }) : (selectedTx?.amount ? parseFloat(String(selectedTx.amount)).toFixed(2) : '10.00'))}
                   </span>
                   <span> has been debited from </span>
                   <span className="font-bold">{userName || 'AYMEN NIGATU YIMAM'}</span>
@@ -5656,12 +5798,12 @@ export default function CBEBirrFullscreenApp() {
                       ? (bankReceiverName || (selectedBank ? `${selectedBank.name} Customer` : 'Customer'))
                       : transferSource === 'other_wallets'
                       ? (walletReceiverName || (selectedWallet ? `${selectedWallet.name} Customer` : 'Customer'))
-                      : displayReceiverName}
+                      : (displayReceiverName || 'CBE Customer')}
                   </span>
                   <span> on </span>
                   <span className="font-bold">{transactionDate}</span>
                   <span> with transaction ID: </span>
-                  <span className="font-bold">{transactionRef || 'DJM51SKYIQ3'}</span>
+                  <span className="font-bold">{transactionRef || selectedTx?.ref || 'FT262413JRB4'}</span>
                   <span> via CBEBirr mobile app&apos;s </span>
                   <span className="font-bold">
                     {transferSource === 'other_banks'
@@ -5694,7 +5836,13 @@ export default function CBEBirrFullscreenApp() {
               {/* Hotspot: Receipt button -> Opens Step 9 Official Receipt Page */}
               <button
                 type="button"
-                onClick={() => setCurrentStep(9)}
+                onClick={() => {
+                  if (!selectedTx && transactions.length > 0) {
+                    setSelectedTx(transactions[0]);
+                  }
+                  setOfficialReceiptBackStep(8);
+                  setCurrentStep(9);
+                }}
                 style={{
                   position: 'absolute',
                   top: '84.2%',
@@ -5824,9 +5972,9 @@ export default function CBEBirrFullscreenApp() {
                 <div className="flex items-center space-x-2.5">
                   <button
                     type="button"
-                    onClick={() => setCurrentStep(8)}
+                    onClick={() => setCurrentStep(officialReceiptBackStep || 8)}
                     className="p-1.5 -ml-1 rounded-full hover:bg-white/20 active:bg-white/30 transition-colors cursor-pointer text-white flex items-center justify-center"
-                    aria-label="Back to Transaction Summary"
+                    aria-label="Back"
                   >
                     <ArrowLeft className="w-5 h-5" />
                   </button>
@@ -5882,185 +6030,180 @@ export default function CBEBirrFullscreenApp() {
                       style={{ imageRendering: '-webkit-optimize-contrast' }}
                     />
 
-                    {/* Original QR Code on official_receipt_hq.png is preserved directly without overlay */}
-
                     {/* Exact real-time transaction vector text with complete white masking of underlying PNG details */}
-                    <g fontFamily="Arial, Helvetica, sans-serif" fill="#141414" fontSize="11" fontWeight="normal">
-                      {/* Customer Name: Clean white mask covering baked-in 'AYMEN NIGATU YIMAM' at x=475..604, y=110..118 */}
-                      <rect x="470" y="105" width="185" height="20" fill="#ffffff" />
-                      <text x="475" y="118">
-                        {userName ? userName.toUpperCase() : 'AYMEN NIGATU YIMAM'}
-                      </text>
+                    {(() => {
+                      const activeTx = selectedTx || (transactions.length > 0 ? transactions[0] : null);
+                      const isPhoneTx = Boolean(
+                        (activeTx?.account && (activeTx.account.startsWith('09') || activeTx.account.startsWith('07') || activeTx.creditAccountType?.includes('E-money'))) ||
+                        transferSource === 'phone_number'
+                      );
+                      const activeRef = activeTx?.ref || activeTx?.orderId || transactionRef || 'FT262413JRB4';
+                      const activeOrderId = activeTx?.orderId || activeTx?.ref || transactionRef || '9V8GPL5D';
+                      const activeDate = activeTx?.date || transactionIsoDate || transactionDate || '2026-10-27 11:56:20';
+                      const activeCustomerName = userName ? userName.toUpperCase() : 'AYMEN NIGATU YIMAM';
+                      const activeDebitAcc = `${userAccount || phoneNumber || '0959754788'} - ${activeCustomerName}`;
+                      const activeRecAcc = activeTx?.account || (isPhoneTx ? phoneReceiverNumber : receiverAccount) || '1000760389289';
+                      const activeReceiverName = activeTx?.receiverName || (isPhoneTx ? phoneReceiverName : displayReceiverName) || 'CBE Customer';
+                      const activeCreditAccType = activeTx?.creditAccountType
+                        ? activeTx.creditAccountType
+                        : (activeTx?.bank
+                          ? `${activeTx.bank} Account`
+                          : (isPhoneTx ? 'Customer E-money Account' : 'CBE Bank Account'));
 
-                      {/* 1. Debit Account Value */}
-                      <rect x="435" y="354" width="225" height="17" fill="#ffffff" />
-                      <text x="442" y="368">
-                        {`${userAccount || phoneNumber || '0959754788'} - ${(userName || 'AYMEN NIGATU YIMAM').toUpperCase()}`}
-                      </text>
+                      const rawAmt = parseFloat(
+                        activeTx?.amount
+                          ? String(activeTx.amount)
+                          : (isPhoneTx ? (phoneSendAmount || '10.00') : (sendAmount || '10.00'))
+                      ) || 10.00;
 
-                      {/* 2. Credit Account Value */}
-                      <rect x="435" y="371" width="225" height="16" fill="#ffffff" />
-                      <text x="442" y="384">
-                        {transferSource === 'phone_number'
-                          ? `${phoneReceiverNumber || '0959597544'} - Customer E-money Account`
-                          : transferSource === 'other_banks'
-                          ? `${bankAccountNumber || '01320847291000'} - ${selectedBank?.name || 'Other Bank'}`
-                          : transferSource === 'other_wallets'
-                          ? `${walletAccountNumber || '0911223344'} - ${selectedWallet?.name || 'Wallet Account'}`
-                          : `${receiverAccount || '1000355447788'} - CBE Account`}
-                      </text>
+                      const isOther =
+                        Boolean(activeTx?.bank) ||
+                        Boolean(activeTx?.serviceCharge && parseFloat(String(activeTx.serviceCharge)) > 0) ||
+                        transferSource === 'other_banks' ||
+                        transferSource === 'other_wallets';
 
-                      {/* 3. Receiver Name Value */}
-                      <rect x="435" y="388" width="225" height="16" fill="#ffffff" />
-                      <text x="442" y="401">
-                        {transferSource === 'phone_number'
-                          ? (phoneReceiverName || 'CBE customer')
-                          : transferSource === 'other_banks'
-                          ? (bankReceiverName || (selectedBank ? `${selectedBank.name} Customer` : 'Customer'))
-                          : transferSource === 'other_wallets'
-                          ? (walletReceiverName || (selectedWallet ? `${selectedWallet.name} Customer` : 'Customer'))
-                          : (displayReceiverName || 'Fayyee Lammeessa Didhaa')}
-                      </text>
-
-                      {/* 4. Order ID Value */}
-                      <rect x="435" y="413" width="225" height="16" fill="#ffffff" />
-                      <text x="442" y="426">
-                        {transactionRef || 'DJM51SKYIQ3'}
-                      </text>
-
-                      {/* 5. Receipt Number in Table */}
-                      <rect x="14" y="563" width="250" height="18" fill="#ffffff" />
-                      <text x="16" y="577">
-                        {transactionRef || 'DJM51SKYIQ3'}
-                      </text>
-
-                      {/* 6. Transaction Date in Table */}
-                      <rect x="275" y="563" width="200" height="18" fill="#ffffff" />
-                      <text x="285" y="577">
-                        {transactionIsoDate || '2026-10-22 21:36'}
-                      </text>
-
-                      {/* Dynamic Fee & Total Calculations on Official Receipt */}
-                      {(() => {
-                        const rawAmt = parseFloat(
-                          transferSource === 'phone_number'
-                            ? (phoneSendAmount || '10.00')
-                            : transferSource === 'other_banks'
-                            ? (bankAmount || '10.00')
-                            : transferSource === 'other_wallets'
-                            ? (walletAmount || '10.00')
-                            : (selectedTx?.amount ? String(selectedTx.amount) : (sendAmount || '1.01'))
-                        ) || 10.00;
-
-                        const isOther =
-                          transferSource === 'other_banks' ||
-                          transferSource === 'other_wallets' ||
-                          Boolean(selectedTx?.bank) ||
-                          Boolean(selectedTx?.serviceCharge && parseFloat(String(selectedTx.serviceCharge)) > 0);
-
-                        let feeData: { serviceCharge: string; vat: string; totalPaid: string; totalPaidNum: number } | null = null;
-                        if (isOther) {
-                          if (transactionServiceCharge > 0) {
-                            feeData = {
-                              serviceCharge: transactionServiceCharge.toString(),
-                              vat: transactionVat.toString(),
-                              totalPaid: (transactionTotalDeductions || (rawAmt + transactionServiceCharge + transactionVat)).toFixed(2),
-                              totalPaidNum: transactionTotalDeductions || (rawAmt + transactionServiceCharge + transactionVat),
-                            };
-                          } else if (selectedTx?.serviceCharge && parseFloat(String(selectedTx.serviceCharge)) > 0) {
-                            const sc = parseFloat(String(selectedTx.serviceCharge));
-                            const v = selectedTx.vat ? parseFloat(String(selectedTx.vat)) : +(sc * 0.15).toFixed(5);
-                            const td = selectedTx.totalPaidAmount ? parseFloat(String(selectedTx.totalPaidAmount)) : +(rawAmt + sc + v).toFixed(2);
-                            feeData = {
-                              serviceCharge: sc.toString(),
-                              vat: v.toString(),
-                              totalPaid: td.toFixed(2),
-                              totalPaidNum: td,
-                            };
-                          } else {
-                            const calc = calculateTransferFees(rawAmt);
-                            feeData = {
-                              serviceCharge: calc.serviceCharge.toString(),
-                              vat: calc.taxAmount.toString(),
-                              totalPaid: calc.totalDeductions.toFixed(2),
-                              totalPaidNum: calc.totalDeductions,
-                            };
-                          }
+                      let feeData: { serviceCharge: string; vat: string; totalPaid: string; totalPaidNum: number } | null = null;
+                      if (isOther) {
+                        if (activeTx?.serviceCharge && parseFloat(String(activeTx.serviceCharge)) > 0) {
+                          const sc = parseFloat(String(activeTx.serviceCharge));
+                          const v = activeTx.vat ? parseFloat(String(activeTx.vat)) : +(sc * 0.15).toFixed(5);
+                          const td = activeTx.totalPaidAmount ? parseFloat(String(activeTx.totalPaidAmount)) : +(rawAmt + sc + v).toFixed(2);
+                          feeData = {
+                            serviceCharge: sc.toString(),
+                            vat: v.toString(),
+                            totalPaid: td.toFixed(2),
+                            totalPaidNum: td,
+                          };
+                        } else if (transactionServiceCharge > 0) {
+                          feeData = {
+                            serviceCharge: transactionServiceCharge.toString(),
+                            vat: transactionVat.toString(),
+                            totalPaid: (transactionTotalDeductions || (rawAmt + transactionServiceCharge + transactionVat)).toFixed(2),
+                            totalPaidNum: transactionTotalDeductions || (rawAmt + transactionServiceCharge + transactionVat),
+                          };
+                        } else {
+                          const calc = calculateTransferFees(rawAmt);
+                          feeData = {
+                            serviceCharge: calc.serviceCharge.toString(),
+                            vat: calc.taxAmount.toString(),
+                            totalPaid: calc.totalDeductions.toFixed(2),
+                            totalPaidNum: calc.totalDeductions,
+                          };
                         }
+                      }
 
-                        const displayAmt = rawAmt.toFixed(2);
-                        const rawSc = feeData ? parseFloat(feeData.serviceCharge) : 0;
-                        const formattedServiceCharge = isNaN(rawSc) || rawSc <= 0
-                          ? '0.00'
-                          : (rawSc >= 0.005 && rawSc < 0.01 ? '0.01' : rawSc.toFixed(2));
-                        const rawVat = feeData ? parseFloat(feeData.vat) : 0;
-                        const formattedVat = isNaN(rawVat) || rawVat <= 0 ? '0.00' : rawVat.toFixed(2);
-                        const rawTotal = feeData ? parseFloat(feeData.totalPaid) : rawAmt;
-                        const displayTotalPaid = isNaN(rawTotal) ? displayAmt : rawTotal.toFixed(2);
-                        const displayWords = amountToWords(feeData ? feeData.totalPaidNum : rawAmt);
+                      const displayAmt = rawAmt.toFixed(2);
+                      const rawSc = feeData ? parseFloat(feeData.serviceCharge) : 0;
+                      const formattedServiceCharge = isNaN(rawSc) || rawSc <= 0
+                        ? '0.00'
+                        : (rawSc >= 0.005 && rawSc < 0.01 ? '0.01' : rawSc.toFixed(2));
+                      const rawVat = feeData ? parseFloat(feeData.vat) : 0;
+                      const formattedVat = isNaN(rawVat) || rawVat <= 0 ? '0.00' : rawVat.toFixed(2);
+                      const rawTotal = feeData ? parseFloat(feeData.totalPaid) : rawAmt;
+                      const displayTotalPaid = isNaN(rawTotal) ? displayAmt : rawTotal.toFixed(2);
+                      const displayWords = amountToWords(feeData ? feeData.totalPaidNum : rawAmt);
 
-                        return (
-                          <>
-                            {/* 7. Amount in Table (Header row - right aligned at x=572) */}
-                            <rect x="540" y="563" width="122" height="19" fill="#ffffff" />
-                            <text x="572" y="577" textAnchor="end">
-                              {displayAmt}
-                            </text>
+                      const activeReason = activeTx?.title
+                        ? (activeTx.title === 'Bank Transfer' ? 'Transfer to Other Bank' : (activeTx.title === 'Wallet Transfer' ? 'Wallet Transfer' : 'Customer transfer to CBE account'))
+                        : (isPhoneTx ? (phoneReason || 'Wallet Transfer') : (sendReason || 'Customer transfer to CBE account'));
 
-                            {/* Solid white mask covering value column cleanly with zero template text bleed-through */}
-                            <rect x="540" y="586" width="122" height="126" fill="#ffffff" />
+                      return (
+                        <g fontFamily="Arial, Helvetica, sans-serif" fill="#141414" fontSize="11" fontWeight="normal">
+                          {/* Customer Name */}
+                          <rect x="470" y="105" width="185" height="20" fill="#ffffff" />
+                          <text x="475" y="118">
+                            {activeCustomerName}
+                          </text>
 
-                            {/* Row 1: Paid amount */}
-                            <text x="572" y="602" textAnchor="end">
-                              {displayAmt}
-                            </text>
+                          {/* 1. Debit Account Value */}
+                          <rect x="435" y="354" width="225" height="17" fill="#ffffff" />
+                          <text x="442" y="368">
+                            {activeDebitAcc}
+                          </text>
 
-                            {/* Row 2: Service Charge */}
-                            <text x="572" y="618" textAnchor="end">
-                              {formattedServiceCharge}
-                            </text>
+                          {/* 2. Credit Account Value */}
+                          <rect x="435" y="371" width="225" height="16" fill="#ffffff" />
+                          <text x="442" y="384">
+                            {`${activeRecAcc} - ${activeCreditAccType}`}
+                          </text>
 
-                            {/* Row 3: Disaster Response (Fee is the 2nd line of this label; no value next to Fee) */}
-                            <text x="572" y="634" textAnchor="end">
-                              0.00
-                            </text>
+                          {/* 3. Receiver Name Value */}
+                          <rect x="435" y="388" width="225" height="16" fill="#ffffff" />
+                          <text x="442" y="401">
+                            {activeReceiverName}
+                          </text>
 
-                            {/* Row 4: VAT (always 2 decimal places e.g. 0.00) */}
-                            <text x="572" y="667" textAnchor="end">
-                              {formattedVat}
-                            </text>
+                          {/* 4. Order ID Value */}
+                          <rect x="435" y="413" width="225" height="16" fill="#ffffff" />
+                          <text x="442" y="426">
+                            {activeOrderId}
+                          </text>
 
-                            {/* Row 5: Tip */}
-                            <text x="572" y="684" textAnchor="end">
-                              0.00
-                            </text>
+                          {/* 5. Receipt Number in Table */}
+                          <rect x="14" y="563" width="250" height="18" fill="#ffffff" />
+                          <text x="16" y="577">
+                            {activeRef}
+                          </text>
 
-                            {/* Row 6: Total Paid Amount (normal weight, matching authentic Image 2) */}
-                            <text x="572" y="702" textAnchor="end">
-                              {displayTotalPaid}
-                            </text>
+                          {/* 6. Transaction Date in Table */}
+                          <rect x="275" y="563" width="200" height="18" fill="#ffffff" />
+                          <text x="285" y="577">
+                            {activeDate}
+                          </text>
 
-                            {/* 11. Total Amount in word */}
-                            <rect x="175" y="706" width="480" height="18" fill="#ffffff" />
-                            <text x="182" y="719" fontSize="10.5">
-                              {displayWords}
-                            </text>
-                          </>
-                        );
-                      })()}
+                          {/* 7. Amount in Table (Header row - right aligned at x=635) */}
+                          <rect x="530" y="563" width="130" height="19" fill="#ffffff" />
+                          <text x="635" y="577" textAnchor="end">
+                            {displayAmt}
+                          </text>
 
-                      {/* 12. Payment Reason */}
-                      <rect x="175" y="723" width="480" height="18" fill="#ffffff" />
-                      <text x="182" y="736" fontSize="10.5">
-                        {transferSource === 'phone_number'
-                          ? (phoneReason || 'Wallet Transfer')
-                          : transferSource === 'other_banks'
-                          ? (bankReason || 'Transfer to Other Bank')
-                          : transferSource === 'other_wallets'
-                          ? (walletReason || 'Wallet Transfer')
-                          : (sendReason || 'Wallet Transfer')}
-                      </text>
-                    </g>
+                          {/* Solid white mask covering value column cleanly with zero template text bleed-through */}
+                          <rect x="530" y="586" width="130" height="126" fill="#ffffff" />
+
+                          {/* Row 1: Paid amount */}
+                          <text x="635" y="602" textAnchor="end">
+                            {displayAmt}
+                          </text>
+
+                          {/* Row 2: Service Charge */}
+                          <text x="635" y="618" textAnchor="end">
+                            {formattedServiceCharge}
+                          </text>
+
+                          {/* Row 3: Disaster Response */}
+                          <text x="635" y="634" textAnchor="end">
+                            0.00
+                          </text>
+
+                          {/* Row 4: VAT */}
+                          <text x="635" y="667" textAnchor="end">
+                            {formattedVat}
+                          </text>
+
+                          {/* Row 5: Tip */}
+                          <text x="635" y="684" textAnchor="end">
+                            0.00
+                          </text>
+
+                          {/* Row 6: Total Paid Amount */}
+                          <text x="635" y="702" textAnchor="end">
+                            {displayTotalPaid}
+                          </text>
+
+                          {/* 11. Total Amount in word */}
+                          <rect x="175" y="706" width="480" height="18" fill="#ffffff" />
+                          <text x="182" y="719" fontSize="10.5">
+                            {displayWords}
+                          </text>
+
+                          {/* 12. Payment Reason */}
+                          <rect x="175" y="723" width="480" height="18" fill="#ffffff" />
+                          <text x="182" y="736" fontSize="10.5">
+                            {activeReason}
+                          </text>
+                        </g>
+                      );
+                    })()}
                   </svg>
                 </div>
 
@@ -6302,36 +6445,50 @@ export default function CBEBirrFullscreenApp() {
               <button
                 type="button"
                 onClick={() => {
-                  const amt = typeof selectedTx?.amount === 'number' ? selectedTx.amount.toString() : (selectedTx?.amount || sendAmount || '10');
-                  setSendAmount(amt);
-                  setTransactionRef(selectedTx?.ref || selectedTx?.orderId || transactionRef || 'FT1384476084');
-                  setTransactionDate(selectedTx?.date || transactionDate);
-                  setReceiverAccount(selectedTx?.account || receiverAccount || '1000278947339');
+                  const targetTx = selectedTx || (transactions.length > 0 ? transactions[0] : null);
+                  if (targetTx) {
+                    setSelectedTx(targetTx);
+                    const amt = typeof targetTx.amount === 'number' ? targetTx.amount.toFixed(2) : String(targetTx.amount);
+                    setSendAmount(amt);
+                    setTransactionRef(targetTx.ref || targetTx.orderId || 'FT262413JRB4');
+                    setTransactionDate(targetTx.date);
+                    setTransactionIsoDate(targetTx.date);
+                    setReceiverAccount(targetTx.account || '1000760389289');
+                    setCustomVerifiedReceiverName(targetTx.receiverName || 'CBE Customer');
 
-                  if (selectedTx?.bank) {
-                    setTransferSource('other_banks');
-                  } else if (selectedTx?.title?.includes('Wallet')) {
-                    setTransferSource('other_wallets');
+                    if (targetTx.account && (targetTx.account.startsWith('09') || targetTx.account.startsWith('07') || targetTx.creditAccountType?.includes('E-money'))) {
+                      setTransferSource('phone_number');
+                      setPhoneReceiverNumber(targetTx.account);
+                      setPhoneReceiverName(targetTx.receiverName || 'CBE Customer');
+                      setPhoneSendAmount(amt);
+                    } else if (targetTx.bank) {
+                      setTransferSource('other_banks');
+                    } else if (targetTx.title?.includes('Wallet')) {
+                      setTransferSource('other_wallets');
+                    } else {
+                      setTransferSource('cbe_account');
+                    }
+
+                    if (targetTx.serviceCharge && parseFloat(String(targetTx.serviceCharge)) > 0) {
+                      setTransactionServiceCharge(parseFloat(String(targetTx.serviceCharge)) || 0);
+                      setTransactionVat(parseFloat(String(targetTx.vat)) || 0);
+                      setTransactionTotalCharges(parseFloat(String(targetTx.totalCharges)) || 0);
+                      setTransactionTotalDeductions(parseFloat(String(targetTx.totalPaidAmount)) || 0);
+                    } else if (targetTx.bank || targetTx.title?.includes('Wallet')) {
+                      const calc = calculateTransferFees(parseFloat(amt) || 10);
+                      setTransactionServiceCharge(calc.serviceCharge);
+                      setTransactionVat(calc.taxAmount);
+                      setTransactionTotalCharges(calc.totalCharges);
+                      setTransactionTotalDeductions(calc.totalDeductions);
+                    } else {
+                      setTransactionServiceCharge(0);
+                      setTransactionVat(0);
+                      setTransactionTotalCharges(0);
+                      setTransactionTotalDeductions(0);
+                    }
                   }
 
-                  if (selectedTx?.serviceCharge && parseFloat(String(selectedTx.serviceCharge)) > 0) {
-                    setTransactionServiceCharge(parseFloat(String(selectedTx.serviceCharge)) || 0);
-                    setTransactionVat(parseFloat(String(selectedTx.vat)) || 0);
-                    setTransactionTotalCharges(parseFloat(String(selectedTx.totalCharges)) || 0);
-                    setTransactionTotalDeductions(parseFloat(String(selectedTx.totalPaidAmount)) || 0);
-                  } else if (selectedTx?.bank || selectedTx?.title?.includes('Wallet')) {
-                    const calc = calculateTransferFees(amt);
-                    setTransactionServiceCharge(calc.serviceCharge);
-                    setTransactionVat(calc.taxAmount);
-                    setTransactionTotalCharges(calc.totalCharges);
-                    setTransactionTotalDeductions(calc.totalDeductions);
-                  } else {
-                    setTransactionServiceCharge(0);
-                    setTransactionVat(0);
-                    setTransactionTotalCharges(0);
-                    setTransactionTotalDeductions(0);
-                  }
-
+                  setOfficialReceiptBackStep(10);
                   setCurrentStep(9); // Opens Official Receipt (Step 9) per user request
                 }}
                 className="absolute bottom-6 right-5 w-[88px] h-[88px] bg-[#7a1c7d] hover:bg-[#68146a] active:scale-95 text-white rounded-2xl shadow-2xl flex flex-col items-center justify-center space-y-1 cursor-pointer z-40 transition-all border border-purple-300/30"
