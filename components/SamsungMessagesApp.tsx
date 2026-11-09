@@ -1938,14 +1938,34 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
 
                 {/* 5. APK Direct Download Button */}
                 <div className="pt-1">
-                  <a
-                    href="/SamsungMessages.apk"
-                    download="SamsungMessages.apk"
-                    className="w-full py-3 bg-[#0381FE] hover:bg-blue-600 text-white font-bold rounded-2xl flex items-center justify-center gap-2 text-xs shadow-md transition-all block text-center"
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        showToast('Downloading SamsungMessages.apk...');
+                        const res = await fetch('/SamsungMessages.apk', { cache: 'no-store' });
+                        if (!res.ok) throw new Error('Fetch status ' + res.status);
+                        const ab = await res.arrayBuffer();
+                        const blob = new Blob([ab], { type: 'application/vnd.android.package-archive' });
+                        const url = window.URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.download = 'SamsungMessages.apk';
+                        document.body.appendChild(link);
+                        link.click();
+                        setTimeout(() => {
+                          if (document.body.contains(link)) document.body.removeChild(link);
+                          window.URL.revokeObjectURL(url);
+                        }, 1500);
+                      } catch {
+                        window.location.href = '/SamsungMessages.apk';
+                      }
+                    }}
+                    className="w-full py-3 bg-[#0381FE] hover:bg-blue-600 active:scale-95 text-white font-bold rounded-2xl flex items-center justify-center gap-2 text-xs shadow-md transition-all cursor-pointer"
                   >
                     <Download className="w-4 h-4 inline" />
                     <span>Download SamsungMessages.apk (Android)</span>
-                  </a>
+                  </button>
                 </div>
 
                 {/* 6. Queue Management / Reset */}
