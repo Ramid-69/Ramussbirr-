@@ -51,7 +51,7 @@ export default function DownloadPage() {
                 </div>
               </div>
               <span className="text-[11px] font-semibold text-blue-800 bg-blue-100 px-2 py-1 rounded-lg">
-                21 KB .apk
+                31 KB .apk
               </span>
             </div>
 

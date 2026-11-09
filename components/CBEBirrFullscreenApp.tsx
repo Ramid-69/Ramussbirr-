@@ -6300,32 +6300,8 @@ export default function CBEBirrFullscreenApp() {
                   </svg>
                 </div>
 
-                {/* Bottom padding for comfortable scrolling */}
-                <div className="w-full h-4" />
-              </div>
-
-              {/* 3. BOTTOM ACTION BAR: Clean navigation without artificial download buttons */}
-              <div className="shrink-0 w-full bg-white border-t border-slate-200 px-3 py-2 flex items-center justify-center z-30 shadow-lg">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setReceiverAccount('');
-                    setSendAmount('');
-                    setSendReason('');
-                    setTransferPin('');
-                    setTransferError('');
-                    setSelectedWallet(null);
-                    setWalletAccountNumber('');
-                    setWalletReceiverName('');
-                    setWalletAmount('');
-                    setWalletReason('');
-                    setWalletTransferError('');
-                    setCurrentStep(4);
-                  }}
-                  className="w-full py-2.5 px-4 bg-[#7a1c7d] hover:bg-[#68176b] active:scale-[0.98] text-white rounded-xl text-xs sm:text-[13px] font-bold flex items-center justify-center space-x-1.5 shadow-md transition-all cursor-pointer"
-                >
-                  <span>ወደ መነሻ ገጽ ተመለስ (Back to Home)</span>
-                </button>
+                {/* Bottom padding */}
+                <div className="w-full h-2" />
               </div>
 
               {/* Action Toast Feedback */}

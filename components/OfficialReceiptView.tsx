@@ -188,7 +188,7 @@ export function OfficialReceiptCore({
   const finalTotalPaid = feeObj ? feeObj.totalPaid : formattedAmt;
   const words = amountToWords(feeObj ? feeObj.totalPaidNum : numericAmt);
 
-  const [qrDataUrl, setQrDataUrl] = useState<string>('');
+  const [qrDataUrl, setQrDataUrl] = useState<string>('/assets/cbe_authentic_receipt_qr_exact.png');
   const [downloadToast, setDownloadToast] = useState<string>('');
 
   useEffect(() => {
@@ -283,7 +283,13 @@ export function OfficialReceiptCore({
   const creditAccType = activeBank ? `${activeBank} Account` : (isPhoneTx ? 'Customer E-money Account' : 'CBE Bank Account');
 
   return (
-    <div className={`w-full bg-[#f1f3f6] flex flex-col items-center ${isModal ? 'py-2 px-1 sm:px-3' : 'min-h-screen py-4 px-2 sm:px-4'} text-slate-800`}>
+    <div
+      className={`w-full ${
+        isModal
+          ? 'py-2 px-1 sm:px-3 flex flex-col items-center justify-center'
+          : 'min-h-screen w-full flex flex-col items-center justify-center p-2 sm:p-5'
+      } bg-[#ece7ef] sm:bg-[#f1f3f6] text-slate-800 select-none overflow-x-hidden`}
+    >
       {/* If inside modal, show only a minimal close button at top right */}
       {isModal && onClose && (
         <div className="w-full max-w-2xl flex justify-end mb-2">
@@ -298,8 +304,8 @@ export function OfficialReceiptCore({
         </div>
       )}
 
-      {/* Main Official Receipt Document Container - 100% IDENTICAL TO IN-APP STEP 9 */}
-      <main className="w-full max-w-2xl bg-white shadow-xl rounded-md border border-slate-300 overflow-hidden font-sans relative">
+      {/* Main Official Receipt Document Container - Centered and full screen view */}
+      <main className="w-full max-w-md sm:max-w-xl md:max-w-2xl bg-white shadow-2xl rounded-xl border border-slate-300 overflow-hidden font-sans relative my-auto">
         <svg
           id="official-vat-receipt-svg"
           viewBox="0 0 665 912"
@@ -424,44 +430,6 @@ export function OfficialReceiptCore({
             )}
           </g>
         </svg>
-
-        {/* Clean Action Buttons Below Receipt */}
-        <div className="w-full max-w-xl flex items-center justify-center gap-2.5 mt-4 mb-2 print:hidden">
-          <button
-            type="button"
-            onClick={() => handleDownload('pdf')}
-            className="flex items-center space-x-1.5 px-4 py-2 bg-[#7a1c7d] hover:bg-[#68146a] active:scale-95 text-white text-xs font-bold rounded-xl shadow-md transition-all cursor-pointer"
-          >
-            <FileText className="w-4 h-4" />
-            <span>Download PDF</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => handleDownload('png')}
-            className="flex items-center space-x-1.5 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-white text-xs font-bold rounded-xl shadow transition-all cursor-pointer"
-          >
-            <ImageIcon className="w-4 h-4" />
-            <span>Save Image</span>
-          </button>
-          <button
-            type="button"
-            onClick={handleShare}
-            className="flex items-center space-x-1.5 px-3 py-2 bg-white hover:bg-slate-100 active:scale-95 text-slate-700 text-xs font-semibold rounded-xl border border-slate-300 shadow-xs transition-all cursor-pointer"
-            title="Share or Copy Link"
-          >
-            <Share2 className="w-4 h-4" />
-            <span>Share</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => window.print()}
-            className="hidden sm:flex items-center space-x-1.5 px-3 py-2 bg-white hover:bg-slate-100 active:scale-95 text-slate-700 text-xs font-semibold rounded-xl border border-slate-300 shadow-xs transition-all cursor-pointer"
-            title="Print"
-          >
-            <Printer className="w-4 h-4" />
-            <span>Print</span>
-          </button>
-        </div>
       </main>
 
       {/* Toast Notification */}
@@ -510,11 +478,8 @@ export default function OfficialReceiptPage(props: OfficialReceiptProps) {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
-          <div className="text-center space-y-2">
-            <div className="w-8 h-8 border-4 border-[#7a1c7d] border-t-transparent rounded-full animate-spin mx-auto" />
-            <p className="text-xs font-bold text-slate-700">ደረሰኝ በመጫን ላይ (Loading Official Receipt)...</p>
-          </div>
+        <div className="min-h-screen bg-[#ece7ef] sm:bg-[#f1f3f6] flex items-center justify-center p-2 sm:p-5 select-none">
+          <div className="w-full max-w-md sm:max-w-xl md:max-w-2xl bg-white shadow-2xl rounded-xl border border-slate-300 overflow-hidden aspect-[665/912] animate-pulse" />
         </div>
       }
     >

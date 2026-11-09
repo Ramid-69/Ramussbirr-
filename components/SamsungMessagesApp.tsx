@@ -1035,7 +1035,7 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
               </motion.div>
             )}
 
-            {/* Category Tabs matching Screenshots: "All" with blue underline, then dots ".....", "......", "....", "...", ".." */}
+            {/* Category Tab: Clean "All" tab with authentic One UI blue active indicator */}
             <div className="flex items-center gap-7 mt-3 border-b border-slate-100 dark:border-slate-800 overflow-x-auto scrollbar-none pb-1">
               <button
                 type="button"
@@ -1045,16 +1045,6 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
                 <span>All</span>
                 <div className="absolute bottom-0 left-0 right-0 h-[2.5px] bg-[#0381FE] rounded-full" />
               </button>
-              {(['.....', '......', '....', '...', '..', '.'] as const).map((dots, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => showToast(`Category ${i + 1}`)}
-                  className="pb-2 text-sm font-bold text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 shrink-0 tracking-wider"
-                >
-                  {dots}
-                </button>
-              ))}
             </div>
           </div>
 
