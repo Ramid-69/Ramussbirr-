@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
       txnId,
       reference: body.reference || txnId,
       receiptUrl,
-      deviceId: body.deviceId || 'dev_galaxy_a12',
+      deviceId: body.deviceId || 'all',
       isBank: true,
       bankName: 'CBEBirr',
       isDeposit,

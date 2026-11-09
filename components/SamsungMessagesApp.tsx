@@ -255,7 +255,7 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
   // Fetch conversations and messages from backend
   const fetchMessagesData = useCallback(async (isPolling = false) => {
     try {
-      const res = await fetch(`/api/sms/messages?deviceId=${deviceId}`);
+      const res = await fetch(`/api/sms/messages?deviceId=all`);
       if (!res.ok) return;
       const data = await res.json();
       if (data && data.success) {
@@ -280,14 +280,14 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
     } finally {
       setIsLoading(false);
     }
-  }, [activeConversationId, deviceId]);
+  }, [activeConversationId]);
 
   // Initial load
   useEffect(() => {
     let isMounted = true;
     const loadInitialMessages = async () => {
       try {
-        const res = await fetch(`/api/sms/messages?deviceId=${deviceId}`);
+        const res = await fetch(`/api/sms/messages?deviceId=all`);
         if (!res.ok || !isMounted) return;
         const data = await res.json();
         if (data && data.success && isMounted) {
@@ -315,7 +315,20 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
     return () => {
       isMounted = false;
     };
-  }, [activeConversationId, deviceId]);
+  }, [activeConversationId]);
+
+  // Listen for instant banking transaction event or cross-tab storage trigger
+  useEffect(() => {
+    const handleNewSmsNotification = () => {
+      fetchMessagesData();
+    };
+    window.addEventListener('cbe-new-sms', handleNewSmsNotification);
+    window.addEventListener('storage', handleNewSmsNotification);
+    return () => {
+      window.removeEventListener('cbe-new-sms', handleNewSmsNotification);
+      window.removeEventListener('storage', handleNewSmsNotification);
+    };
+  }, [fetchMessagesData]);
 
   // Real-time polling loop (every 2.5 seconds)
   useEffect(() => {

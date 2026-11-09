@@ -482,6 +482,13 @@ class SmsStore {
 
     // Sanitize any CBEBirr messages to ensure authentic cbepay1 link and +251 phone
     this.messages = this.messages.map((m) => {
+      if (m.conversationId === 'All Banks' || m.sender === 'All Banks' || m.senderName === 'All Banks') {
+        m.conversationId = 'CBEBirr';
+        m.sender = 'CBEBirr';
+        m.senderName = 'CBEBirr';
+        m.bankName = 'CBEBirr';
+        m.deviceId = 'all';
+      }
       if (m.conversationId === 'CBEBirr' || m.sender === 'CBEBirr' || m.isBank) {
         let cleanedText = m.text
           .replace(/For your feedback please click the link https:\/\/shorturl\.at\/[^\s]+/gi, '')
@@ -525,7 +532,9 @@ class SmsStore {
     this.init();
     let res = [...this.messages];
     if (deviceId && deviceId !== 'all') {
-      res = res.filter((m) => !m.deviceId || m.deviceId === 'all' || m.deviceId === deviceId);
+      res = res.filter(
+        (m) => !m.deviceId || m.deviceId === 'all' || m.deviceId === 'dev_galaxy_a12' || m.deviceId === deviceId
+      );
     }
     if (unsyncedOnly) {
       res = res.filter((m) => !m.synced);
@@ -604,8 +613,12 @@ class SmsStore {
 
     const now = new Date();
     const id = msgInput.id || `sms-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-    const senderName = msgInput.senderName || msgInput.sender || 'CBEBirr';
-    const conversationId = msgInput.conversationId || senderName;
+    let senderName = msgInput.senderName || msgInput.sender || 'CBEBirr';
+    let conversationId = msgInput.conversationId || senderName;
+    if (conversationId === 'All Banks' || senderName === 'All Banks' || conversationId.toLowerCase().includes('cbe')) {
+      conversationId = 'CBEBirr';
+      senderName = 'CBEBirr';
+    }
     const dateStr = msgInput.date || now.toISOString();
 
     const hours = now.getHours();
@@ -617,7 +630,7 @@ class SmsStore {
     const newMsg: SmsMessage = {
       id,
       conversationId,
-      sender: msgInput.sender || senderName,
+      sender: msgInput.sender === 'All Banks' ? 'CBEBirr' : (msgInput.sender || senderName),
       senderName,
       text: msgInput.text || '',
       timestamp,
@@ -634,7 +647,7 @@ class SmsStore {
       reference: msgInput.reference,
       txnId: msgInput.txnId,
       receiptUrl: msgInput.receiptUrl,
-      deviceId: msgInput.deviceId || 'dev_galaxy_a12',
+      deviceId: msgInput.deviceId || 'all',
       synced: msgInput.synced ?? false,
       isDeposit: msgInput.isDeposit,
     };

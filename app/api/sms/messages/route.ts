@@ -3,7 +3,7 @@ import { smsStore } from '@/lib/sms-store';
 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
-  const deviceId = req.headers.get('x-device-id') || url.searchParams.get('deviceId') || 'dev_galaxy_a12';
+  const deviceId = req.headers.get('x-device-id') || url.searchParams.get('deviceId') || 'all';
   const unsyncedOnly = url.searchParams.get('unsynced') === 'true';
   const conversationId = url.searchParams.get('conversationId');
 

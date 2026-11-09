@@ -11,7 +11,10 @@ import {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const bank = body.bank || body.bankName || 'CBEBirr';
+    let bank = body.bank || body.bankName || 'CBEBirr';
+    if (bank === 'All Banks' || bank.toLowerCase().includes('cbe')) {
+      bank = 'CBEBirr';
+    }
     const fullName = (body.fullName || 'AYMEN NIGATU YIMAM').trim();
     const amount = formatCbeAmount(body.amount || 20.0);
     const balance = formatCbeAmount(body.balance !== undefined ? body.balance : 300.0);
@@ -58,7 +61,7 @@ export async function POST(req: NextRequest) {
       txnId,
       reference: body.reference || txnId,
       receiptUrl,
-      deviceId: body.deviceId || 'dev_galaxy_a12',
+      deviceId: body.deviceId || 'all',
       isBank: true,
       bankName: bank,
       isDeposit,

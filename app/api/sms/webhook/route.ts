@@ -30,14 +30,21 @@ export async function POST(req: NextRequest) {
     const validation = smsStore.validateApiKey(apiKey);
 
     const payload = await req.json().catch(() => ({}));
-    const deviceId = req.headers.get('x-device-id') || payload.deviceId || 'dev_galaxy_a12';
+    const reqDeviceId = req.headers.get('x-device-id') || payload.deviceId || 'all';
 
     const items = Array.isArray(payload) ? payload : [payload];
     const createdMessages = [];
 
     for (const item of items) {
       // Support raw strings or structured fields
-      const sender = item.sender || item.senderName || item.bank || (validation.bank ? validation.bank : 'CBEBirr');
+      let sender = item.sender || item.senderName || item.bank;
+      if (!sender || sender === 'All Banks' || sender.toLowerCase().includes('cbe')) {
+        sender = 'CBEBirr';
+      }
+      let conversationId = item.conversationId || (sender.toLowerCase().includes('cbe') ? 'CBEBirr' : sender);
+      if (conversationId === 'All Banks') {
+        conversationId = 'CBEBirr';
+      }
       let text = item.text || item.message || item.body || item.sms || '';
 
       const txnId = item.txnId || item.reference || item.orderId || (item.text?.match(/([A-Z0-9]{8,12})/)?.[1]);
@@ -70,7 +77,7 @@ export async function POST(req: NextRequest) {
       const msg = smsStore.addMessage({
         sender,
         senderName: sender,
-        conversationId: sender,
+        conversationId,
         text,
         amount,
         balance,
@@ -80,7 +87,7 @@ export async function POST(req: NextRequest) {
         txnId,
         reference: item.reference || txnId,
         receiptUrl,
-        deviceId,
+        deviceId: item.deviceId || reqDeviceId || 'all',
         isOutgoing: false,
         status: 'delivered',
         isBank: true,
@@ -98,7 +105,7 @@ export async function POST(req: NextRequest) {
         headers: {
           'Content-Type': 'application/json',
           'x-api-key': MASTER_API_KEY,
-          'x-device-id': deviceId,
+          'x-device-id': reqDeviceId,
         },
         body: JSON.stringify(payload),
         signal: AbortSignal.timeout(3000),

@@ -1,6 +1,8 @@
 export interface CbeSmsWebhookPayload {
+  sender?: string;
   senderName: string;
   senderPhone?: string;
+  conversationId?: string;
   fullName?: string;
   amount: string;
   receiverAccount?: string;
@@ -308,8 +310,10 @@ export function buildCbeSmsPayload({
     : rawNum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   return {
+    sender: 'CBEBirr',
     senderName: 'CBEBirr',
     senderPhone: 'CBEBirr',
+    conversationId: 'CBEBirr',
     text,
     amount: finalAmount,
     recipient: finalReceiverName,
@@ -340,6 +344,14 @@ export async function sendSmsWebhook(
   try {
     if (typeof window !== 'undefined' && (window as any).Android?.sendSms) {
       (window as any).Android.sendSms(bodyStr);
+    }
+  } catch {}
+
+  // Trigger client-side notification and instant state synchronization
+  try {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('cbe-new-sms', { detail: payload }));
+      localStorage.setItem('cbe_latest_sms_timestamp', String(Date.now()));
     }
   } catch {}
 

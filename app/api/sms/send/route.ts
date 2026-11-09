@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
       fullName: body.fullName || 'AYMEN NIGATU YIMAM',
       txnId: body.txnId,
       receiptUrl: body.receiptUrl,
-      deviceId: body.deviceId || 'dev_galaxy_a12',
+      deviceId: body.deviceId || 'all',
       isOutgoing: !!body.isOutgoing,
       isBank: body.isBank ?? true,
       bankName: body.bankName || sender,
