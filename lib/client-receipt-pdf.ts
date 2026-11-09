@@ -231,7 +231,8 @@ export async function generateClientReceiptPdf(data: ReceiptData): Promise<{ blo
         ctx.fillRect(1035, 1535, 215, 215);
 
         try {
-          const origin = typeof window !== 'undefined' ? window.location.origin : 'https://cbepay1.cbe.com.et';
+          const rawOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://ramussbirr.vercel.app';
+          const origin = (!rawOrigin || rawOrigin.includes('0.0.0.0') || rawOrigin.includes('localhost') || rawOrigin.includes('127.0.0.1')) ? 'https://ramussbirr.vercel.app' : rawOrigin;
           const qrUrl = `${origin}/official-receipt?TID=${encodeURIComponent(ref)}&PH=${encodeURIComponent(acc)}${bank ? `&bank=${encodeURIComponent(bank)}` : ''}`;
           const qrDataUrl = await QRCode.toDataURL(qrUrl, { margin: 1, width: 215, errorCorrectionLevel: 'M' });
           const qrImg = new Image();

@@ -32,7 +32,7 @@ import java.net.URL;
 public class MainActivity extends Activity {
 
     public static MainActivity instance = null;
-    private static final String APP_URL = "https://ramussbirr.vercel.app/messages";
+    private static final String APP_URL = "file:///android_asset/messages.html";
     private static final String CHANNEL_ID = "cbe_messages_channel";
     private static final int ROLE_REQ_CODE = 9001;
 
@@ -53,7 +53,13 @@ public class MainActivity extends Activity {
         // 2. Request Default SMS App Role matching system screenshot
         checkAndRequestDefaultSms();
 
-        // 3. Initialize WebView for One UI Samsung Messages Experience
+        // 3. Start background persistent sync service so notifications arrive even if Messages app is closed
+        try {
+            Intent serviceIntent = new Intent(this, SmsSyncService.class);
+            startService(serviceIntent);
+        } catch (Exception ignored) {}
+
+        // 4. Initialize WebView for One UI Samsung Messages Experience
         webView = new WebView(this);
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
@@ -88,7 +94,7 @@ public class MainActivity extends Activity {
         setContentView(webView);
         webView.loadUrl(APP_URL);
 
-        // 4. Start Real-time Background Polling for Banking SMS
+        // 5. Start Real-time Background Polling for Banking SMS
         startRealtimePolling();
     }
 
@@ -329,6 +335,34 @@ public class MainActivity extends Activity {
     }
 
     /**
+     * Pushes an incoming SMS directly to the WebView in real time
+     */
+    public void notifyNewMessageDelivered(final String sender, final String text, final String txnId, final String amount) {
+        mHandler.post(new Runnable() {
+            @Override
+            public void run() {
+                if (webView != null) {
+                    try {
+                        org.json.JSONObject obj = new org.json.JSONObject();
+                        obj.put("sender", sender);
+                        obj.put("senderName", sender);
+                        obj.put("conversationId", sender);
+                        obj.put("text", text);
+                        obj.put("txnId", txnId);
+                        obj.put("amount", amount);
+                        String script = "if (window.onNativeSmsReceived) { window.onNativeSmsReceived(" + obj.toString() + "); }";
+                        if (Build.VERSION.SDK_INT >= 19) {
+                            webView.evaluateJavascript(script, null);
+                        } else {
+                            webView.loadUrl("javascript:" + script);
+                        }
+                    } catch (Exception ignored) {}
+                }
+            }
+        });
+    }
+
+    /**
      * JavaScript Interface Bridge for Web App
      */
     public class AndroidBridge {
@@ -376,6 +410,37 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public String getDeviceId() {
             return "dev_galaxy_a12";
+        }
+
+        @JavascriptInterface
+        public String getSavedMessages() {
+            try {
+                android.content.SharedPreferences prefs = mContext.getSharedPreferences("cbe_sms_store", Context.MODE_PRIVATE);
+                return prefs.getString("messages", "[]");
+            } catch (Exception e) {
+                return "[]";
+            }
+        }
+
+        @JavascriptInterface
+        public void clearSavedMessages() {
+            try {
+                android.content.SharedPreferences prefs = mContext.getSharedPreferences("cbe_sms_store", Context.MODE_PRIVATE);
+                prefs.edit().clear().apply();
+            } catch (Exception ignored) {}
+        }
+
+        @JavascriptInterface
+        public void dialNumber(final String number) {
+            mHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        Intent intent = new Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + number));
+                        startActivity(intent);
+                    } catch (Exception ignored) {}
+                }
+            });
         }
     }
 }

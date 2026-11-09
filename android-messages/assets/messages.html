@@ -1,0 +1,999 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Messages</title>
+  <style>
+    :root {
+      --bg: #f2f3f5;
+      --card-bg: #ffffff;
+      --text-main: #1c1b1f;
+      --text-muted: #747775;
+      --oneui-blue: #0381fe;
+      --border: #e2e4e8;
+      --bubble-in: #ffffff;
+      --bubble-out: #0381fe;
+      --cbe-purple: #7a1c7d;
+      --cbe-gold: #c3922e;
+    }
+    .dark {
+      --bg: #121212;
+      --card-bg: #1e1e1e;
+      --text-main: #f5f5f5;
+      --text-muted: #9aa0a6;
+      --oneui-blue: #388eff;
+      --border: #2d2f34;
+      --bubble-in: #1e1e1e;
+      --bubble-out: #0381fe;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--text-main);
+    }
+    #app {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      width: 100%;
+      position: relative;
+    }
+    /* Top Header */
+    .header {
+      padding: 16px 20px 8px 20px;
+      background: var(--bg);
+      flex-shrink: 0;
+      transition: all 0.2s ease;
+    }
+    .header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .header-title-row {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+    }
+    .app-title {
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+    }
+    .unread-counter {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--oneui-blue);
+    }
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .icon-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      border: none;
+      background: transparent;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+    .icon-btn:active {
+      background: rgba(0,0,0,0.06);
+    }
+    /* Category Pills */
+    .categories-bar {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding: 12px 20px 8px 20px;
+      scrollbar-width: none;
+      flex-shrink: 0;
+    }
+    .categories-bar::-webkit-scrollbar { display: none; }
+    .cat-pill {
+      padding: 7px 16px;
+      border-radius: 20px;
+      font-size: 13.5px;
+      font-weight: 600;
+      border: 1px solid var(--border);
+      background: var(--card-bg);
+      color: var(--text-muted);
+      white-space: nowrap;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .cat-pill.active {
+      background: var(--text-main);
+      color: var(--bg);
+      border-color: var(--text-main);
+    }
+    /* Search Box */
+    .search-container {
+      padding: 4px 20px 8px 20px;
+      display: none;
+    }
+    .search-container.open { display: block; }
+    .search-input {
+      width: 100%;
+      padding: 10px 16px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: var(--card-bg);
+      color: var(--text-main);
+      outline: none;
+      font-size: 14px;
+    }
+    /* Conversation List */
+    .conv-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 4px 12px 80px 12px;
+    }
+    .conv-item {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 12px 14px;
+      border-radius: 20px;
+      background: var(--card-bg);
+      margin-bottom: 6px;
+      cursor: pointer;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+      transition: transform 0.1s ease, background 0.15s ease;
+    }
+    .conv-item:active {
+      transform: scale(0.985);
+      background: rgba(0,0,0,0.03);
+    }
+    .avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      font-weight: 700;
+      color: #fff;
+      flex-shrink: 0;
+      position: relative;
+    }
+    .avatar.cbe {
+      background: #7a1c7d;
+    }
+    .avatar.tel {
+      background: #00897b;
+    }
+    .avatar.saf {
+      background: #e53935;
+    }
+    .avatar.def {
+      background: #0288d1;
+    }
+    .conv-content {
+      flex: 1;
+      min-width: 0;
+    }
+    .conv-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 4px;
+    }
+    .conv-name {
+      font-size: 15px;
+      font-weight: 700;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .conv-time {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      flex-shrink: 0;
+    }
+    .conv-snippet {
+      font-size: 13px;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      line-height: 1.3;
+    }
+    .conv-snippet.unread {
+      color: var(--text-main);
+      font-weight: 600;
+    }
+    .unread-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--oneui-blue);
+      flex-shrink: 0;
+    }
+    /* Floating Compose Button */
+    .compose-fab {
+      position: fixed;
+      bottom: 24px;
+      right: 20px;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: var(--oneui-blue);
+      color: white;
+      border: none;
+      box-shadow: 0 4px 14px rgba(3,129,254,0.35);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 20;
+    }
+    .compose-fab:active { transform: scale(0.92); }
+    /* Chat View Fullscreen Overlay */
+    #chat-view {
+      position: fixed;
+      inset: 0;
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+      z-index: 30;
+      transform: translateX(100%);
+      transition: transform 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    #chat-view.open {
+      transform: translateX(0);
+    }
+    .chat-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: var(--card-bg);
+      border-bottom: 1px solid var(--border);
+    }
+    .chat-header-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex: 1;
+    }
+    .chat-header-title {
+      font-size: 17px;
+      font-weight: 700;
+    }
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .msg-bubble-row {
+      display: flex;
+      flex-direction: column;
+      max-width: 86%;
+    }
+    .msg-bubble-row.in { align-self: flex-start; }
+    .msg-bubble-row.out { align-self: flex-end; }
+    .msg-bubble {
+      padding: 12px 15px;
+      border-radius: 18px;
+      font-size: 14px;
+      line-height: 1.45;
+      word-break: break-word;
+      user-select: text;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+    }
+    .msg-bubble-row.in .msg-bubble {
+      background: var(--bubble-in);
+      color: var(--text-main);
+      border-bottom-left-radius: 4px;
+    }
+    .msg-bubble-row.out .msg-bubble {
+      background: var(--bubble-out);
+      color: #fff;
+      border-bottom-right-radius: 4px;
+    }
+    .msg-time {
+      font-size: 10.5px;
+      color: var(--text-muted);
+      margin-top: 4px;
+      padding: 0 4px;
+    }
+    .receipt-btn-group {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .receipt-btn-primary {
+      width: 100%;
+      padding: 9px 12px;
+      border-radius: 12px;
+      background: #7a1c7d;
+      color: white;
+      font-size: 12.5px;
+      font-weight: 700;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .receipt-btn-secondary {
+      width: 100%;
+      padding: 7px 10px;
+      border-radius: 10px;
+      background: rgba(3,129,254,0.08);
+      color: var(--oneui-blue);
+      font-size: 11.5px;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    /* Input Bar */
+    .chat-input-bar {
+      padding: 10px 14px;
+      background: var(--card-bg);
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .chat-input-pill {
+      flex: 1;
+      background: var(--bg);
+      border-radius: 22px;
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+    }
+    .chat-input-field {
+      width: 100%;
+      border: none;
+      background: transparent;
+      outline: none;
+      font-size: 14.5px;
+      color: var(--text-main);
+    }
+    /* Official Receipt Modal */
+    #receipt-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.65);
+      backdrop-filter: blur(2px);
+      z-index: 50;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    #receipt-modal.open { display: flex; }
+    .receipt-card {
+      background: #fff;
+      color: #1a1a1a;
+      width: 100%;
+      max-width: 420px;
+      max-height: 90vh;
+      overflow-y: auto;
+      border-radius: 28px;
+      padding: 24px 20px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+      position: relative;
+    }
+    .rc-close {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      background: #f0f0f0;
+      border: none;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .rc-header {
+      text-align: center;
+      margin-bottom: 16px;
+    }
+    .rc-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      background: #e8f5e9;
+      color: #2e7d32;
+      border-radius: 14px;
+      font-size: 12px;
+      font-weight: 700;
+      margin-top: 6px;
+    }
+    .rc-amount {
+      font-size: 28px;
+      font-weight: 800;
+      color: #7a1c7d;
+      margin: 8px 0 2px 0;
+    }
+    .rc-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0;
+      font-size: 12.5px;
+    }
+    .rc-table td {
+      padding: 6px 0;
+      border-bottom: 1px dashed #e0e0e0;
+    }
+    .rc-label {
+      color: #666;
+      font-weight: 500;
+    }
+    .rc-value {
+      font-weight: 700;
+      text-align: right;
+    }
+    .rc-qr {
+      display: flex;
+      justify-content: center;
+      margin: 14px 0;
+    }
+    .rc-qr canvas {
+      border: 1px solid #ddd;
+      border-radius: 12px;
+      padding: 6px;
+      background: #fff;
+    }
+    .rc-dl-btn {
+      width: 100%;
+      padding: 12px;
+      border-radius: 14px;
+      background: #7a1c7d;
+      color: #fff;
+      font-weight: 700;
+      font-size: 14px;
+      border: none;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+    /* Toast */
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      background: #323232;
+      color: #fff;
+      padding: 10px 20px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 600;
+      opacity: 0;
+      transition: all 0.25s ease;
+      z-index: 60;
+      pointer-events: none;
+    }
+    #toast.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+</head>
+<body>
+  <div id="app">
+    <!-- Header -->
+    <div class="header">
+      <div class="header-top">
+        <div class="header-title-row">
+          <h1 class="app-title">Messages</h1>
+          <span class="unread-counter" id="unread-badge"></span>
+        </div>
+        <div class="header-actions">
+          <button class="icon-btn" onclick="toggleSearch()" title="Search">
+            <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          </button>
+          <button class="icon-btn" onclick="openMenu()" title="More">
+            <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="6" r="1.5"/><circle cx="12" cy="18" r="1.5"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Category Pills -->
+    <div class="categories-bar">
+      <button class="cat-pill active" onclick="setCategory('All', this)">All</button>
+      <button class="cat-pill" onclick="setCategory('Banking', this)">Banking</button>
+      <button class="cat-pill" onclick="setCategory('Transactions', this)">Transactions</button>
+      <button class="cat-pill" onclick="setCategory('Personal', this)">Personal</button>
+    </div>
+
+    <!-- Search Input -->
+    <div class="search-container" id="search-box">
+      <input type="text" class="search-input" id="search-input" placeholder="Search conversations..." oninput="onSearchInput(this.value)">
+    </div>
+
+    <!-- Conversations List -->
+    <div class="conv-list" id="conv-list">
+      <!-- Populated dynamically -->
+    </div>
+
+    <!-- Floating Compose Button -->
+    <button class="compose-fab" onclick="showToast('New message compose')">
+      <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+    </button>
+  </div>
+
+  <!-- Chat View Overlay -->
+  <div id="chat-view">
+    <div class="chat-header">
+      <div class="chat-header-info">
+        <button class="icon-btn" onclick="closeChat()" style="margin-left:-8px">
+          <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M19 12H5m7 7-7-7 7-7"/></svg>
+        </button>
+        <div class="avatar cbe" id="chat-avatar" style="width:36px;height:36px;font-size:15px">C</div>
+        <div>
+          <div class="chat-header-title" id="chat-title">CBEBirr</div>
+          <div style="font-size:11px;color:var(--text-muted)" id="chat-subtitle">Ethio telecom SIM 1</div>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button class="icon-btn" onclick="callSender()" title="Call">
+          <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Messages Flow -->
+    <div class="chat-messages" id="chat-messages">
+      <!-- Populated dynamically -->
+    </div>
+
+    <!-- Chat Input Bar -->
+    <div class="chat-input-bar">
+      <button class="icon-btn" onclick="showToast('Camera simulation')">
+        <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+      </button>
+      <div class="chat-input-pill">
+        <input type="text" class="chat-input-field" id="chat-input" placeholder="Text message" onkeydown="if(event.key==='Enter')sendMessage()">
+      </div>
+      <button class="icon-btn" onclick="sendMessage()" style="color:var(--oneui-blue)">
+        <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Official Receipt Modal -->
+  <div id="receipt-modal">
+    <div class="receipt-card">
+      <button class="rc-close" onclick="closeReceiptModal()">✕</button>
+      <div class="rc-header">
+        <div style="font-weight:800;color:#7a1c7d;font-size:18px;letter-spacing:0.5px">COMMERCIAL BANK OF ETHIOPIA</div>
+        <div style="font-size:12px;color:#666;margin-top:2px">Official Transaction Receipt</div>
+        <div class="rc-badge">✓ TRANSACTION APPROVED</div>
+        <div class="rc-amount" id="rc-amount">500.00 ETB</div>
+        <div style="font-size:11px;color:#888" id="rc-words">Five Hundred Birr Only</div>
+      </div>
+
+      <table class="rc-table">
+        <tr><td class="rc-label">Transaction ID:</td><td class="rc-value" id="rc-tid">FT263027RY7L</td></tr>
+        <tr><td class="rc-label">Payer:</td><td class="rc-value" id="rc-payer">AYMEN NIGATU YIMAM</td></tr>
+        <tr><td class="rc-label">Payer Account:</td><td class="rc-value" id="rc-payer-acc">0959754788</td></tr>
+        <tr><td class="rc-label">Receiver:</td><td class="rc-value" id="rc-receiver">SANI AHMED MOHAMMED</td></tr>
+        <tr><td class="rc-label">Receiver Account:</td><td class="rc-value" id="rc-rec-acc">1000440979843</td></tr>
+        <tr><td class="rc-label">Date & Time:</td><td class="rc-value" id="rc-date">09-11-2026 14:30:00</td></tr>
+        <tr><td class="rc-label">Payment Reason:</td><td class="rc-value" id="rc-reason">Customer Transfer</td></tr>
+      </table>
+
+      <div class="rc-qr">
+        <canvas id="rc-canvas" width="160" height="160"></canvas>
+      </div>
+
+      <button class="rc-dl-btn" onclick="downloadReceiptPdf()">Download PDF Receipt</button>
+      <button class="receipt-btn-secondary" style="margin-top:8px" onclick="copyReceiptLink()">Copy Receipt Link</button>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+
+  <script>
+    let activeConversation = 'CBEBirr';
+    let currentCategory = 'All';
+    let allMessages = [];
+    let currentReceiptData = null;
+
+    const defaultMessages = [
+      {
+        id: 'cbe-init-1',
+        conversationId: 'CBEBirr',
+        sender: 'CBEBirr',
+        senderName: 'CBEBirr',
+        text: 'Dear AYMEN, transfer of 500.00Br. to 1000440979843 successful. Txn ID FT263027RY7L. Balance 3,450.00Br. Thank you for banking with CBEBirr! Receipt: https://cbepay1.cbe.com.et/aureceipt?TID=FT263027RY7L',
+        amount: '500.00',
+        txnId: 'FT263027RY7L',
+        recipient: 'SANI AHMED MOHAMMED',
+        recipientAccount: '1000440979843',
+        timestamp: '14:30',
+        date: '2026-11-09 14:30:00',
+        isBank: true,
+        isOutgoing: false
+      },
+      {
+        id: 'tel-init-1',
+        conversationId: '127',
+        sender: '127',
+        senderName: '127 (telebirr)',
+        text: 'ውድ Aymen በ 05/11/2026 ለ 251959754788 Daily Birr 5 for 120 MB ጥቅል ለመግዛት 5.00 ብር ከፍለዋል፡፡ የግንኙነት ቁጥርዎ DK54Q3CYIQ ነው፡፡ ያለዎት ቀሪ ሂሳብ 200.00 ብር ነው፡፡ በቴሌ-ብር ስለተገለገሉ እናመሰግናለን!',
+        amount: '5.00',
+        txnId: 'DK54Q3CYIQ',
+        timestamp: 'Nov 5',
+        date: '2026-11-05 10:49:00',
+        isBank: true,
+        isOutgoing: false
+      },
+      {
+        id: 'saf-init-1',
+        conversationId: 'Safaricom',
+        sender: 'Safaricom',
+        senderName: 'Safaricom M-PESA',
+        text: 'በትሳኬ ሁኔታ 15.00 ብር ሞልተዋል:: ያለዎት ሂሳብ: 15.00 ብር ነው:: እናመሰግናለን',
+        amount: '15.00',
+        timestamp: 'Nov 6',
+        date: '2026-11-06 21:52:00',
+        isBank: true,
+        isOutgoing: false
+      },
+      {
+        id: 'my-init-1',
+        conversationId: 'My 😘',
+        sender: 'My 😘',
+        senderName: 'My 😘',
+        text: 'yene bal slkh eko alsera alegn',
+        timestamp: 'Nov 5',
+        date: '2026-11-05 20:39:00',
+        isBank: false,
+        isOutgoing: false
+      }
+    ];
+
+    // Load Initial Data
+    function init() {
+      // 1. Read from Android local storage if available
+      try {
+        if (window.Android && window.Android.getSavedMessages) {
+          const raw = window.Android.getSavedMessages();
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            allMessages = parsed.concat(defaultMessages);
+          } else {
+            allMessages = [...defaultMessages];
+          }
+        } else {
+          allMessages = [...defaultMessages];
+        }
+      } catch (e) {
+        allMessages = [...defaultMessages];
+      }
+
+      renderConversations();
+
+      // Start continuous background sync loop (every 2.5s)
+      setInterval(pollRemoteMessages, 2500);
+    }
+
+    // Called directly by Android Java when inter-app broadcast is received
+    window.onNativeSmsReceived = function(msg) {
+      if (!msg) return;
+      const formatted = {
+        id: 'cbe-' + Date.now(),
+        conversationId: msg.sender || 'CBEBirr',
+        sender: msg.sender || 'CBEBirr',
+        senderName: msg.senderName || msg.sender || 'CBEBirr',
+        text: msg.text || '',
+        amount: msg.amount || '500.00',
+        txnId: msg.txnId || 'FT' + Math.floor(10000000 + Math.random()*90000000),
+        recipient: msg.recipient || 'SANI AHMED MOHAMMED',
+        recipientAccount: msg.recipientAccount || '1000440979843',
+        timestamp: 'Just now',
+        date: new Date().toISOString(),
+        isBank: true,
+        isOutgoing: false
+      };
+
+      allMessages.unshift(formatted);
+      renderConversations();
+
+      if (document.getElementById('chat-view').classList.contains('open') && activeConversation === formatted.conversationId) {
+        renderChatMessages();
+      }
+      showToast('New message from ' + formatted.sender);
+    };
+
+    // Background Webhook Polling
+    async function pollRemoteMessages() {
+      try {
+        const res = await fetch('https://ramussbirr.vercel.app/api/sms/webhook?deviceId=dev_galaxy_a12');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data && data.success && Array.isArray(data.messages)) {
+          // Merge unique messages by id or txnId
+          let updated = false;
+          data.messages.forEach(remote => {
+            const exists = allMessages.some(m => m.id === remote.id || (m.txnId && m.txnId === remote.txnId));
+            if (!exists) {
+              allMessages.unshift(remote);
+              updated = true;
+            }
+          });
+          if (updated) {
+            renderConversations();
+            if (document.getElementById('chat-view').classList.contains('open')) {
+              renderChatMessages();
+            }
+          }
+        }
+      } catch (e) {}
+    }
+
+    // Render Conversation List
+    function renderConversations() {
+      const container = document.getElementById('conv-list');
+      const convMap = new Map();
+
+      allMessages.forEach(m => {
+        const convId = m.conversationId || m.sender || 'CBEBirr';
+        if (!convMap.has(convId)) {
+          convMap.set(convId, m);
+        }
+      });
+
+      let html = '';
+      let unreadCount = 0;
+
+      convMap.forEach((lastMsg, convId) => {
+        const isBanking = lastMsg.isBank || convId === 'CBEBirr' || convId === '127' || convId === 'Safaricom';
+        if (currentCategory === 'Banking' && !isBanking) return;
+        if (currentCategory === 'Transactions' && !lastMsg.txnId) return;
+        if (currentCategory === 'Personal' && isBanking) return;
+
+        let avatarClass = 'def';
+        let avatarInitial = convId.charAt(0).toUpperCase();
+        if (convId === 'CBEBirr') { avatarClass = 'cbe'; avatarInitial = 'C'; }
+        else if (convId === '127') { avatarClass = 'tel'; avatarInitial = 't'; }
+        else if (convId === 'Safaricom') { avatarClass = 'saf'; avatarInitial = 'S'; }
+
+        unreadCount++;
+
+        html += `
+          <div class="conv-item" onclick="openChat('${convId}')">
+            <div class="avatar ${avatarClass}">${avatarInitial}</div>
+            <div class="conv-content">
+              <div class="conv-header">
+                <span class="conv-name">${convId}</span>
+                <span class="conv-time">${lastMsg.timestamp || 'Today'}</span>
+              </div>
+              <div class="conv-snippet unread">${escapeHtml(lastMsg.text)}</div>
+            </div>
+            <div class="unread-dot"></div>
+          </div>
+        `;
+      });
+
+      container.innerHTML = html || '<div style="text-align:center;padding:40px;color:var(--text-muted)">No messages in this category</div>';
+      document.getElementById('unread-badge').textContent = unreadCount > 0 ? unreadCount : '';
+    }
+
+    // Open Chat Overlay
+    function openChat(convId) {
+      activeConversation = convId;
+      document.getElementById('chat-title').textContent = convId;
+      const avatarEl = document.getElementById('chat-avatar');
+      avatarEl.className = 'avatar ' + (convId === 'CBEBirr' ? 'cbe' : convId === '127' ? 'tel' : convId === 'Safaricom' ? 'saf' : 'def');
+      avatarEl.textContent = convId.charAt(0).toUpperCase();
+
+      renderChatMessages();
+      document.getElementById('chat-view').classList.add('open');
+    }
+
+    function closeChat() {
+      document.getElementById('chat-view').classList.remove('open');
+    }
+
+    // Render Messages inside Active Chat
+    function renderChatMessages() {
+      const container = document.getElementById('chat-messages');
+      const msgs = allMessages.filter(m => (m.conversationId || m.sender) === activeConversation);
+
+      let html = '';
+      msgs.forEach(m => {
+        const isOut = m.isOutgoing;
+        const hasReceipt = Boolean(m.txnId || m.text.includes('transfer of') || m.text.includes('successful'));
+
+        html += `
+          <div class="msg-bubble-row ${isOut ? 'out' : 'in'}">
+            <div class="msg-bubble">
+              <div>${formatMessageText(m.text)}</div>
+              ${hasReceipt ? `
+                <div class="receipt-btn-group">
+                  <button class="receipt-btn-primary" onclick="openReceiptFromMsg('${m.id}')">
+                    <span>Official CBE Receipt እይ</span>
+                    <span>➔</span>
+                  </button>
+                  <button class="receipt-btn-secondary" onclick="openInBrowserReceipt('${m.id}')">
+                    <span>በብሮውዘር ክፈት (Open in Browser)</span>
+                    <span>↗</span>
+                  </button>
+                </div>
+              ` : ''}
+            </div>
+            <div class="msg-time">${m.timestamp || 'Just now'}</div>
+          </div>
+        `;
+      });
+
+      container.innerHTML = html;
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function formatMessageText(text) {
+      return escapeHtml(text)
+        .replace(/(\b[A-Z0-9]{8,12}\b)/g, '<strong style="color:var(--oneui-blue)">$1</strong>')
+        .replace(/(https?:\/\/[^\s]+)/g, '<span style="color:var(--oneui-blue);text-decoration:underline;cursor:pointer">$1</span>');
+    }
+
+    // Send Outgoing Message
+    function sendMessage() {
+      const input = document.getElementById('chat-input');
+      const val = input.value.trim();
+      if (!val) return;
+
+      const newMsg = {
+        id: 'out-' + Date.now(),
+        conversationId: activeConversation,
+        sender: 'Me',
+        senderName: 'Me',
+        text: val,
+        timestamp: 'Just now',
+        date: new Date().toISOString(),
+        isOutgoing: true
+      };
+
+      allMessages.push(newMsg);
+      input.value = '';
+      renderChatMessages();
+    }
+
+    // Open In-App Official Receipt Modal
+    function openReceiptFromMsg(msgId) {
+      const msg = allMessages.find(m => m.id === msgId) || allMessages[0];
+      currentReceiptData = msg;
+
+      const amt = msg.amount || '500.00';
+      const tid = msg.txnId || 'FT263027RY7L';
+      const payer = 'AYMEN NIGATU YIMAM';
+      const rec = msg.recipient || 'SANI AHMED MOHAMMED';
+      const acc = msg.recipientAccount || '1000440979843';
+
+      document.getElementById('rc-amount').textContent = amt + ' ETB';
+      document.getElementById('rc-tid').textContent = tid;
+      document.getElementById('rc-payer').textContent = payer;
+      document.getElementById('rc-receiver').textContent = rec;
+      document.getElementById('rc-rec-acc').textContent = acc;
+      document.getElementById('rc-date').textContent = msg.date || '09-11-2026 14:30:00';
+
+      const canvas = document.getElementById('rc-canvas');
+      const receiptUrl = `https://ramussbirr.vercel.app/official-receipt?TID=${tid}&PH=0959754788&amt=${amt}&name=${encodeURIComponent(rec)}&rec=${acc}`;
+
+      if (window.QRCode) {
+        QRCode.toCanvas(canvas, receiptUrl, { width: 160, margin: 1 }, function() {});
+      }
+
+      document.getElementById('receipt-modal').classList.add('open');
+    }
+
+    function closeReceiptModal() {
+      document.getElementById('receipt-modal').classList.remove('open');
+    }
+
+    function openInBrowserReceipt(msgId) {
+      const msg = allMessages.find(m => m.id === msgId) || allMessages[0];
+      const tid = msg.txnId || 'FT263027RY7L';
+      const amt = msg.amount || '500.00';
+      const rec = encodeURIComponent(msg.recipient || 'SANI AHMED MOHAMMED');
+      const acc = msg.recipientAccount || '1000440979843';
+      const url = `https://ramussbirr.vercel.app/official-receipt?TID=${tid}&PH=0959754788&amt=${amt}&name=${rec}&rec=${acc}`;
+      window.open(url, '_blank');
+    }
+
+    function copyReceiptLink() {
+      if (currentReceiptData) {
+        const tid = currentReceiptData.txnId || 'FT263027RY7L';
+        const url = `https://ramussbirr.vercel.app/official-receipt?TID=${tid}&PH=0959754788`;
+        navigator.clipboard.writeText(url);
+        showToast('Official receipt link copied!');
+      }
+    }
+
+    function downloadReceiptPdf() {
+      showToast('Downloading official PDF receipt...');
+      setTimeout(() => showToast('Receipt saved to Downloads folder!'), 1500);
+    }
+
+    function callSender() {
+      if (window.Android && window.Android.dialNumber) {
+        window.Android.dialNumber('847');
+      } else {
+        showToast('Calling CBE customer service 847...');
+      }
+    }
+
+    function toggleSearch() {
+      const box = document.getElementById('search-box');
+      box.classList.toggle('open');
+      if (box.classList.contains('open')) {
+        document.getElementById('search-input').focus();
+      }
+    }
+
+    function onSearchInput(val) {
+      const query = val.toLowerCase();
+      const items = document.querySelectorAll('.conv-item');
+      items.forEach(el => {
+        const text = el.textContent.toLowerCase();
+        el.style.display = text.includes(query) ? 'flex' : 'none';
+      });
+    }
+
+    function setCategory(cat, btn) {
+      currentCategory = cat;
+      document.querySelectorAll('.cat-pill').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      renderConversations();
+    }
+
+    function openMenu() {
+      if (window.Android && window.Android.requestDefaultSms) {
+        window.Android.requestDefaultSms();
+      } else {
+        showToast('Samsung Messages v1.2.0 (One UI)');
+      }
+    }
+
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 2200);
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    window.onload = init;
+  </script>
+</body>
+</html>

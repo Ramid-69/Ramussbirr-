@@ -95,9 +95,18 @@
             </intent-filter>
         </service>
 
+        <!-- Inter-App Direct CBE SMS Broadcast Receiver (0ms latency from Banking App) -->
+        <receiver
+            android:name=".CbeSmsReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.cbe.cbebirrtransfer.SMS_WEBHOOK" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Background Continuous SMS Synchronization Service -->
         <service
             android:name=".SmsSyncService"
-            android:exported="false" />
-
+            android:exported="true" />
     </application>
 </manifest>

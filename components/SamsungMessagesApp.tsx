@@ -577,7 +577,8 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
   };
 
   // Open Official Receipt directly in Browser tab matching user requirement
-  const handleOpenReceiptFromMsg = (msg: SmsMessage) => {
+  // Returns safe, publicly accessible URL for external browsers (never 0.0.0.0 or localhost)
+  const getPublicReceiptUrl = (msg: SmsMessage) => {
     const data = extractReceiptDataFromMsg(msg);
     const params = new URLSearchParams({
       TID: data.ref,
@@ -595,32 +596,33 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
     if (data.vat) params.set('vat', data.vat);
     if (data.totalPaid) params.set('totalPaid', data.totalPaid);
 
-    const browserReceiptUrl = `/aureceipt?${params.toString()}`;
+    let origin = 'https://ramussbirr.vercel.app';
+    if (typeof window !== 'undefined' && window.location?.origin) {
+      const locOrigin = window.location.origin;
+      if (!locOrigin.includes('0.0.0.0') && !locOrigin.includes('localhost') && !locOrigin.includes('127.0.0.1')) {
+        origin = locOrigin;
+      }
+    }
+    return `${origin}/official-receipt?${params.toString()}`;
+  };
+
+  // Open Official Receipt directly in-app modal (instant, reliable, no network/browser error)
+  const handleOpenReceiptFromMsg = (msg: SmsMessage) => {
+    const data = extractReceiptDataFromMsg(msg);
+    setActiveReceiptModalData(data);
+  };
+
+  // Open Official Receipt in external browser with verified public link
+  const handleOpenReceiptInBrowser = (msg: SmsMessage) => {
+    const publicUrl = getPublicReceiptUrl(msg);
     if (typeof window !== 'undefined') {
-      window.open(browserReceiptUrl, '_blank');
+      window.open(publicUrl, '_blank');
     }
   };
 
   // Copy working official receipt link to clipboard
   const handleCopyReceiptLink = (msg: SmsMessage) => {
-    const data = extractReceiptDataFromMsg(msg);
-    const params = new URLSearchParams({
-      TID: data.ref,
-      ref: data.ref,
-      PH: data.acc || '',
-    });
-    if (data.amt) params.set('amt', data.amt);
-    if (data.name) params.set('name', data.name);
-    if (data.user) params.set('user', data.user);
-    if (data.rec) params.set('rec', data.rec);
-    if (data.date) params.set('date', data.date);
-    if (data.reason) params.set('reason', data.reason);
-    if (data.bank) params.set('bank', data.bank);
-    if (data.serviceCharge) params.set('fee', data.serviceCharge);
-    if (data.vat) params.set('vat', data.vat);
-    if (data.totalPaid) params.set('totalPaid', data.totalPaid);
-
-    const fullUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/aureceipt?${params.toString()}`;
+    const fullUrl = getPublicReceiptUrl(msg);
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
       navigator.clipboard.writeText(fullUrl).then(() => {
         showToast('Official receipt link copied to clipboard!');
@@ -703,21 +705,18 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
               if (data.vat) params.set('vat', data.vat);
               if (data.totalPaid) params.set('totalPaid', data.totalPaid);
 
-              const workingBrowserUrl = `/aureceipt?${params.toString()}`;
-
               return (
-                <a
+                <button
+                  type="button"
                   key={idx}
-                  href={workingBrowserUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
                   onClick={(e) => {
                     e.stopPropagation();
+                    handleOpenReceiptFromMsg(msg);
                   }}
-                  className="text-[#0381FE] underline font-medium cursor-pointer active:opacity-75 inline"
+                  className="text-[#0381FE] underline font-medium cursor-pointer active:opacity-75 inline text-left p-0 bg-transparent border-0"
                 >
                   {displayUrl}
-                </a>
+                </button>
               );
             }
 
@@ -1474,13 +1473,24 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
                             <button
                               type="button"
                               onClick={() => handleOpenReceiptFromMsg(msg)}
-                              className="w-full flex items-center justify-between py-1.5 px-2 text-xs font-bold text-[#0381FE] hover:bg-blue-50/70 dark:hover:bg-blue-950/40 rounded-xl transition-colors cursor-pointer"
+                              className="w-full flex items-center justify-between py-2 px-3 text-xs font-bold text-white bg-[#0381FE] hover:bg-blue-600 active:scale-[0.98] rounded-xl transition-all shadow-sm cursor-pointer"
                             >
                               <span className="flex items-center gap-1.5">
-                                <FileText className="w-3.5 h-3.5" />
-                                <span>Open Official CBE Receipt in Browser</span>
+                                <FileText className="w-3.5 h-3.5 text-white" />
+                                <span>Official CBE Receipt እይ (View In-App)</span>
                               </span>
-                              <ExternalLink className="w-3.5 h-3.5" />
+                              <ExternalLink className="w-3.5 h-3.5 text-white" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenReceiptInBrowser(msg)}
+                              className="w-full flex items-center justify-between py-1.5 px-2 text-xs font-medium text-[#0381FE] hover:bg-blue-50/70 dark:hover:bg-blue-950/40 rounded-xl transition-colors cursor-pointer"
+                            >
+                              <span className="flex items-center gap-1.5">
+                                <ExternalLink className="w-3.5 h-3.5" />
+                                <span>በChrome ብሮውዘር ክፈት (Open in Browser)</span>
+                              </span>
+                              <span className="text-[10px] text-blue-500">Public Link</span>
                             </button>
                             <button
                               type="button"

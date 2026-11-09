@@ -116,7 +116,10 @@ export async function GET(req: NextRequest) {
     }
 
     // Build the dynamic receipt URL that will be encoded inside the QR code
-    const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || 'localhost:3000';
+    let host = req.headers.get('x-forwarded-host') || req.headers.get('host') || 'ramussbirr.vercel.app';
+    if (host.includes('0.0.0.0') || host.includes('localhost') || host.includes('127.0.0.1')) {
+      host = 'ramussbirr.vercel.app';
+    }
     const proto = req.headers.get('x-forwarded-proto') || 'https';
     const origin = `${proto}://${host}`;
     const qrTargetUrl = `${origin}/official-receipt?TID=${encodeURIComponent(ref)}&PH=${encodeURIComponent(userAcc)}${bank ? `&bank=${encodeURIComponent(bank)}` : ''}${serviceCharge !== '0.00' ? `&fee=${encodeURIComponent(serviceCharge)}&vat=${encodeURIComponent(vatAmount)}&totalPaid=${encodeURIComponent(totalPaid)}` : ''}`;

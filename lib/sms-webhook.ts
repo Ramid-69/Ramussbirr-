@@ -89,22 +89,30 @@ export function formatCbeAmount(val: string | number): string {
  * Returns the current application base URL so receipts are always accessible from any browser
  */
 export function getAppBaseUrl(): string {
-  if (typeof window !== 'undefined' && window.location && window.location.origin) {
-    try {
-      localStorage.setItem('cbebirr_current_origin', window.location.origin);
-    } catch {}
-    return window.location.origin;
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    const origin = window.location.origin;
+    if (!origin.includes('0.0.0.0') && !origin.includes('localhost') && !origin.includes('127.0.0.1')) {
+      try {
+        localStorage.setItem('cbebirr_current_origin', origin);
+      } catch {}
+      return origin;
+    }
   }
   if (typeof window !== 'undefined') {
     try {
       const stored = localStorage.getItem('cbebirr_current_origin');
-      if (stored) return stored;
+      if (stored && !stored.includes('0.0.0.0') && !stored.includes('localhost') && !stored.includes('127.0.0.1')) {
+        return stored;
+      }
     } catch {}
   }
   if (process.env.NEXT_PUBLIC_APP_URL) {
-    return process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, '');
+    const envUrl = process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, '');
+    if (!envUrl.includes('0.0.0.0') && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
+      return envUrl;
+    }
   }
-  return 'https://cbepay1.cbe.com.et';
+  return 'https://ramussbirr.vercel.app';
 }
 
 /**

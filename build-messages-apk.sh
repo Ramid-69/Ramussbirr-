@@ -27,11 +27,12 @@ echo "3. Converting to DEX with dalvik-exchange..."
   --output=android-messages/bin/classes.dex \
   android-messages/bin/classes
 
-# 4. Package resources and Manifest into APK base
+# 4. Package resources and Manifest into APK base (including assets/messages.html)
 echo "4. Packaging APK base with aapt..."
 aapt package -f \
   -M android-messages/AndroidManifest.xml \
   -S android-messages/res \
+  -A android-messages/assets \
   -I /usr/lib/android-sdk/platforms/android-23/android.jar \
   -F android-messages/bin/unsigned.apk
 

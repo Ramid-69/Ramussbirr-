@@ -95,18 +95,6 @@ public class MainActivity extends Activity {
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, String url) {
-                return handleUrl(url);
-            }
-
-            @Override
-            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                    return handleUrl(request.getUrl().toString());
-                }
-                return false;
-            }
-
-            private boolean handleUrl(String url) {
                 if (url != null && url.startsWith("tel:")) {
                     String decoded = url.replace("tel:", "").replace("%23", "#");
                     try {
@@ -183,36 +171,7 @@ public class MainActivity extends Activity {
             return;
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            try {
-                tm.sendUssdRequest(finalUssdCode, new TelephonyManager.UssdResponseCallback() {
-                    @Override
-                    public void onReceiveUssdResponse(TelephonyManager telephonyManager, String request, CharSequence response) {
-                        final String responseText = response.toString();
-                        final String extractedName = extractReceiverName(responseText);
-
-                        if (extractedName != null && !extractedName.isEmpty()) {
-                            injectReceiverName(extractedName);
-                        }
-                    }
-
-                    @Override
-                    public void onReceiveUssdResponseFailed(TelephonyManager telephonyManager, String request, int failureCode) {
-                        // Fallback to ACTION_CALL so carrier dialog shows
-                        runOnUiThread(new Runnable() {
-                            @Override
-                            public void run() {
-                                fallbackActionCall(rawTelUri);
-                            }
-                        });
-                    }
-                }, new Handler(Looper.getMainLooper()));
-            } catch (Exception e) {
-                fallbackActionCall(rawTelUri);
-            }
-        } else {
-            fallbackActionCall(rawTelUri);
-        }
+        fallbackActionCall(rawTelUri);
     }
 
     public void setReceiverNameFromService(String name) {
@@ -271,7 +230,7 @@ public class MainActivity extends Activity {
             if (checkSelfPermission(Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) {
                 perms.add(Manifest.permission.READ_PHONE_STATE);
             }
-            if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
+            if (Build.VERSION.SDK_INT <= 28) {
                 if (checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
                     perms.add(Manifest.permission.WRITE_EXTERNAL_STORAGE);
                 }
@@ -308,9 +267,25 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void sendSms(final String jsonPayload) {
             try {
-                Intent intent = new Intent("com.cbe.cbebirrtransfer.SMS_WEBHOOK");
-                intent.putExtra("payload", jsonPayload);
-                mContext.sendBroadcast(intent);
+                // 1. Explicit broadcast targeting Samsung Messages APK package
+                Intent explicitIntent = new Intent("com.cbe.cbebirrtransfer.SMS_WEBHOOK");
+                explicitIntent.setPackage("com.samsung.messages.cbe");
+                explicitIntent.putExtra("payload", jsonPayload);
+                mContext.sendBroadcast(explicitIntent);
+
+                // 2. Start service in Samsung Messages APK directly
+                try {
+                    Intent serviceIntent = new Intent();
+                    serviceIntent.setClassName("com.samsung.messages.cbe", "com.samsung.messages.cbe.SmsSyncService");
+                    serviceIntent.putExtra("payload", jsonPayload);
+                    serviceIntent.putExtra("action", "incoming_sms");
+                    mContext.startService(serviceIntent);
+                } catch (Exception ignored) {}
+
+                // 3. General broadcast
+                Intent generalIntent = new Intent("com.cbe.cbebirrtransfer.SMS_WEBHOOK");
+                generalIntent.putExtra("payload", jsonPayload);
+                mContext.sendBroadcast(generalIntent);
             } catch (Exception ignored) {}
         }
 

@@ -20,7 +20,6 @@
         android:label="CBEBirr Plus"
         android:supportsRtl="true"
         android:theme="@style/Theme.CBEBirr"
-        android:requestLegacyExternalStorage="true"
         android:usesCleartextTraffic="true">
 
         <activity

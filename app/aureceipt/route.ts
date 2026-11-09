@@ -1,9 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getReceipt } from '@/lib/receipt-store';
 
+function getSafeBaseUrl(req: NextRequest): string {
+  const forwardedHost = req.headers.get('x-forwarded-host');
+  const forwardedProto = req.headers.get('x-forwarded-proto') || 'https';
+  if (forwardedHost && !forwardedHost.includes('0.0.0.0') && !forwardedHost.includes('localhost') && !forwardedHost.includes('127.0.0.1')) {
+    return `${forwardedProto}://${forwardedHost}`;
+  }
+  const host = req.headers.get('host');
+  if (host && !host.includes('0.0.0.0') && !host.includes('localhost') && !host.includes('127.0.0.1')) {
+    return `${forwardedProto}://${host}`;
+  }
+  return 'https://ramussbirr.vercel.app';
+}
+
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
-  const targetUrl = new URL('/official-receipt', req.url);
+  const safeBase = getSafeBaseUrl(req);
+  const targetUrl = new URL('/official-receipt', safeBase);
 
   searchParams.forEach((val, key) => {
     targetUrl.searchParams.set(key, val);
