@@ -1,205 +1,177 @@
 'use client';
 
-import React, { useState, useEffect, useSyncExternalStore } from 'react';
+import React from 'react';
 import Link from 'next/link';
-import { Download, Smartphone, CheckCircle, ArrowRight, ShieldCheck } from 'lucide-react';
-
-interface BeforeInstallPromptEvent extends Event {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
-}
-
-function subscribeToStandalone(callback: () => void) {
-  const mq = window.matchMedia('(display-mode: standalone)');
-  mq.addEventListener('change', callback);
-  window.addEventListener('appinstalled', callback);
-  return () => {
-    mq.removeEventListener('change', callback);
-    window.removeEventListener('appinstalled', callback);
-  };
-}
-
-function getStandaloneSnapshot() {
-  return window.matchMedia('(display-mode: standalone)').matches;
-}
-
-function getServerSnapshot() {
-  return false;
-}
+import { Download, MessageSquare, ShieldCheck, ArrowRight, Smartphone, Bell, CheckCircle2 } from 'lucide-react';
 
 export default function DownloadPage() {
-  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [installSuccess, setInstallSuccess] = useState(false);
-  const isInstalled = useSyncExternalStore(subscribeToStandalone, getStandaloneSnapshot, getServerSnapshot);
-
-  useEffect(() => {
-    const handleBeforeInstall = (e: Event) => {
-      e.preventDefault();
-      setDeferredPrompt(e as BeforeInstallPromptEvent);
-    };
-
-    const handleAppInstalled = () => {
-      setInstallSuccess(true);
-      setDeferredPrompt(null);
-    };
-
-    window.addEventListener('beforeinstallprompt', handleBeforeInstall);
-    window.addEventListener('appinstalled', handleAppInstalled);
-
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
-      window.removeEventListener('appinstalled', handleAppInstalled);
-    };
-  }, []);
-
-  const handleInstallClick = async () => {
-    if (deferredPrompt) {
-      await deferredPrompt.prompt();
-      const choice = await deferredPrompt.userChoice;
-      if (choice.outcome === 'accepted') {
-        setInstallSuccess(true);
-      }
-      setDeferredPrompt(null);
-    } else {
-      // Guide user to manual chrome install
-      alert('በChrome ብሮውዘር የላይኛውን 3 ነጥቦች (⋮) ተጭነው "Install app" ወይም "Add to Home screen" (ወደ መነሻ ገጽ አክል) የሚለውን ይምረጡ።');
-    }
-  };
-
   return (
-    <div className="min-h-screen w-full bg-[#f6f6f8] text-[#1c1b1f] flex flex-col items-center justify-center p-4 sm:p-6">
-      <div className="w-full max-w-md bg-white rounded-3xl shadow-xl overflow-hidden border border-gray-100 flex flex-col">
-        {/* Header with CBE Brand */}
-        <div className="bg-[#7a1c7d] px-6 py-8 text-white text-center flex flex-col items-center relative">
-          <div className="w-20 h-20 rounded-2xl bg-white p-2 shadow-lg flex items-center justify-center mb-3">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/assets/cbe_qr_center_badge_crisp.png"
-              alt="CBEBirr"
-              className="w-full h-full object-contain"
-            />
+    <div className="min-h-screen w-full bg-[#f4f5f8] text-[#1c1b1f] flex flex-col items-center justify-center p-3 sm:p-6">
+      <div className="w-full max-w-lg bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-200/80 flex flex-col">
+        {/* Header with Dual App Branding */}
+        <div className="bg-gradient-to-br from-[#7a1c7d] via-[#8b278e] to-[#1c65e3] px-6 py-7 text-white text-center flex flex-col items-center relative">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-14 h-14 rounded-2xl bg-white p-1.5 shadow-md flex items-center justify-center">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/assets/cbe_qr_center_badge_crisp.png"
+                alt="CBEBirr"
+                className="w-full h-full object-contain"
+              />
+            </div>
+            <div className="w-14 h-14 rounded-2xl bg-[#1e65e3] p-2 shadow-md flex items-center justify-center text-white">
+              <MessageSquare className="w-8 h-8 fill-white text-white" />
+            </div>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight">CBEBirr Plus</h1>
-          <p className="text-purple-200 text-xs sm:text-sm mt-1">
-            የኢትዮጵያ ንግድ ባንክ ሞባይል ባንኪንግ መተግበሪያ
+          <h1 className="text-2xl font-bold tracking-tight">Android Native Apps</h1>
+          <p className="text-purple-100 text-xs sm:text-sm mt-1 max-w-xs mx-auto">
+            የCBEBirr Plus ባንኪንግ እና የSamsung Messages Default SMS አንድሮይድ አፖች
           </p>
         </div>
 
         {/* Content Body */}
-        <div className="p-6 space-y-6">
-          {installSuccess || isInstalled ? (
-            <div className="bg-green-50 border border-green-200 rounded-2xl p-4 flex items-center gap-3 text-green-800">
-              <CheckCircle className="w-6 h-6 shrink-0 text-green-600" />
-              <div className="text-xs sm:text-sm font-medium">
-                መተግበሪያው በተሳካ ሁኔታ በስልክዎ ላይ ተጭኗል! በቀጥታ መክፈት ይችላሉ።
+        <div className="p-5 sm:p-6 space-y-5">
+          {/* Messages APK Card (Top Priority) */}
+          <div className="rounded-2xl border-2 border-blue-500/30 bg-blue-50/50 p-4 space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow">
+                  <MessageSquare className="w-5 h-5 fill-white" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                    <span>Samsung Messages APK</span>
+                    <span className="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded-full font-bold">
+                      Default SMS App
+                    </span>
+                  </h2>
+                  <p className="text-[11px] text-slate-600">
+                    Real-time Banking SMS &bull; Native Sound &bull; Vibration
+                  </p>
+                </div>
               </div>
+              <span className="text-[11px] font-semibold text-blue-800 bg-blue-100 px-2 py-1 rounded-lg">
+                21 KB .apk
+              </span>
             </div>
-          ) : null}
 
-          {/* Primary Action Button: 1-Click Install */}
-          <div className="space-y-3">
-            <button
-              type="button"
-              onClick={handleInstallClick}
-              className="w-full py-4 px-6 bg-[#8b278e] hover:bg-[#77217a] active:scale-[0.98] text-white font-bold rounded-2xl shadow-lg shadow-purple-900/20 flex items-center justify-center gap-2.5 transition-all text-base cursor-pointer"
-            >
-              <Smartphone className="w-5 h-5" />
-              <span>መተግበሪያውን ስልክዎ ላይ ጫኑ (Install App)</span>
-            </button>
+            <ul className="text-xs text-slate-700 space-y-1.5 pl-1">
+              <li className="flex items-center gap-2">
+                <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                <span>በስልክዎ ላይ <strong>Default SMS App</strong> ሆኖ በቀጥታ ይመረጣል</span>
+              </li>
+              <li className="flex items-center gap-2">
+                <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                <span>የባንክ ዝውውር ሲደረግ በስልክዎ ኦሪጅናል ኖቲፊኬሽን ድምፅና ንዝረት ይደርሳል</span>
+              </li>
+              <li className="flex items-center gap-2">
+                <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                <span>ትክክለኛ የCBEBirr Transaction SMS እና ኦፊሴላዊ PDF ደረሰኝ</span>
+              </li>
+            </ul>
 
-            <Link
-              href="/"
-              className="w-full py-3.5 px-6 bg-slate-100 hover:bg-slate-200 active:scale-[0.98] text-slate-800 font-semibold rounded-2xl flex items-center justify-center gap-2 transition-all text-sm text-center"
+            <a
+              href="/download/messages"
+              download="SamsungMessages.apk"
+              className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-bold rounded-xl shadow-md shadow-blue-500/20 flex items-center justify-center gap-2 transition-all text-xs sm:text-sm"
             >
-              <span>ቀጥታ በብሮውዘር ክፈት (Open in Browser)</span>
-              <ArrowRight className="w-4 h-4" />
-            </Link>
+              <Download className="w-4 h-4" />
+              <span>Download Samsung Messages APK (.apk)</span>
+            </a>
           </div>
 
-          {/* Visual Step-by-Step Installation Guide */}
-          <div className="bg-[#f9fafb] rounded-2xl p-4 border border-gray-100 space-y-3">
-            <h3 className="font-bold text-sm text-[#7a1c7d] flex items-center gap-1.5">
+          {/* CBEBirr Plus APK Card */}
+          <div className="rounded-2xl border border-purple-200 bg-purple-50/40 p-4 space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-[#7a1c7d] text-white flex items-center justify-center shadow">
+                  <Smartphone className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold text-slate-900">CBEBirr Plus Banking APK</h2>
+                  <p className="text-[11px] text-slate-600">
+                    Mobile Banking &bull; USSD Auto Lookup &bull; PDF Receipts
+                  </p>
+                </div>
+              </div>
+              <span className="text-[11px] font-semibold text-purple-800 bg-purple-100 px-2 py-1 rounded-lg">
+                16 KB .apk
+              </span>
+            </div>
+
+            <a
+              href="/download/cbebirr"
+              download="CBEBirrPlus.apk"
+              className="w-full py-3 px-4 bg-[#7a1c7d] hover:bg-[#68146a] active:scale-[0.98] text-white font-bold rounded-xl shadow-md shadow-purple-900/20 flex items-center justify-center gap-2 transition-all text-xs sm:text-sm"
+            >
+              <Download className="w-4 h-4" />
+              <span>Download CBEBirr Plus Banking APK (.apk)</span>
+            </a>
+          </div>
+
+          {/* Installation & Permission Controller Guide matching Screenshot */}
+          <div className="bg-[#f9fafb] rounded-2xl p-4 border border-slate-200 space-y-3 text-xs text-slate-700">
+            <h3 className="font-bold text-xs uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
               <ShieldCheck className="w-4 h-4 text-[#7a1c7d]" />
-              <span>በቀላሉ ስልክዎ ላይ ለመጫን (How to Install):</span>
+              <span>የአጫጫን እና የDefault SMS ፍቃድ አሰጣጥ (Setup Guide):</span>
             </h3>
 
-            <div className="space-y-2.5 text-xs text-slate-700">
-              <div className="flex items-start gap-2.5">
-                <span className="w-5 h-5 rounded-full bg-[#7a1c7d]/10 text-[#7a1c7d] font-bold flex items-center justify-center shrink-0 text-xs">
+            <div className="space-y-2">
+              <div className="flex items-start gap-2">
+                <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center shrink-0 text-[11px]">
                   1
                 </span>
                 <div>
-                  በChrome ብሮውዘር የላይኛውን <strong>3 ነጥቦች (⋮)</strong> ይጫኑ (Tap menu icon)።
+                  ከላይ <strong>&quot;Download Samsung Messages APK&quot;</strong> የሚለውን ተጭነው ያውርዱ።
                 </div>
               </div>
 
-              <div className="flex items-start gap-2.5">
-                <span className="w-5 h-5 rounded-full bg-[#7a1c7d]/10 text-[#7a1c7d] font-bold flex items-center justify-center shrink-0 text-xs">
+              <div className="flex items-start gap-2">
+                <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center shrink-0 text-[11px]">
                   2
                 </span>
                 <div>
-                  ከሚመጡት አማራጮች ውስጥ <strong>&quot;Install app&quot;</strong> ወይም <strong>&quot;Add to Home screen&quot; (ወደ መነሻ ገጽ አክል)</strong> የሚለውን ይምረጡ።
+                  ፋይሉ ሲወርድ ይክፈቱትና ስልክዎ <strong>&quot;Install unknown apps&quot;</strong> ሲጠይቅ ፈቅደው <strong>Install</strong> ይጫኑ።
                 </div>
               </div>
 
-              <div className="flex items-start gap-2.5">
-                <span className="w-5 h-5 rounded-full bg-[#7a1c7d]/10 text-[#7a1c7d] font-bold flex items-center justify-center shrink-0 text-xs">
+              <div className="flex items-start gap-2">
+                <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center shrink-0 text-[11px]">
                   3
                 </span>
                 <div>
-                  <strong>&quot;Install&quot;</strong> የሚለውን ያጽድቁ። አፑ ልክ እንደ ኦሪጅናል CBEBirr በስልክዎ ስክሪን ላይ ይቀመጣል!
+                  አፑ ሲከፈት በስክሪኑ ላይ ልክ በስክሪንሾትህ እንዳለው <strong>&quot;Set Messages as your default SMS app?&quot;</strong> የሚል የሲስተም ፍቃድ ይመጣል። <strong>&quot;Set as default&quot;</strong> የሚለውን ይምረጡ።
+                </div>
+              </div>
+
+              <div className="flex items-start gap-2">
+                <span className="w-5 h-5 rounded-full bg-green-100 text-green-700 font-bold flex items-center justify-center shrink-0 text-[11px]">
+                  ✓
+                </span>
+                <div>
+                  ከዚያ በባንኪንግ አፑ ገንዘብ ሲልኩ ወዲያውኑ በስልክዎ የኖቲፊኬሽን ድምፅ እና ንዝረት ትክክለኛ የCBEBirr ዝውውር ዝርዝር ይደርሳል!
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Note about APK Parsing error */}
-          <div className="text-[11.5px] text-slate-500 leading-relaxed bg-amber-50/70 border border-amber-200/60 rounded-xl p-3">
-            <span className="font-bold text-amber-900 block mb-0.5">
-              ⚠️ &quot;Problem parsing the package&quot; ለምን አሳየ?
-            </span>
-            የአንድሮይድ ስልኮች ከብሮውዘር በቀጥታ የሚወርዱ ጥሬ APK ፋይሎችን ሊያግዱ ወይም ላይከፍቱ ይችላሉ። ስለዚህ ከላይ በተገለጸው መሰረት <strong>&quot;Add to Home screen&quot;</strong> በማድረግ ያለ ምንም ስህተትና ፈጣን በሆነ መንገድ በስልክዎ መጫን ይችላሉ!
-          </div>
-
-          {/* Direct Native Android APK Downloads */}
-          <div className="pt-2 border-t border-slate-100 space-y-3">
-            <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider text-center">
-              Direct Native Android APKs (.apk)
-            </h4>
-
-            <a
-              href="/SamsungMessages.apk"
-              download="SamsungMessages.apk"
-              className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-semibold rounded-2xl shadow-md flex items-center justify-between text-xs transition-all"
+          {/* Quick Access to Web Versions */}
+          <div className="pt-2 border-t border-slate-100 flex flex-col sm:flex-row gap-2">
+            <Link
+              href="/messages"
+              className="flex-1 py-2.5 px-3 bg-slate-100 hover:bg-slate-200 active:scale-[0.98] text-slate-800 font-semibold rounded-xl flex items-center justify-center gap-1.5 text-xs text-center transition-all"
             >
-              <div className="flex items-center gap-2.5">
-                <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center font-bold">
-                  💬
-                </div>
-                <div className="text-left">
-                  <div className="font-bold text-white text-xs">Samsung Messages APK</div>
-                  <div className="text-[10px] text-blue-100">Default SMS App with CBE auto-receipts</div>
-                </div>
-              </div>
-              <Download className="w-4 h-4 shrink-0 text-white" />
-            </a>
+              <Bell className="w-3.5 h-3.5 text-blue-600" />
+              <span>በብሮውዘር Messages ክፈት</span>
+            </Link>
 
-            <a
-              href="/cbebirr-plus.apk"
-              download="cbebirr-plus.apk"
-              className="w-full py-3 px-4 bg-[#7a1c7d] hover:bg-[#68146a] active:scale-[0.98] text-white font-semibold rounded-2xl shadow-md flex items-center justify-between text-xs transition-all"
+            <Link
+              href="/"
+              className="flex-1 py-2.5 px-3 bg-slate-100 hover:bg-slate-200 active:scale-[0.98] text-slate-800 font-semibold rounded-xl flex items-center justify-center gap-1.5 text-xs text-center transition-all"
             >
-              <div className="flex items-center gap-2.5">
-                <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center font-bold">
-                  🏦
-                </div>
-                <div className="text-left">
-                  <div className="font-bold text-white text-xs">CBEBirr Plus APK</div>
-                  <div className="text-[10px] text-purple-200">Mobile banking app for Android</div>
-                </div>
-              </div>
-              <Download className="w-4 h-4 shrink-0 text-white" />
-            </a>
+              <span>ወደ CBE Banking ተመለስ</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
           </div>
         </div>
       </div>

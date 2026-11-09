@@ -141,22 +141,20 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
   const [devDepositBalance, setDevDepositBalance] = useState('503.99');
 
   // Android Default SMS App Dialog matching user screenshot (image.png)
-  const [showDefaultSmsDialog, setShowDefaultSmsDialog] = useState(false);
+  const [showDefaultSmsDialog, setShowDefaultSmsDialog] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        return !localStorage.getItem('has_prompted_default_sms_app');
+      } catch {
+        return false;
+      }
+    }
+    return false;
+  });
   const [selectedDefaultApp, setSelectedDefaultApp] = useState<'assistant' | 'current' | 'cbe_messages' | 'third_party'>('cbe_messages');
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const previousMessageCountRef = useRef<number>(0);
-
-  useEffect(() => {
-    try {
-      if (typeof window !== 'undefined') {
-        const hasPrompted = localStorage.getItem('has_prompted_default_sms_app');
-        if (!hasPrompted) {
-          setShowDefaultSmsDialog(true);
-        }
-      }
-    } catch {}
-  }, []);
 
   // Show Toast Helper
   const showToast = useCallback((msg: string) => {
@@ -640,8 +638,13 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
       if (typeof navigator !== 'undefined' && navigator.vibrate) {
         navigator.vibrate([100, 50, 100]);
       }
-      if (typeof window !== 'undefined' && (window as any).Android?.setDefaultSms) {
-        (window as any).Android.setDefaultSms();
+      if (typeof window !== 'undefined') {
+        const android = (window as any).Android;
+        if (android?.requestDefaultSms) {
+          android.requestDefaultSms();
+        } else if (android?.setDefaultSms) {
+          android.setDefaultSms();
+        }
       }
     } catch {}
     setShowDefaultSmsDialog(false);
@@ -900,6 +903,22 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
                           System
                         </span>
                       </button>
+
+                      <a
+                        href="/download/messages"
+                        download="SamsungMessages.apk"
+                        onClick={() => setIsTopMenuOpen(false)}
+                        className="w-full text-left px-5 py-2.5 text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center justify-between text-slate-800 dark:text-slate-200"
+                      >
+                        <span className="flex items-center gap-2">
+                          <Download className="w-4 h-4 text-blue-600" />
+                          <span>Download Native APK</span>
+                        </span>
+                        <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-900/40 px-1.5 py-0.5 rounded">
+                          .apk
+                        </span>
+                      </a>
+
                       <div className="h-px bg-slate-200 dark:bg-slate-700 my-1" />
 
                       {/* Hidden Developer Settings trigger ("Hide Setting") */}
@@ -1879,6 +1898,7 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
                 </button>
               </div>
             </div>
+          </motion.div>
         )}
       </AnimatePresence>
 
