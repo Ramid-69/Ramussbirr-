@@ -8,4 +8,6 @@ coverage/
 tsconfig.tsbuildinfo
 .aistudio/
 *.idsig
+.sms_store.json
+*.tmp
 

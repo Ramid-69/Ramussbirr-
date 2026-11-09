@@ -1,0 +1,53 @@
+name: Build & Package Android APKs
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+jobs:
+  build-and-verify:
+    name: Build Next.js & Verify APKs
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm install --prefer-offline --no-audit
+
+      - name: Build Next.js Applet
+        run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: 1
+          NODE_ENV: production
+
+      - name: Verify APK Binaries
+        run: |
+          echo "Verifying APK files in public/..."
+          test -f public/cbebirr-plus.apk || { echo "Missing cbebirr-plus.apk"; exit 1; }
+          test -f public/SamsungMessages.apk || { echo "Missing SamsungMessages.apk"; exit 1; }
+          ls -la public/*.apk
+
+      - name: Upload APKs as Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: CBEBirr-and-SamsungMessages-APKs
+          path: |
+            public/cbebirr-plus.apk
+            public/SamsungMessages.apk
+          retention-days: 30
