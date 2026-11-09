@@ -101,24 +101,25 @@ export default function DownloadPage() {
               </li>
             </ul>
 
-            <button
-              type="button"
-              disabled={downloadingFile !== null}
-              onClick={() => triggerBlobDownload('SamsungMessages.apk', 'SamsungMessages.apk')}
-              className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-bold rounded-xl shadow-md shadow-blue-500/20 flex items-center justify-center gap-2 transition-all text-xs sm:text-sm cursor-pointer disabled:opacity-70"
-            >
-              {downloadingFile === 'SamsungMessages.apk' ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Downloading SamsungMessages.apk...</span>
-                </>
-              ) : (
-                <>
-                  <Download className="w-4 h-4" />
-                  <span>Download Samsung Messages APK (.apk)</span>
-                </>
-              )}
-            </button>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <a
+                href="/download/messages"
+                download="SamsungMessages.apk"
+                className="flex-1 py-3 px-4 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-bold rounded-xl shadow-md shadow-blue-500/20 flex items-center justify-center gap-2 transition-all text-xs sm:text-sm cursor-pointer"
+              >
+                <Download className="w-4 h-4" />
+                <span>Download Samsung Messages APK (.apk)</span>
+              </a>
+              <button
+                type="button"
+                onClick={() => triggerBlobDownload('SamsungMessages.apk', 'SamsungMessages.apk')}
+                disabled={downloadingFile !== null}
+                className="py-3 px-3 bg-blue-100 hover:bg-blue-200 text-blue-800 text-xs font-semibold rounded-xl transition-all cursor-pointer whitespace-nowrap"
+                title="Direct in-browser save"
+              >
+                {downloadingFile === 'SamsungMessages.apk' ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Direct Save'}
+              </button>
+            </div>
           </div>
 
           {/* CBEBirr Plus APK Card */}
@@ -140,24 +141,25 @@ export default function DownloadPage() {
               </span>
             </div>
 
-            <button
-              type="button"
-              disabled={downloadingFile !== null}
-              onClick={() => triggerBlobDownload('cbebirr-plus.apk', 'CBEBirrPlus.apk')}
-              className="w-full py-3 px-4 bg-[#7a1c7d] hover:bg-[#68146a] active:scale-[0.98] text-white font-bold rounded-xl shadow-md shadow-purple-900/20 flex items-center justify-center gap-2 transition-all text-xs sm:text-sm cursor-pointer disabled:opacity-70"
-            >
-              {downloadingFile === 'cbebirr-plus.apk' ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Downloading CBEBirrPlus.apk...</span>
-                </>
-              ) : (
-                <>
-                  <Download className="w-4 h-4" />
-                  <span>Download CBEBirr Plus Banking APK (.apk)</span>
-                </>
-              )}
-            </button>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <a
+                href="/download/cbebirr"
+                download="CBEBirrPlus.apk"
+                className="flex-1 py-3 px-4 bg-[#7a1c7d] hover:bg-[#68146a] active:scale-[0.98] text-white font-bold rounded-xl shadow-md shadow-purple-900/20 flex items-center justify-center gap-2 transition-all text-xs sm:text-sm cursor-pointer"
+              >
+                <Download className="w-4 h-4" />
+                <span>Download CBEBirr Plus Banking APK (.apk)</span>
+              </a>
+              <button
+                type="button"
+                onClick={() => triggerBlobDownload('cbebirr-plus.apk', 'CBEBirrPlus.apk')}
+                disabled={downloadingFile !== null}
+                className="py-3 px-3 bg-purple-100 hover:bg-purple-200 text-purple-900 text-xs font-semibold rounded-xl transition-all cursor-pointer whitespace-nowrap"
+                title="Direct in-browser save"
+              >
+                {downloadingFile === 'cbebirr-plus.apk' ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Direct Save'}
+              </button>
+            </div>
           </div>
 
           {/* Installation & Permission Controller Guide matching Screenshot */}

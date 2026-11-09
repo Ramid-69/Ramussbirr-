@@ -3,11 +3,28 @@ import fs from 'fs';
 import path from 'path';
 
 export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
-  const app = searchParams.get('app');
-  const filename = app === 'messages' || app === 'samsung' ? 'SamsungMessages.apk' : 'cbebirr-plus.apk';
-  const forwardedHost = req.headers.get('x-forwarded-host') || req.headers.get('host');
-  const forwardedProto = req.headers.get('x-forwarded-proto') || 'https';
-  const host = forwardedHost && !forwardedHost.includes('0.0.0.0') ? `${forwardedProto}://${forwardedHost}` : 'http://localhost:3000';
-  return NextResponse.redirect(new URL(`/${filename}`, host), 302);
+  try {
+    const { searchParams } = new URL(req.url);
+    const app = searchParams.get('app');
+    const isMessages = app === 'messages' || app === 'samsung';
+    const filename = isMessages ? 'SamsungMessages.apk' : 'cbebirr-plus.apk';
+    const outputName = isMessages ? 'SamsungMessages.apk' : 'CBEBirrPlus.apk';
+
+    const filePath = path.join(process.cwd(), 'public', filename);
+    if (!fs.existsSync(filePath)) {
+      return new NextResponse('APK file not found', { status: 404 });
+    }
+    const fileBuffer = fs.readFileSync(filePath);
+    return new NextResponse(fileBuffer, {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/vnd.android.package-archive',
+        'Content-Disposition': `attachment; filename="${outputName}"`,
+        'Content-Length': fileBuffer.length.toString(),
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+      },
+    });
+  } catch (err: any) {
+    return new NextResponse(`Error: ${err?.message || 'Failed to download'}`, { status: 500 });
+  }
 }
