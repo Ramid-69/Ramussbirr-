@@ -283,92 +283,20 @@ export function OfficialReceiptCore({
   const creditAccType = activeBank ? `${activeBank} Account` : (isPhoneTx ? 'Customer E-money Account' : 'CBE Bank Account');
 
   return (
-    <div className={`w-full bg-[#ece7ef] flex flex-col items-center ${isModal ? 'py-2 px-1 sm:px-3' : 'min-h-screen py-3 px-2 sm:px-4'} text-slate-800`}>
-      {/* Top Banner Navigation */}
-      <header className="w-full max-w-2xl flex items-center justify-between bg-[#7a1c7d] text-white px-3.5 py-2.5 rounded-2xl shadow-md mb-3">
-        {isModal && onClose ? (
+    <div className={`w-full bg-[#f1f3f6] flex flex-col items-center ${isModal ? 'py-2 px-1 sm:px-3' : 'min-h-screen py-4 px-2 sm:px-4'} text-slate-800`}>
+      {/* If inside modal, show only a minimal close button at top right */}
+      {isModal && onClose && (
+        <div className="w-full max-w-2xl flex justify-end mb-2">
           <button
             type="button"
             onClick={onClose}
-            className="flex items-center space-x-2 text-white hover:text-purple-200 transition-colors text-xs sm:text-sm font-semibold cursor-pointer"
+            className="p-1.5 rounded-full bg-slate-200/80 hover:bg-slate-300 text-slate-700 transition-colors cursor-pointer"
+            aria-label="Close"
           >
-            <ArrowLeft className="w-4 h-4" />
-            <span>ወደ መልእክት ተመለስ (Back to Messages)</span>
-          </button>
-        ) : (
-          <div className="flex items-center space-x-2.5">
-            <div className="w-7 h-7 rounded-lg bg-white/20 flex items-center justify-center shadow-xs">
-              <ShieldCheck className="w-4 h-4 text-yellow-300" />
-            </div>
-            <div className="flex flex-col">
-              <span className="text-xs sm:text-sm font-bold tracking-wide leading-tight">
-                የኢትዮጵያ ንግድ ባንክ | CBE
-              </span>
-              <span className="text-[10px] text-purple-200 font-medium leading-none">
-                Official Electronic Tax Receipt
-              </span>
-            </div>
-          </div>
-        )}
-        <div className="flex items-center space-x-2">
-          <span className="text-xs font-bold bg-white/20 px-2.5 py-1 rounded-full flex items-center space-x-1">
-            <ShieldCheck className="w-3.5 h-3.5 text-yellow-300" />
-            <span>ኦፊሴላዊ ደረሰኝ (Official)</span>
-          </span>
-          {isModal && onClose && (
-            <button
-              type="button"
-              onClick={onClose}
-              className="p-1 rounded-full hover:bg-white/20 text-white transition-colors cursor-pointer"
-              aria-label="Close"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
-        </div>
-      </header>
-
-      {/* Floating Action Controls */}
-      <div className="w-full max-w-2xl flex flex-wrap items-center justify-between gap-2 mb-3 bg-white p-2.5 rounded-2xl shadow-sm border border-slate-200">
-        <div className="flex items-center space-x-2 text-xs text-slate-600">
-          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-          <span className="font-semibold text-slate-800">Verified Electronic VAT Receipt</span>
-        </div>
-        <div className="flex items-center space-x-1.5">
-          <button
-            type="button"
-            onClick={() => handleDownload('pdf')}
-            className="flex items-center space-x-1 px-3 py-1.5 bg-[#7a1c7d] hover:bg-[#68146a] text-white text-xs font-bold rounded-xl shadow transition-colors cursor-pointer"
-          >
-            <FileText className="w-3.5 h-3.5" />
-            <span>Download PDF</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => handleDownload('png')}
-            className="flex items-center space-x-1 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl shadow transition-colors cursor-pointer"
-          >
-            <ImageIcon className="w-3.5 h-3.5" />
-            <span>Save Image</span>
-          </button>
-          <button
-            type="button"
-            onClick={handleShare}
-            className="flex items-center space-x-1 px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl border border-slate-300 transition-colors cursor-pointer"
-            title="Share or Copy Link"
-          >
-            <Share2 className="w-3.5 h-3.5" />
-          </button>
-          <button
-            type="button"
-            onClick={() => window.print()}
-            className="hidden sm:flex items-center space-x-1 px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl border border-slate-300 transition-colors cursor-pointer"
-            title="Print"
-          >
-            <Printer className="w-3.5 h-3.5" />
+            <X className="w-5 h-5" />
           </button>
         </div>
-      </div>
+      )}
 
       {/* Main Official Receipt Document Container - 100% IDENTICAL TO IN-APP STEP 9 */}
       <main className="w-full max-w-2xl bg-white shadow-xl rounded-md border border-slate-300 overflow-hidden font-sans relative">
@@ -496,6 +424,44 @@ export function OfficialReceiptCore({
             )}
           </g>
         </svg>
+
+        {/* Clean Action Buttons Below Receipt */}
+        <div className="w-full max-w-xl flex items-center justify-center gap-2.5 mt-4 mb-2 print:hidden">
+          <button
+            type="button"
+            onClick={() => handleDownload('pdf')}
+            className="flex items-center space-x-1.5 px-4 py-2 bg-[#7a1c7d] hover:bg-[#68146a] active:scale-95 text-white text-xs font-bold rounded-xl shadow-md transition-all cursor-pointer"
+          >
+            <FileText className="w-4 h-4" />
+            <span>Download PDF</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => handleDownload('png')}
+            className="flex items-center space-x-1.5 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-white text-xs font-bold rounded-xl shadow transition-all cursor-pointer"
+          >
+            <ImageIcon className="w-4 h-4" />
+            <span>Save Image</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleShare}
+            className="flex items-center space-x-1.5 px-3 py-2 bg-white hover:bg-slate-100 active:scale-95 text-slate-700 text-xs font-semibold rounded-xl border border-slate-300 shadow-xs transition-all cursor-pointer"
+            title="Share or Copy Link"
+          >
+            <Share2 className="w-4 h-4" />
+            <span>Share</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="hidden sm:flex items-center space-x-1.5 px-3 py-2 bg-white hover:bg-slate-100 active:scale-95 text-slate-700 text-xs font-semibold rounded-xl border border-slate-300 shadow-xs transition-all cursor-pointer"
+            title="Print"
+          >
+            <Printer className="w-4 h-4" />
+            <span>Print</span>
+          </button>
+        </div>
       </main>
 
       {/* Toast Notification */}
@@ -513,18 +479,18 @@ function OfficialReceiptSearchParamsWrapper(props: OfficialReceiptProps) {
   const searchParams = useSearchParams();
 
   const data: OfficialReceiptData = {
-    ref: searchParams.get('TID') || searchParams.get('ref') || searchParams.get('tid') || 'FT262413JRB4',
-    amt: searchParams.get('amt') || '',
-    rec: searchParams.get('rec') || searchParams.get('receiverAccount') || '',
-    name: searchParams.get('name') || searchParams.get('receiverName') || '',
-    user: searchParams.get('user') || searchParams.get('fullName') || '',
-    acc: searchParams.get('acc') || searchParams.get('PH') || searchParams.get('userAcc') || '',
-    date: searchParams.get('date') || '',
-    reason: searchParams.get('reason') || '',
-    bank: searchParams.get('bank') || searchParams.get('destBank') || '',
-    serviceCharge: searchParams.get('fee') || searchParams.get('serviceCharge') || '',
-    vat: searchParams.get('vat') || '',
-    totalPaid: searchParams.get('totalPaid') || '',
+    ref: searchParams?.get('TID') || searchParams?.get('ref') || searchParams?.get('tid') || 'FT262413JRB4',
+    amt: searchParams?.get('amt') || '',
+    rec: searchParams?.get('rec') || searchParams?.get('receiverAccount') || '',
+    name: searchParams?.get('name') || searchParams?.get('receiverName') || '',
+    user: searchParams?.get('user') || searchParams?.get('fullName') || '',
+    acc: searchParams?.get('acc') || searchParams?.get('PH') || searchParams?.get('userAcc') || '',
+    date: searchParams?.get('date') || '',
+    reason: searchParams?.get('reason') || '',
+    bank: searchParams?.get('bank') || searchParams?.get('destBank') || '',
+    serviceCharge: searchParams?.get('fee') || searchParams?.get('serviceCharge') || '',
+    vat: searchParams?.get('vat') || '',
+    totalPaid: searchParams?.get('totalPaid') || '',
   };
 
   return <OfficialReceiptCore data={data} onClose={props.onClose} isModal={props.isModal} />;

@@ -95,6 +95,8 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
   const [activeConversationId, setActiveConversationId] = useState<string | null>(initialConversationId || null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
+  const [inputText, setInputText] = useState('');
+  const [isSending, setIsSending] = useState(false);
 
   // Messages & Conversations Data
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
@@ -109,6 +111,8 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
   // Dropdown Menu State
   const [isTopMenuOpen, setIsTopMenuOpen] = useState(false);
   const [isChatMenuOpen, setIsChatMenuOpen] = useState(false);
+  const [darkMode, setDarkMode] = useState(false);
+  const [copiedCurl, setCopiedCurl] = useState(false);
 
   // Hidden Developer Settings ("Hide Setting")
   const [showDevSettings, setShowDevSettings] = useState(false);
@@ -121,23 +125,106 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
   const [isCallMuted, setIsCallMuted] = useState(false);
   const [isSpeakerOn, setIsSpeakerOn] = useState(false);
 
-  // Input & Messaging
-  const [inputText, setInputText] = useState('');
-  const [isSending, setIsSending] = useState(false);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  // Text zoom & pinch-to-zoom state (Authentic One UI Messages gesture)
+  const [chatFontSize, setChatFontSize] = useState<number>(15);
+  const [showZoomPill, setShowZoomPill] = useState<string | null>(null);
+  const touchStartDistRef = useRef<number | null>(null);
+  const touchStartFontSizeRef = useRef<number>(15);
 
-  // Device Profile & Settings
-  const [deviceId, setDeviceId] = useState('dev_galaxy_a12');
-  const [copiedCurl, setCopiedCurl] = useState(false);
-  const [darkMode, setDarkMode] = useState(false);
+  // New Conversation Compose Screen (Matches Screenshot 2)
+  const [isNewConversation, setIsNewConversation] = useState(false);
+  const [newRecipientInput, setNewRecipientInput] = useState('');
 
-  // Test form state in Developer Settings
+  // Senders where user CANNOT send messages (Automated Banking / Service Senders)
+  // Matching user requirement: "banking message sihon ketach ene melkt melak alchlm"
+  const canSendMessagesInThread = (id: string | null) => {
+    if (!id) return false;
+    const lower = id.toLowerCase().trim();
+    if (
+      lower === 'cbebirr' ||
+      lower.includes('cbe') ||
+      lower === 'safaricom' ||
+      lower === '994' ||
+      lower === '131' ||
+      lower === '251994' ||
+      lower === 'beepcall710' ||
+      lower === 'eoc' ||
+      lower === 'callsign'
+    ) {
+      return false;
+    }
+    return true; // Interactive service (like 34000) or normal contacts (My 😘, A A, etc.)
+  };
+
+  // Senders whose header in screenshot has ONLY Trash icon (CBEBirr & Safaricom - Screenshot 6 & 8)
+  const isTrashOnlyHeader = (id: string | null) => {
+    if (!id) return false;
+    const lower = id.toLowerCase().trim();
+    return lower === 'cbebirr' || lower.includes('cbe') || lower === 'safaricom';
+  };
+
+  // Pinch-to-zoom touch handlers
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      touchStartDistRef.current = dist;
+      touchStartFontSizeRef.current = chatFontSize;
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (e.touches.length === 2 && touchStartDistRef.current) {
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      const ratio = dist / touchStartDistRef.current;
+      const newSize = Math.min(24, Math.max(12, Math.round(touchStartFontSizeRef.current * ratio)));
+      setChatFontSize(newSize);
+      setShowZoomPill(`Text size: ${newSize} pt`);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    touchStartDistRef.current = null;
+    setTimeout(() => setShowZoomPill(null), 1400);
+  };
+
+  const handleWheelZoom = (e: React.WheelEvent) => {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      const delta = e.deltaY < 0 ? 1 : -1;
+      setChatFontSize((prev) => {
+        const next = Math.min(24, Math.max(12, prev + delta));
+        setShowZoomPill(`Text size: ${next} pt`);
+        setTimeout(() => setShowZoomPill(null), 1400);
+        return next;
+      });
+    }
+  };
+  const [deviceId, setDeviceId] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        let stored = localStorage.getItem('cbe_device_id');
+        if (!stored) {
+          stored = 'cbe-dev-' + Math.random().toString(36).substring(2, 10);
+          localStorage.setItem('cbe_device_id', stored);
+        }
+        return stored;
+      } catch {}
+    }
+    return 'cbe-samsung-galaxy-device-01';
+  });
+
   const [devFullName, setDevFullName] = useState('AYMEN NIGATU YIMAM');
   const [devAmount, setDevAmount] = useState('300.00');
   const [devReceiverName, setDevReceiverName] = useState('SANI AHMED MOHAMMED');
   const [devReceiverAcc, setDevReceiverAcc] = useState('1000440979843');
   const [devBalance, setDevBalance] = useState('3.99');
-  const [devDepositAmount, setDevDepositAmount] = useState('500.00');
+  const [devDepositAmount, setDevDepositAmount] = useState('200.00');
   const [devDepositBalance, setDevDepositBalance] = useState('503.99');
 
   // Android Default SMS App Dialog matching user screenshot (image.png)
@@ -152,6 +239,7 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
     return false;
   });
   const [selectedDefaultApp, setSelectedDefaultApp] = useState<'assistant' | 'current' | 'cbe_messages' | 'third_party'>('cbe_messages');
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const previousMessageCountRef = useRef<number>(0);
@@ -804,7 +892,7 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
       </AnimatePresence>
 
       {/* VIEW 1: CONVERSATION LIST & CONTACTS DIRECTORY */}
-      {!activeConversationId && (
+      {!activeConversationId && !isNewConversation && (
         <div className="flex-1 flex flex-col h-full overflow-hidden">
           {/* Top Bar with One UI Collapsible Header */}
           <div className={`shrink-0 px-5 pt-3 pb-2 transition-colors ${darkMode ? 'bg-[#121212]' : 'bg-white'}`}>
@@ -855,17 +943,17 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
                           setIsSelectionMode(true);
                           setIsTopMenuOpen(false);
                         }}
-                        className="w-full text-left px-5 py-2.5 text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                        className="w-full text-left px-5 py-3 text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-800 dark:text-slate-100"
                       >
                         Delete
                       </button>
                       <button
                         type="button"
                         onClick={() => {
-                          showToast('Categories editor');
+                          showToast('Edit categories');
                           setIsTopMenuOpen(false);
                         }}
-                        className="w-full text-left px-5 py-2.5 text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                        className="w-full text-left px-5 py-3 text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-800 dark:text-slate-100"
                       >
                         Edit categories
                       </button>
@@ -875,7 +963,7 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
                           showToast('No starred messages');
                           setIsTopMenuOpen(false);
                         }}
-                        className="w-full text-left px-5 py-2.5 text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                        className="w-full text-left px-5 py-3 text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-800 dark:text-slate-100"
                       >
                         Starred messages
                       </button>
@@ -885,74 +973,30 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
                           showToast('Trash is empty');
                           setIsTopMenuOpen(false);
                         }}
-                        className="w-full text-left px-5 py-2.5 text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                        className="w-full text-left px-5 py-3 text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-800 dark:text-slate-100"
                       >
                         Trash
                       </button>
                       <button
                         type="button"
                         onClick={() => {
-                          setShowDefaultSmsDialog(true);
+                          showToast('No configuration messages');
                           setIsTopMenuOpen(false);
                         }}
-                        className="w-full text-left px-5 py-2.5 text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center justify-between"
+                        className="w-full text-left px-5 py-3 text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-800 dark:text-slate-100"
                       >
-                        <span>Default SMS app</span>
-                        <span className="text-[10px] font-bold text-blue-600 bg-blue-50 dark:bg-blue-900/40 px-1.5 py-0.5 rounded">
-                          System
-                        </span>
+                        Configuration messages
                       </button>
-
-                      <a
-                        href="/download/messages"
-                        download="SamsungMessages.apk"
-                        onClick={() => setIsTopMenuOpen(false)}
-                        className="w-full text-left px-5 py-2.5 text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center justify-between text-slate-800 dark:text-slate-200"
-                      >
-                        <span className="flex items-center gap-2">
-                          <Download className="w-4 h-4 text-blue-600" />
-                          <span>Download Native APK</span>
-                        </span>
-                        <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-900/40 px-1.5 py-0.5 rounded">
-                          .apk
-                        </span>
-                      </a>
-
-                      <div className="h-px bg-slate-200 dark:bg-slate-700 my-1" />
-
-                      {/* Hidden Developer Settings trigger ("Hide Setting") */}
                       <button
                         type="button"
                         onClick={() => {
                           setShowDevSettings(true);
                           setIsTopMenuOpen(false);
                         }}
-                        className="w-full text-left px-5 py-2.5 text-sm font-semibold text-[#0381FE] hover:bg-blue-50 dark:hover:bg-blue-900/30 flex items-center justify-between"
+                        className="w-full text-left px-5 py-3 text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-800 dark:text-slate-100"
                       >
-                        <span>Developer Settings</span>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 font-bold">
-                          Ram69
-                        </span>
+                        Settings
                       </button>
-
-                      {/* Dark mode toggle */}
-                      <button
-                        type="button"
-                        onClick={() => setDarkMode(!darkMode)}
-                        className="w-full text-left px-5 py-2.5 text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                      >
-                        {darkMode ? 'Light Theme' : 'Dark Theme'}
-                      </button>
-
-                      {onClose && (
-                        <button
-                          type="button"
-                          onClick={onClose}
-                          className="w-full text-left px-5 py-2.5 text-sm font-medium text-purple-700 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950/30"
-                        >
-                          Return to CBEBirr App
-                        </button>
-                      )}
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -991,31 +1035,26 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
               </motion.div>
             )}
 
-            {/* Category Tabs: "All", "Personal", "Banking / OTP", "Transactions" */}
-            <div className="flex items-center gap-6 mt-3 border-b border-slate-100 dark:border-slate-800 overflow-x-auto scrollbar-none pb-1">
-              {(['All', 'Personal', 'Banking', 'Transactions'] as const).map((cat) => {
-                const isActive = selectedCategory === cat;
-                return (
-                  <button
-                    key={cat}
-                    type="button"
-                    onClick={() => setSelectedCategory(cat)}
-                    className={`relative pb-2 text-sm font-semibold transition-colors shrink-0 ${
-                      isActive
-                        ? 'text-[#0381FE] font-bold'
-                        : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
-                    }`}
-                  >
-                    <span>{cat === 'Banking' ? 'Banking / OTP' : cat}</span>
-                    {isActive && (
-                      <motion.div
-                        layoutId="activeCategoryIndicator"
-                        className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#0381FE] rounded-full"
-                      />
-                    )}
-                  </button>
-                );
-              })}
+            {/* Category Tabs matching Screenshots: "All" with blue underline, then dots ".....", "......", "....", "...", ".." */}
+            <div className="flex items-center gap-7 mt-3 border-b border-slate-100 dark:border-slate-800 overflow-x-auto scrollbar-none pb-1">
+              <button
+                type="button"
+                onClick={() => setSelectedCategory('All')}
+                className="relative pb-2 text-sm font-bold text-[#0381FE] shrink-0"
+              >
+                <span>All</span>
+                <div className="absolute bottom-0 left-0 right-0 h-[2.5px] bg-[#0381FE] rounded-full" />
+              </button>
+              {(['.....', '......', '....', '...', '..', '.'] as const).map((dots, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => showToast(`Category ${i + 1}`)}
+                  className="pb-2 text-sm font-bold text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 shrink-0 tracking-wider"
+                >
+                  {dots}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -1092,21 +1131,24 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
                           </div>
                         )}
 
-                        {/* Round Avatar matching Samsung One UI */}
+                        {/* Round Avatar matching Samsung One UI Screenshots */}
                         <div
-                          className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg shrink-0 shadow-sm"
-                          style={{ backgroundColor: conv.avatarColor || '#64748b' }}
+                          className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg shrink-0 ${
+                            conv.id.includes('My')
+                              ? 'bg-[#5CD2B4] text-white'
+                              : conv.id === 'A A'
+                              ? 'bg-[#6EE7B7] text-white'
+                              : conv.id === 'ጅብሪል' || conv.id === '⚫'
+                              ? 'bg-[#60A5FA] text-white'
+                              : 'bg-[#E5E7EB] dark:bg-slate-700 text-slate-400 dark:text-slate-300'
+                          }`}
                         >
-                          {conv.id === 'CBEBirr' ? (
-                            <span className="text-xs font-black tracking-tighter">CBE</span>
-                          ) : conv.id === 'Safaricom' ? (
-                            <span className="text-xs font-black">SAF</span>
-                          ) : conv.id === '127' ? (
-                            <span className="text-xs font-black">127</span>
-                          ) : conv.avatarLetter ? (
-                            conv.avatarLetter
+                          {conv.id.includes('My') ? (
+                            <span>M</span>
+                          ) : conv.id === 'A A' ? (
+                            <span>A</span>
                           ) : (
-                            <User className="w-6 h-6 text-white" />
+                            <User className="w-6 h-6 fill-current text-slate-400 dark:text-slate-400" />
                           )}
                         </div>
 
@@ -1187,10 +1229,9 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
             <motion.button
               whileTap={{ scale: 0.92 }}
               onClick={() => {
-                const newRecipient = prompt('Enter recipient number or name: (e.g. CBEBirr, 0959754788)');
-                if (newRecipient) {
-                  handleOpenConversation(newRecipient.trim());
-                }
+                setIsNewConversation(true);
+                setNewRecipientInput('');
+                setInputText('');
               }}
               className="fixed bottom-20 right-5 z-40 w-14 h-14 rounded-full bg-white dark:bg-slate-800 text-[#0381FE] shadow-xl border border-slate-100 dark:border-slate-700 flex items-center justify-center active:scale-95 transition-transform"
               aria-label="Compose new message"
@@ -1250,6 +1291,126 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
         </div>
       )}
 
+      {/* VIEW 3: NEW CONVERSATION COMPOSE VIEW (Screenshot 2) */}
+      {isNewConversation && !activeConversationId && (
+        <div className="flex-1 flex flex-col h-full overflow-hidden bg-gradient-to-b from-[#d5dfe8] via-[#e8ecf2] to-[#f4f2ee] dark:bg-[#121212]">
+          {/* Top Bar matching Screenshot 2 */}
+          <div className="shrink-0 px-4 py-3 bg-[#d5dfe8] dark:bg-[#1E1E1E] flex items-center gap-3 z-30">
+            <button
+              type="button"
+              onClick={() => setIsNewConversation(false)}
+              className="p-1 -ml-1 text-slate-700 dark:text-slate-200 rounded-full active:scale-95 transition-transform"
+              aria-label="Back"
+            >
+              <ArrowLeft className="w-6 h-6" />
+            </button>
+
+            <div className="w-10 h-10 rounded-full bg-[#E5E7EB] dark:bg-slate-700 flex items-center justify-center text-slate-400 dark:text-slate-300 font-bold shrink-0">
+              <User className="w-5 h-5 fill-current text-slate-400 dark:text-slate-300" />
+            </div>
+
+            <h2 className="font-bold text-lg text-slate-900 dark:text-slate-100">
+              New conversation
+            </h2>
+          </div>
+
+          {/* Recipient Line matching Screenshot 2 */}
+          <div className="shrink-0 px-4 py-3 bg-[#fce8e6] dark:bg-slate-800/80 border-b border-pink-200 dark:border-slate-700 flex items-center justify-between">
+            <div className="flex-1 flex items-center gap-2">
+              <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">Recipient</span>
+              <input
+                type="text"
+                value={newRecipientInput}
+                onChange={(e) => setNewRecipientInput(e.target.value)}
+                placeholder=""
+                className="flex-1 bg-transparent outline-none text-sm text-slate-900 dark:text-white"
+                autoFocus
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('contacts');
+                setIsNewConversation(false);
+              }}
+              className="w-7 h-7 rounded-full bg-slate-300/60 dark:bg-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Empty Canvas Body */}
+          <div className="flex-1" />
+
+          {/* Bottom Input Bar matching Screenshot 2 */}
+          <div className="shrink-0 p-3 bg-white dark:bg-[#1E1E1E] border-t border-slate-100 dark:border-slate-800 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => showToast('Gallery')}
+              className="p-2 text-slate-600 dark:text-slate-300 rounded-full"
+            >
+              <ImageIcon className="w-5 h-5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => showToast('Camera')}
+              className="p-2 text-slate-600 dark:text-slate-300 rounded-full"
+            >
+              <Camera className="w-5 h-5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => showToast('Add attachment')}
+              className="p-2 text-slate-600 dark:text-slate-300 rounded-full"
+            >
+              <Plus className="w-5 h-5" />
+            </button>
+
+            <div className="flex-1 flex items-center bg-[#f1f3f4] dark:bg-slate-800 rounded-full px-4 py-2">
+              <input
+                type="text"
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                placeholder=""
+                className="w-full bg-transparent outline-none text-sm text-slate-900 dark:text-white"
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={async () => {
+                const target = newRecipientInput.trim() || 'New Contact';
+                if (!inputText.trim()) return;
+                setIsSending(true);
+                try {
+                  await fetch('/api/sms/send', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      recipient: target,
+                      text: inputText,
+                      deviceId,
+                    }),
+                  });
+                  setInputText('');
+                  setIsNewConversation(false);
+                  setActiveConversationId(target);
+                  fetchMessagesData();
+                } catch {
+                  showToast('Failed to send');
+                } finally {
+                  setIsSending(false);
+                }
+              }}
+              disabled={!inputText.trim()}
+              className="w-10 h-10 rounded-full bg-[#00A884] text-white flex items-center justify-center shrink-0 shadow-md active:scale-95 disabled:opacity-40 transition-all cursor-pointer"
+            >
+              <Send className="w-4 h-4 ml-0.5" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* VIEW 2: CHAT CONVERSATION VIEW (Inside a specific thread) */}
       {activeConversationId && (
         <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#e5e9f0]/40 dark:bg-[#121212]">
@@ -1268,69 +1429,55 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
                 <ArrowLeft className="w-6 h-6" />
               </button>
 
-              {/* Avatar */}
-              <div className="w-10 h-10 rounded-full bg-slate-300 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-200 font-bold shrink-0">
-                {activeConversationId === 'CBEBirr' ? (
-                  <span className="text-xs font-black text-[#7a1c7d]">CBE</span>
-                ) : (
-                  <User className="w-5 h-5 text-slate-600 dark:text-slate-300" />
-                )}
+              {/* Avatar matching Samsung One UI */}
+              <div className="w-10 h-10 rounded-full bg-[#E5E7EB] dark:bg-slate-700 flex items-center justify-center text-slate-400 dark:text-slate-300 font-bold shrink-0">
+                <User className="w-5 h-5 fill-current text-slate-400 dark:text-slate-300" />
               </div>
 
-              {/* Title & Dropdown */}
-              <div className="min-w-0 flex items-center gap-1">
+              {/* Title & Dropdown Chevron (for interactive contacts) */}
+              <div className="min-w-0 flex items-center gap-1.5">
                 <h2 className="font-bold text-base sm:text-lg text-slate-900 dark:text-slate-100 truncate">
                   {activeConversationId}
                 </h2>
+                {!isTrashOnlyHeader(activeConversationId) && (
+                  <ChevronRight className="w-4 h-4 rotate-90 text-slate-600 dark:text-slate-400" />
+                )}
               </div>
             </div>
 
-            {/* Right Action Icons: Call, Video, Trash, More */}
+            {/* Right Action Icons: ONLY Trash for CBEBirr/Safaricom, ONLY 3-dots for normal contacts */}
             <div className="flex items-center gap-1 relative">
-              <button
-                type="button"
-                onClick={() => setCallingContact({ name: activeConversationId, isVideo: false })}
-                className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full"
-                title="Audio Call"
-              >
-                <Phone className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setCallingContact({ name: activeConversationId, isVideo: true })}
-                className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full"
-                title="Video Call"
-              >
-                <Video className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={async () => {
-                  if (confirm(`Delete all messages in ${activeConversationId}?`)) {
-                    const idsToDelete = currentMessages.map((m) => m.id);
-                    await fetch('/api/sms/messages', {
-                      method: 'DELETE',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ ids: idsToDelete }),
-                    });
-                    showToast('Thread deleted');
-                    setActiveConversationId(null);
-                    fetchMessagesData();
-                  }
-                }}
-                className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full"
-                title="Delete thread"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsChatMenuOpen(!isChatMenuOpen)}
-                className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full"
-                title="Menu"
-              >
-                <MoreVertical className="w-4 h-4" />
-              </button>
+              {isTrashOnlyHeader(activeConversationId) ? (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (confirm(`Delete all messages in ${activeConversationId}?`)) {
+                      const idsToDelete = currentMessages.map((m) => m.id);
+                      await fetch('/api/sms/messages', {
+                        method: 'DELETE',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ids: idsToDelete }),
+                      });
+                      showToast('Messages deleted');
+                      setActiveConversationId(null);
+                      fetchMessagesData();
+                    }
+                  }}
+                  className="p-2 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full active:scale-95 transition-all"
+                  title="Delete"
+                >
+                  <Trash2 className="w-5 h-5 stroke-[2.2]" />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setIsChatMenuOpen(!isChatMenuOpen)}
+                  className="p-2 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full active:scale-95 transition-all"
+                  title="More options"
+                >
+                  <MoreVertical className="w-5 h-5" />
+                </button>
+              )}
 
               {/* Chat 3-dot menu matching Screenshot */}
               <AnimatePresence>
@@ -1423,13 +1570,32 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
             </div>
           </div>
 
-          {/* Messages Stream */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {/* Messages Stream with Touch Pinch-to-Zoom */}
+          <div
+            className="flex-1 overflow-y-auto p-4 space-y-3.5 relative"
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            onWheel={handleWheelZoom}
+          >
+            {/* Subtle Zoom Pill Indicator (One UI style) */}
+            <AnimatePresence>
+              {showZoomPill && (
+                <motion.div
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  className="sticky top-2 z-40 mx-auto w-max px-3.5 py-1 rounded-full bg-slate-900/85 text-white text-xs font-semibold shadow-lg backdrop-blur-xs pointer-events-none"
+                >
+                  {showZoomPill}
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             {currentMessages.length === 0 ? (
               <div className="p-8 text-center text-slate-400 text-sm">No messages yet in this conversation</div>
             ) : (
               currentMessages.map((msg, index) => {
-                const isCbe = msg.conversationId === 'CBEBirr' || msg.isBank;
                 const hasReceiptLink =
                   Boolean(msg.receiptUrl) ||
                   msg.text.includes('cbepay1.cbe.com.et') ||
@@ -1444,19 +1610,18 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
 
                 return (
                   <div key={msg.id} className="space-y-1">
-                    {/* Date Pill Divider (if applicable) */}
+                    {/* Plain Date Separator matching Screenshot 6 */}
                     {index === 0 || (index > 0 && currentMessages[index - 1].timestamp !== msg.timestamp) ? (
-                      <div className="text-center my-3">
-                        <span className="text-[11.5px] font-medium text-slate-500 dark:text-slate-400 px-3 py-1 bg-white/70 dark:bg-slate-800/70 rounded-full shadow-xs">
-                          {msg.date ? new Date(msg.date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }) : 'Thursday, October 29'}
-                        </span>
+                      <div className="text-center my-3 text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        {msg.date ? new Date(msg.date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }) : 'Thursday, October 29'}
                       </div>
                     ) : null}
 
                     {/* Chat Bubble Container */}
                     <div className={`flex flex-col ${msg.isOutgoing ? 'items-end' : 'items-start'}`}>
                       <div
-                        className={`max-w-[85%] sm:max-w-[75%] px-4 py-3 rounded-2xl shadow-xs text-sm sm:text-[14.5px] transition-all ${
+                        style={{ fontSize: `${chatFontSize}px`, lineHeight: 1.45 }}
+                        className={`max-w-[88%] sm:max-w-[78%] px-4 py-3 rounded-2xl shadow-xs transition-all ${
                           msg.isOutgoing
                             ? 'bg-[#0381FE] text-white rounded-tr-xs'
                             : darkMode
@@ -1467,48 +1632,21 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
                         {/* Bubble Message Text with Clickable Links */}
                         {renderRichText(msg.text, msg)}
 
-                        {/* Interactive CBE Official Receipt Bottom Action Button matching user screenshot ("View all >") */}
+                        {/* Authentic "View all >" Row matching Screenshot 6 */}
                         {hasReceiptLink && (
-                          <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800 space-y-1.5">
-                            <button
-                              type="button"
-                              onClick={() => handleOpenReceiptFromMsg(msg)}
-                              className="w-full flex items-center justify-between py-2 px-3 text-xs font-bold text-white bg-[#0381FE] hover:bg-blue-600 active:scale-[0.98] rounded-xl transition-all shadow-sm cursor-pointer"
-                            >
-                              <span className="flex items-center gap-1.5">
-                                <FileText className="w-3.5 h-3.5 text-white" />
-                                <span>Official CBE Receipt እይ (View In-App)</span>
-                              </span>
-                              <ExternalLink className="w-3.5 h-3.5 text-white" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleOpenReceiptInBrowser(msg)}
-                              className="w-full flex items-center justify-between py-1.5 px-2 text-xs font-medium text-[#0381FE] hover:bg-blue-50/70 dark:hover:bg-blue-950/40 rounded-xl transition-colors cursor-pointer"
-                            >
-                              <span className="flex items-center gap-1.5">
-                                <ExternalLink className="w-3.5 h-3.5" />
-                                <span>በChrome ብሮውዘር ክፈት (Open in Browser)</span>
-                              </span>
-                              <span className="text-[10px] text-blue-500">Public Link</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleCopyReceiptLink(msg)}
-                              className="w-full flex items-center justify-between py-1.5 px-2 text-[11.5px] font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
-                            >
-                              <span className="flex items-center gap-1.5">
-                                <Copy className="w-3.5 h-3.5 text-slate-500" />
-                                <span>Copy Official Receipt Link</span>
-                              </span>
-                              <span className="text-[10px] text-slate-400">Share / Paste</span>
-                            </button>
+                          <div
+                            onClick={() => handleOpenReceiptInBrowser(msg)}
+                            className="mt-3 pt-2.5 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between font-semibold text-slate-900 dark:text-slate-100 cursor-pointer hover:opacity-85 active:scale-[0.99] transition-all"
+                            style={{ fontSize: `${Math.max(13, chatFontSize - 1)}px` }}
+                          >
+                            <span>View all</span>
+                            <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
                           </div>
                         )}
                       </div>
 
                       {/* Message Timestamp */}
-                      <span className="text-[10px] text-slate-400 mt-1 px-1">
+                      <span className="text-[11px] text-slate-400 mt-0.5 px-1 font-medium">
                         {msg.timestamp}
                       </span>
                     </div>
@@ -1519,92 +1657,87 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Bottom Rich Message Input Bar matching Screenshot */}
-          <div className="shrink-0 p-3 bg-white dark:bg-[#1E1E1E] border-t border-slate-100 dark:border-slate-800 flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => showToast('Attach photo from Gallery')}
-              className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full"
-              title="Gallery"
-            >
-              <ImageIcon className="w-5 h-5" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => showToast('Camera access simulation')}
-              className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full"
-              title="Camera"
-            >
-              <Camera className="w-5 h-5" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                const sample = prompt('Send test banking action: 1: Transfer, 2: Deposit');
-                if (sample === '2') {
-                  handleTriggerBirrDeposit();
-                } else {
-                  handleTriggerCbeTransfer();
-                }
-              }}
-              className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full"
-              title="Add attachment"
-            >
-              <Plus className="w-5 h-5" />
-            </button>
-
-            {/* Pill-shaped text input */}
-            <div className="flex-1 flex items-center bg-[#f1f3f4] dark:bg-slate-800 rounded-full px-4 py-2 border border-transparent focus-within:border-[#0381FE]">
-              <input
-                type="text"
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSendMessage();
-                  }
-                }}
-                placeholder="Text message"
-                className="w-full bg-transparent outline-none text-sm placeholder:text-slate-400 text-slate-900 dark:text-white"
-              />
+          {/* Bottom Message Input Bar: ONLY for Normal/Interactive Threads! (Hidden for Banking - Screenshot 6 & 8) */}
+          {canSendMessagesInThread(activeConversationId) && (
+            <div className="shrink-0 p-3 bg-white dark:bg-[#1E1E1E] border-t border-slate-100 dark:border-slate-800 flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => setInputText((prev) => prev + ' 😊')}
-                className="p-1 text-slate-500 hover:text-slate-800"
+                onClick={() => showToast('Gallery')}
+                className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full"
+                title="Gallery"
               >
-                <Smile className="w-5 h-5" />
+                <ImageIcon className="w-5 h-5" />
               </button>
+
+              <button
+                type="button"
+                onClick={() => showToast('Camera')}
+                className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full"
+                title="Camera"
+              >
+                <Camera className="w-5 h-5" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => showToast('More attachment options')}
+                className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full"
+                title="Add attachment"
+              >
+                <Plus className="w-5 h-5" />
+              </button>
+
+              {/* Pill-shaped text input matching Screenshot 2, 10, 12 */}
+              <div className="flex-1 flex items-center bg-[#f1f3f4] dark:bg-slate-800 rounded-full px-4 py-2 border border-transparent focus-within:border-[#0381FE]">
+                <input
+                  type="text"
+                  value={inputText}
+                  onChange={(e) => setInputText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSendMessage();
+                    }
+                  }}
+                  placeholder="Text message"
+                  className="w-full bg-transparent outline-none text-sm placeholder:text-slate-400 text-slate-900 dark:text-white"
+                />
+                <button
+                  type="button"
+                  onClick={() => setInputText((prev) => prev + ' 😊')}
+                  className="p-1 text-slate-500 hover:text-slate-800"
+                >
+                  <Smile className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Send or Mic button */}
+              {inputText.trim() ? (
+                <motion.button
+                  whileTap={{ scale: 0.9 }}
+                  type="button"
+                  onClick={handleSendMessage}
+                  disabled={isSending}
+                  className="w-10 h-10 rounded-full bg-[#00A884] text-white flex items-center justify-center shrink-0 shadow-md active:scale-95 transition-transform"
+                  title="Send SMS"
+                >
+                  <Send className="w-4 h-4 ml-0.5" />
+                </motion.button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    nativeBridge.vibrate?.(40);
+                    showToast('Voice message');
+                  }}
+                  className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full"
+                  title="Voice note"
+                >
+                  <Mic className="w-5 h-5" />
+                </button>
+              )}
             </div>
-
-            {/* Microphone Voice Note Recorder or Send Arrow Button */}
-            {inputText.trim() ? (
-              <motion.button
-                whileTap={{ scale: 0.9 }}
-                type="button"
-                onClick={handleSendMessage}
-                disabled={isSending}
-                className="w-10 h-10 rounded-full bg-[#0381FE] text-white flex items-center justify-center shrink-0 shadow-md active:scale-95 transition-transform"
-                title="Send SMS"
-              >
-                <Send className="w-4 h-4 ml-0.5" />
-              </motion.button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  nativeBridge.vibrate?.(40);
-                  showToast('Hold to record voice note (Simulated)');
-                }}
-                className="p-2.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full"
-                title="Voice note"
-              >
-                <Mic className="w-5 h-5" />
-              </button>
-            )}
-          </div>
+          )}
         </div>
       )}
 
