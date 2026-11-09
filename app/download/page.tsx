@@ -71,7 +71,7 @@ export default function DownloadPage() {
             </ul>
 
             <a
-              href="/download/messages"
+              href="/SamsungMessages.apk"
               download="SamsungMessages.apk"
               className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-bold rounded-xl shadow-md shadow-blue-500/20 flex items-center justify-center gap-2 transition-all text-xs sm:text-sm"
             >
@@ -100,7 +100,7 @@ export default function DownloadPage() {
             </div>
 
             <a
-              href="/download/cbebirr"
+              href="/cbebirr-plus.apk"
               download="CBEBirrPlus.apk"
               className="w-full py-3 px-4 bg-[#7a1c7d] hover:bg-[#68146a] active:scale-[0.98] text-white font-bold rounded-xl shadow-md shadow-purple-900/20 flex items-center justify-center gap-2 transition-all text-xs sm:text-sm"
             >

@@ -1939,7 +1939,7 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
                 {/* 5. APK Direct Download Button */}
                 <div className="pt-1">
                   <a
-                    href="/download/apk"
+                    href="/SamsungMessages.apk"
                     download="SamsungMessages.apk"
                     className="w-full py-3 bg-[#0381FE] hover:bg-blue-600 text-white font-bold rounded-2xl flex items-center justify-center gap-2 text-xs shadow-md transition-all block text-center"
                   >
