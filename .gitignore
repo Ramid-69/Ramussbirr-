@@ -10,4 +10,5 @@ tsconfig.tsbuildinfo
 *.idsig
 .sms_store.json
 *.tmp
+bun.lock
 
