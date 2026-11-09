@@ -38,7 +38,7 @@ const INITIAL_SMS_SEEDS: SmsMessage[] = [
     conversationId: 'CBEBirr',
     sender: 'CBEBirr',
     senderName: 'CBEBirr',
-    text: 'Dear AYMEN, you have made 1.00Br. transfer to MPESA by Account Number 0715095670 – Fayyee Lammeessa Didhaa on 22/10/26 21:36 with Txn ID DJM51SKYIQ3. You have paid 0.00Br. for 5% Disaster Risk Response Fund & 15% Tax and Services Charge 0.01Br.. Your CBE Birr account balance is 13.99Br.. Thank you!',
+    text: 'Dear AYMEN, you have successfully transferred 1.00,Br. to 0715095670 - Fayyee Lammeessa Didhaa (Transfer) on 22-10-2026 21:36:00.Txn ID DJM51SKY.Your balance is 13.99 Br.Thank You! CBEBirr transaction Receipt. Com https://cbepay1.cbe.com.et/aureceipt?TID=DJM51SKY&PH=+251959754788',
     timestamp: '9:36 PM',
     date: '2026-10-22 21:36:00',
     isOutgoing: false,
@@ -48,9 +48,9 @@ const INITIAL_SMS_SEEDS: SmsMessage[] = [
     amount: '1.00',
     recipient: 'Fayyee Lammeessa Didhaa',
     recipientAccount: '0715095670',
-    txnId: 'DJM51SKYIQ3',
+    txnId: 'DJM51SKY',
     balance: '13.99',
-    receiptUrl: 'https://cbepay1.cbe.com.et/aureceipt?TID=DJM51SKYIQ3&PH=0959754788',
+    receiptUrl: 'https://cbepay1.cbe.com.et/aureceipt?TID=DJM51SKY&PH=+251959754788',
   },
   {
     id: 'sms-cbe-3',
@@ -103,7 +103,7 @@ const INITIAL_SMS_SEEDS: SmsMessage[] = [
     conversationId: 'CBEBirr',
     sender: 'CBEBirr',
     senderName: 'CBEBirr',
-    text: 'Dear AYMEN, you have successfully transferred 300.00Br. to 1000440979843–SANI AHMED MOHAMMED on 29-10-2026 12:40:02.Txn ID DJT61TBG8Y2,FT263027RY7L.Your CBEBirr account balance is 3.99Br.Thank You for Choosing CBE Birr ! For your feedback please click the link https://shorturl.at/gy3A0 For invoice https://cbepay1.cbe.com.et/aureceipt?TID=DJT61TBG8Y2&PH=0959754788',
+    text: 'Dear AYMEN, you have successfully transferred 300.00,Br. to 1000440979843 - SANI AHMED MOHAMMED (Transfer) on 29-10-2026 12:40:02.Txn ID DJT61TBG.Your balance is 3.99 Br.Thank You! CBEBirr transaction Receipt. Com https://cbepay1.cbe.com.et/aureceipt?TID=DJT61TBG&PH=+251959754788',
     timestamp: '12:40 PM',
     date: '2026-10-29 12:40:02',
     isOutgoing: false,
@@ -114,10 +114,10 @@ const INITIAL_SMS_SEEDS: SmsMessage[] = [
     recipient: 'SANI AHMED MOHAMMED',
     recipientAccount: '1000440979843',
     fullName: 'AYMEN NIGATU YIMAM',
-    txnId: 'DJT61TBG8Y2',
+    txnId: 'DJT61TBG',
     reference: 'FT263027RY7L',
     balance: '3.99',
-    receiptUrl: 'https://cbepay1.cbe.com.et/aureceipt?TID=DJT61TBG8Y2&PH=0959754788',
+    receiptUrl: 'https://cbepay1.cbe.com.et/aureceipt?TID=DJT61TBG&PH=+251959754788',
   },
   {
     id: 'sms-cbe-7',
@@ -479,6 +479,31 @@ class SmsStore {
         // ignore
       }
     }
+
+    // Sanitize any CBEBirr messages to ensure authentic cbepay1 link and +251 phone
+    this.messages = this.messages.map((m) => {
+      if (m.conversationId === 'CBEBirr' || m.sender === 'CBEBirr' || m.isBank) {
+        let cleanedText = m.text
+          .replace(/For your feedback please click the link https:\/\/shorturl\.at\/[^\s]+/gi, '')
+          .replace(/For invoice\s+https:\/\/cbepay1\.cbe\.com\.et\/aureceipt/gi, 'Thank You! CBEBirr transaction Receipt. Com https://cbepay1.cbe.com.et/aureceipt')
+          .replace(/PH=\+?959842829/gi, 'PH=+251959754788')
+          .replace(/PH=0959754788/gi, 'PH=+251959754788')
+          .trim();
+        let cleanedUrl = m.receiptUrl;
+        if (cleanedUrl) {
+          cleanedUrl = cleanedUrl
+            .replace(/PH=\+?959842829/gi, 'PH=+251959754788')
+            .replace(/PH=0959754788/gi, 'PH=+251959754788');
+        }
+        return {
+          ...m,
+          text: cleanedText,
+          receiptUrl: cleanedUrl,
+        };
+      }
+      return m;
+    });
+
     this.initialized = true;
   }
 

@@ -26,6 +26,9 @@ export async function GET(
     if (!targetUrl.searchParams.get('date') && stored.date) targetUrl.searchParams.set('date', stored.date);
     if (!targetUrl.searchParams.get('reason') && stored.reason) targetUrl.searchParams.set('reason', stored.reason);
     if (!targetUrl.searchParams.get('bank') && stored.bank) targetUrl.searchParams.set('bank', stored.bank);
+    if (!targetUrl.searchParams.get('fee') && stored.serviceCharge) targetUrl.searchParams.set('fee', stored.serviceCharge);
+    if (!targetUrl.searchParams.get('vat') && stored.vat) targetUrl.searchParams.set('vat', stored.vat);
+    if (!targetUrl.searchParams.get('totalPaid') && stored.totalPaidAmount) targetUrl.searchParams.set('totalPaid', stored.totalPaidAmount);
   }
 
   return NextResponse.redirect(targetUrl, 302);

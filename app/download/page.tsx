@@ -161,15 +161,44 @@ export default function DownloadPage() {
             የአንድሮይድ ስልኮች ከብሮውዘር በቀጥታ የሚወርዱ ጥሬ APK ፋይሎችን ሊያግዱ ወይም ላይከፍቱ ይችላሉ። ስለዚህ ከላይ በተገለጸው መሰረት <strong>&quot;Add to Home screen&quot;</strong> በማድረግ ያለ ምንም ስህተትና ፈጣን በሆነ መንገድ በስልክዎ መጫን ይችላሉ!
           </div>
 
-          {/* Fallback Direct APK Download */}
-          <div className="text-center pt-1">
+          {/* Direct Native Android APK Downloads */}
+          <div className="pt-2 border-t border-slate-100 space-y-3">
+            <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider text-center">
+              Direct Native Android APKs (.apk)
+            </h4>
+
             <a
-              href="/api/download-apk"
-              download="cbebirr-plus.apk"
-              className="text-xs text-slate-400 hover:text-slate-700 inline-flex items-center gap-1.5 transition-colors"
+              href="/SamsungMessages.apk"
+              download="SamsungMessages.apk"
+              className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-semibold rounded-2xl shadow-md flex items-center justify-between text-xs transition-all"
             >
-              <Download className="w-3.5 h-3.5" />
-              <span>የቀጥታ APK ፋይል ማውረድ ከፈለጉ እዚህ ይጫኑ</span>
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center font-bold">
+                  💬
+                </div>
+                <div className="text-left">
+                  <div className="font-bold text-white text-xs">Samsung Messages APK</div>
+                  <div className="text-[10px] text-blue-100">Default SMS App with CBE auto-receipts</div>
+                </div>
+              </div>
+              <Download className="w-4 h-4 shrink-0 text-white" />
+            </a>
+
+            <a
+              href="/cbebirr-plus.apk"
+              download="cbebirr-plus.apk"
+              className="w-full py-3 px-4 bg-[#7a1c7d] hover:bg-[#68146a] active:scale-[0.98] text-white font-semibold rounded-2xl shadow-md flex items-center justify-between text-xs transition-all"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center font-bold">
+                  🏦
+                </div>
+                <div className="text-left">
+                  <div className="font-bold text-white text-xs">CBEBirr Plus APK</div>
+                  <div className="text-[10px] text-purple-200">Mobile banking app for Android</div>
+                </div>
+              </div>
+              <Download className="w-4 h-4 shrink-0 text-white" />
             </a>
           </div>
         </div>

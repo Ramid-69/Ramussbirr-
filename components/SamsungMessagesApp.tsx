@@ -51,36 +51,40 @@ interface SamsungMessagesAppProps {
   initialConversationId?: string;
 }
 
-// Synthesized Samsung One UI chime notification using Web Audio API
-function playSamsungChime() {
+// Native system notification and phone vibration (uses phone's native system tone, no artificial audio synth)
+function triggerSystemNotification(title: string, body: string) {
   try {
-    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-    const now = ctx.currentTime;
-    
-    // Smooth pleasant dual-tone chime
-    const osc1 = ctx.createOscillator();
-    const osc2 = ctx.createOscillator();
-    const gain = ctx.createGain();
-
-    osc1.type = 'sine';
-    osc2.type = 'sine';
-    osc1.frequency.setValueAtTime(880, now); // A5
-    osc1.frequency.exponentialRampToValueAtTime(1318.51, now + 0.12); // E6
-    osc2.frequency.setValueAtTime(1760, now + 0.05); // A6
-    osc2.frequency.exponentialRampToValueAtTime(2093, now + 0.22); // C7
-
-    gain.gain.setValueAtTime(0, now);
-    gain.gain.linearRampToValueAtTime(0.25, now + 0.03);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
-
-    osc1.connect(gain);
-    osc2.connect(gain);
-    gain.connect(ctx.destination);
-
-    osc1.start(now);
-    osc2.start(now + 0.05);
-    osc1.stop(now + 0.45);
-    osc2.stop(now + 0.45);
+    // 1. Hardware vibration using phone's native vibration motor
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      navigator.vibrate([180, 80, 180]);
+    }
+    // 2. Android WebView Native Bridge
+    if (typeof window !== 'undefined' && (window as any).Android?.notify) {
+      (window as any).Android.notify(title, body);
+      return;
+    }
+    // 3. System Notification API (plays device's configured notification sound)
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'granted') {
+        new Notification(title, {
+          body,
+          icon: '/assets/cbe_qr_center_badge_crisp.png',
+          badge: '/assets/cbe_qr_center_badge_crisp.png',
+          tag: 'cbe-sms-system-alert',
+        });
+      } else if (Notification.permission !== 'denied') {
+        Notification.requestPermission().then((perm) => {
+          if (perm === 'granted') {
+            new Notification(title, {
+              body,
+              icon: '/assets/cbe_qr_center_badge_crisp.png',
+              badge: '/assets/cbe_qr_center_badge_crisp.png',
+              tag: 'cbe-sms-system-alert',
+            });
+          }
+        });
+      }
+    }
   } catch {}
 }
 
@@ -136,8 +140,23 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
   const [devDepositAmount, setDevDepositAmount] = useState('500.00');
   const [devDepositBalance, setDevDepositBalance] = useState('503.99');
 
+  // Android Default SMS App Dialog matching user screenshot (image.png)
+  const [showDefaultSmsDialog, setShowDefaultSmsDialog] = useState(false);
+  const [selectedDefaultApp, setSelectedDefaultApp] = useState<'assistant' | 'current' | 'cbe_messages' | 'third_party'>('cbe_messages');
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const previousMessageCountRef = useRef<number>(0);
+
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const hasPrompted = localStorage.getItem('has_prompted_default_sms_app');
+        if (!hasPrompted) {
+          setShowDefaultSmsDialog(true);
+        }
+      }
+    } catch {}
+  }, []);
 
   // Show Toast Helper
   const showToast = useCallback((msg: string) => {
@@ -157,10 +176,9 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
         setConversations(data.conversations || []);
         setAllMessagesCount(data.count || 0);
 
-        // If new messages arrived while polling, trigger chime
+        // If new messages arrived while polling, trigger system notification
         if (isPolling && previousMessageCountRef.current > 0 && data.count > previousMessageCountRef.current) {
-          playSamsungChime();
-          nativeBridge.vibrate?.(60);
+          triggerSystemNotification('New Message', 'New SMS received');
         }
         previousMessageCountRef.current = data.count || 0;
 
@@ -356,8 +374,7 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
         }),
       });
       if (res.ok) {
-        playSamsungChime();
-        nativeBridge.vibrate?.(60);
+        triggerSystemNotification('CBEBirr', `Transferred ${devAmount} Br to ${devReceiverName}`);
         showToast('Real-time CBEBirr SMS created and saved!');
         fetchMessagesData();
       }
@@ -380,8 +397,7 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
         }),
       });
       if (res.ok) {
-        playSamsungChime();
-        nativeBridge.vibrate?.(60);
+        triggerSystemNotification('CBEBirr', `Deposited ${devDepositAmount} Br to CBE Birr`);
         showToast('Real-time Birr Deposit SMS created and saved!');
         fetchMessagesData();
       }
@@ -562,19 +578,88 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
     };
   };
 
-  // Open Receipt Modal from URL or parameters
+  // Open Official Receipt directly in Browser tab matching user requirement
   const handleOpenReceiptFromMsg = (msg: SmsMessage) => {
     const data = extractReceiptDataFromMsg(msg);
-    setActiveReceiptModalData(data);
+    const params = new URLSearchParams({
+      TID: data.ref,
+      ref: data.ref,
+      PH: data.acc || '',
+    });
+    if (data.amt) params.set('amt', data.amt);
+    if (data.name) params.set('name', data.name);
+    if (data.user) params.set('user', data.user);
+    if (data.rec) params.set('rec', data.rec);
+    if (data.date) params.set('date', data.date);
+    if (data.reason) params.set('reason', data.reason);
+    if (data.bank) params.set('bank', data.bank);
+    if (data.serviceCharge) params.set('fee', data.serviceCharge);
+    if (data.vat) params.set('vat', data.vat);
+    if (data.totalPaid) params.set('totalPaid', data.totalPaid);
+
+    const browserReceiptUrl = `/aureceipt?${params.toString()}`;
+    if (typeof window !== 'undefined') {
+      window.open(browserReceiptUrl, '_blank');
+    }
+  };
+
+  // Copy working official receipt link to clipboard
+  const handleCopyReceiptLink = (msg: SmsMessage) => {
+    const data = extractReceiptDataFromMsg(msg);
+    const params = new URLSearchParams({
+      TID: data.ref,
+      ref: data.ref,
+      PH: data.acc || '',
+    });
+    if (data.amt) params.set('amt', data.amt);
+    if (data.name) params.set('name', data.name);
+    if (data.user) params.set('user', data.user);
+    if (data.rec) params.set('rec', data.rec);
+    if (data.date) params.set('date', data.date);
+    if (data.reason) params.set('reason', data.reason);
+    if (data.bank) params.set('bank', data.bank);
+    if (data.serviceCharge) params.set('fee', data.serviceCharge);
+    if (data.vat) params.set('vat', data.vat);
+    if (data.totalPaid) params.set('totalPaid', data.totalPaid);
+
+    const fullUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/aureceipt?${params.toString()}`;
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(fullUrl).then(() => {
+        showToast('Official receipt link copied to clipboard!');
+      }).catch(() => {
+        showToast('Link copied!');
+      });
+    } else {
+      showToast('Official receipt link copied!');
+    }
+  };
+
+  const handleConfirmDefaultSms = () => {
+    try {
+      localStorage.setItem('has_prompted_default_sms_app', 'true');
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        navigator.vibrate([100, 50, 100]);
+      }
+      if (typeof window !== 'undefined' && (window as any).Android?.setDefaultSms) {
+        (window as any).Android.setDefaultSms();
+      }
+    } catch {}
+    setShowDefaultSmsDialog(false);
+    showToast('Messages set as default SMS app');
   };
 
   // Parse and render rich text with blue clickable underlines for accounts, dates, phone numbers, and receipt links
   const renderRichText = (text: string, msg: SmsMessage) => {
     const isCbe = msg.conversationId === 'CBEBirr' || msg.isBank;
 
+    // Clean legacy shorturl.at feedback link
+    const cleanedText = text
+      .replace(/For your feedback please click the link https:\/\/shorturl\.at\/[^\s]+/gi, '')
+      .replace(/For invoice\s+https:\/\/cbepay1\.cbe\.com\.et\/aureceipt/gi, 'Thank You! CBEBirr transaction Receipt. Com https://cbepay1.cbe.com.et/aureceipt');
+
     // Detect URL or specific patterns
     const urlRegex = /(https?:\/\/[^\s]+)/g;
-    const parts = text.split(urlRegex);
+    const parts = cleanedText.split(urlRegex);
 
     return (
       <div className="leading-relaxed break-words whitespace-pre-wrap select-text">
@@ -587,21 +672,63 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
               part.includes('receipt') ||
               part.includes('shorturl.at');
 
+            if (isReceipt || isCbe) {
+              const data = extractReceiptDataFromMsg(msg);
+              const tid = data.ref || 'DJT61TBG';
+              let ph = '+251959754788';
+              if (data.acc) {
+                const digits = data.acc.replace(/\D/g, '');
+                if (digits.startsWith('251')) ph = `+${digits}`;
+                else if (digits.startsWith('0')) ph = `+251${digits.slice(1)}`;
+                else ph = `+251${digits}`;
+              }
+              const displayUrl = `https://cbepay1.cbe.com.et/aureceipt?TID=${tid}&PH=${ph}`;
+
+              const params = new URLSearchParams({
+                TID: tid,
+                ref: tid,
+                PH: ph,
+              });
+              if (data.amt) params.set('amt', data.amt);
+              if (data.name) params.set('name', data.name);
+              if (data.user) params.set('user', data.user);
+              if (data.rec) params.set('rec', data.rec);
+              if (data.date) params.set('date', data.date);
+              if (data.reason) params.set('reason', data.reason);
+              if (data.bank) params.set('bank', data.bank);
+              if (data.serviceCharge) params.set('fee', data.serviceCharge);
+              if (data.vat) params.set('vat', data.vat);
+              if (data.totalPaid) params.set('totalPaid', data.totalPaid);
+
+              const workingBrowserUrl = `/aureceipt?${params.toString()}`;
+
+              return (
+                <a
+                  key={idx}
+                  href={workingBrowserUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                  }}
+                  className="text-[#0381FE] underline font-medium cursor-pointer active:opacity-75 inline"
+                >
+                  {displayUrl}
+                </a>
+              );
+            }
+
             return (
-              <span
+              <a
                 key={idx}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (isReceipt || isCbe) {
-                    handleOpenReceiptFromMsg(msg);
-                  } else {
-                    window.open(part, '_blank');
-                  }
-                }}
+                href={part}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
                 className="text-[#0381FE] underline font-medium cursor-pointer active:opacity-75 inline"
               >
                 {part}
-              </span>
+              </a>
             );
           }
 
@@ -763,12 +890,15 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
                       <button
                         type="button"
                         onClick={() => {
-                          showToast('Configuration messages');
+                          setShowDefaultSmsDialog(true);
                           setIsTopMenuOpen(false);
                         }}
-                        className="w-full text-left px-5 py-2.5 text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                        className="w-full text-left px-5 py-2.5 text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center justify-between"
                       >
-                        Configuration messages
+                        <span>Default SMS app</span>
+                        <span className="text-[10px] font-bold text-blue-600 bg-blue-50 dark:bg-blue-900/40 px-1.5 py-0.5 rounded">
+                          System
+                        </span>
                       </button>
                       <div className="h-px bg-slate-200 dark:bg-slate-700 my-1" />
 
@@ -1321,7 +1451,7 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
 
                         {/* Interactive CBE Official Receipt Bottom Action Button matching user screenshot ("View all >") */}
                         {hasReceiptLink && (
-                          <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800">
+                          <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800 space-y-1.5">
                             <button
                               type="button"
                               onClick={() => handleOpenReceiptFromMsg(msg)}
@@ -1329,9 +1459,20 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
                             >
                               <span className="flex items-center gap-1.5">
                                 <FileText className="w-3.5 h-3.5" />
-                                <span>View Official CBE Receipt</span>
+                                <span>Open Official CBE Receipt in Browser</span>
                               </span>
-                              <ChevronRight className="w-4 h-4" />
+                              <ExternalLink className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleCopyReceiptLink(msg)}
+                              className="w-full flex items-center justify-between py-1.5 px-2 text-[11.5px] font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+                            >
+                              <span className="flex items-center gap-1.5">
+                                <Copy className="w-3.5 h-3.5 text-slate-500" />
+                                <span>Copy Official Receipt Link</span>
+                              </span>
+                              <span className="text-[10px] text-slate-400">Share / Paste</span>
                             </button>
                           </div>
                         )}
@@ -1738,7 +1879,137 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
                 </button>
               </div>
             </div>
-          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL: ANDROID DEFAULT SMS APP PERMISSION DIALOG (Matching image.png) */}
+      <AnimatePresence>
+        {showDefaultSmsDialog && (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-[2px] p-0 sm:p-4">
+            <motion.div
+              initial={{ opacity: 0, y: 120 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 120 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="w-full sm:max-w-sm bg-white dark:bg-[#1E1F22] rounded-t-[32px] sm:rounded-[32px] p-6 shadow-2xl flex flex-col border-t border-slate-100 dark:border-slate-800"
+            >
+              {/* Top blue chat icon */}
+              <div className="w-12 h-12 mx-auto mb-3.5 flex items-center justify-center rounded-2xl bg-[#0062FF] text-white shadow-md">
+                <MessageSquare className="w-6 h-6 fill-white text-white" />
+              </div>
+
+              {/* Title */}
+              <h3 className="text-[17px] font-bold text-[#1F1F1F] dark:text-[#E3E3E3] text-center mb-6 px-2 leading-snug">
+                Set Messages as your default SMS app?
+              </h3>
+
+              {/* Radio Items List matching screenshot */}
+              <div className="space-y-4">
+                {/* 1. Call Assistant */}
+                <div
+                  onClick={() => setSelectedDefaultApp('assistant')}
+                  className="flex items-center justify-between p-2 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/60 cursor-pointer transition-colors"
+                >
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-10 h-10 rounded-full bg-[#188038] flex items-center justify-center text-white shrink-0 shadow-sm">
+                      <Phone className="w-5 h-5 text-white" />
+                    </div>
+                    <span className="text-[15px] font-medium text-[#1F1F1F] dark:text-[#E3E3E3]">
+                      Call Assistant
+                    </span>
+                  </div>
+                  <div className="w-5 h-5 rounded-full border-2 border-[#747775] dark:border-slate-500 flex items-center justify-center">
+                    {selectedDefaultApp === 'assistant' && (
+                      <div className="w-2.5 h-2.5 rounded-full bg-[#0062FF]" />
+                    )}
+                  </div>
+                </div>
+
+                {/* 2. Messages (Current default) */}
+                <div
+                  onClick={() => setSelectedDefaultApp('current')}
+                  className="flex items-center justify-between p-2 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/60 cursor-pointer transition-colors"
+                >
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-10 h-10 rounded-xl bg-[#1A73E8] flex items-center justify-center text-white shrink-0 shadow-sm">
+                      <MessageSquare className="w-5 h-5 text-white" />
+                    </div>
+                    <div className="flex flex-col text-left">
+                      <span className="text-[15px] font-medium text-[#1F1F1F] dark:text-[#E3E3E3]">
+                        Messages
+                      </span>
+                      <span className="text-[12px] text-[#747775] dark:text-slate-400">
+                        Current default
+                      </span>
+                    </div>
+                  </div>
+                  <div className="w-5 h-5 rounded-full border-2 border-[#747775] dark:border-slate-500 flex items-center justify-center">
+                    {selectedDefaultApp === 'current' && (
+                      <div className="w-2.5 h-2.5 rounded-full bg-[#0062FF]" />
+                    )}
+                  </div>
+                </div>
+
+                {/* 3. Messages (Droplet icon - Selected in user screenshot) */}
+                <div
+                  onClick={() => setSelectedDefaultApp('cbe_messages')}
+                  className="flex items-center justify-between p-2 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/60 cursor-pointer transition-colors"
+                >
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-10 h-10 rounded-full bg-[#004ECB] flex items-center justify-center text-white shrink-0 shadow-sm">
+                      <MessageSquare className="w-5 h-5 fill-white text-white" />
+                    </div>
+                    <span className="text-[15px] font-medium text-[#1F1F1F] dark:text-[#E3E3E3]">
+                      Messages
+                    </span>
+                  </div>
+                  <div className="w-5 h-5 rounded-full border-2 border-[#0062FF] flex items-center justify-center">
+                    {selectedDefaultApp === 'cbe_messages' && (
+                      <div className="w-2.5 h-2.5 rounded-full bg-[#0062FF]" />
+                    )}
+                  </div>
+                </div>
+
+                {/* 4. Messages (Cyan square) */}
+                <div
+                  onClick={() => setSelectedDefaultApp('third_party')}
+                  className="flex items-center justify-between p-2 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/60 cursor-pointer transition-colors"
+                >
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-10 h-10 rounded-xl bg-[#0288D1] flex items-center justify-center text-white shrink-0 shadow-sm">
+                      <MessageSquare className="w-5 h-5 text-white" />
+                    </div>
+                    <span className="text-[15px] font-medium text-[#1F1F1F] dark:text-[#E3E3E3]">
+                      Messages
+                    </span>
+                  </div>
+                  <div className="w-5 h-5 rounded-full border-2 border-[#747775] dark:border-slate-500 flex items-center justify-center">
+                    {selectedDefaultApp === 'third_party' && (
+                      <div className="w-2.5 h-2.5 rounded-full bg-[#0062FF]" />
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-6 mt-7 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowDefaultSmsDialog(false)}
+                  className="text-[14px] font-bold text-[#1F1F1F] dark:text-slate-300 hover:text-slate-600 dark:hover:text-white transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDefaultSms}
+                  className="text-[14px] font-bold text-[#0062FF] hover:text-blue-700 transition-colors"
+                >
+                  Set as default
+                </button>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </div>

@@ -153,6 +153,22 @@ export function buildOfficialReceiptUrl(
 }
 
 /**
+ * Formats a phone number consistently for the official CBE link: e.g. +251959754788
+ */
+export function formatPhoneForCbeLink(phone?: string): string {
+  if (!phone) return '+251959754788';
+  let clean = phone.replace(/\D/g, '');
+  if (!clean) return '+251959754788';
+  if (clean.startsWith('251')) {
+    return `+${clean}`;
+  }
+  if (clean.startsWith('0')) {
+    clean = clean.slice(1);
+  }
+  return `+251${clean}`;
+}
+
+/**
  * Builds the official CBEBirr SMS text matching user's exact specification:
  * For transfer:
  * "Dear customer, you have successfully transferred [AMOUNT] Br to [RECEIVER_ACCOUNT] - [RECEIVER_NAME] on [DATE_TIME]. Txn ID [TXN_ID]. Your balance is [BALANCE] Br. Thank You! CBEBirr transaction Receipt. Com [URL]"
@@ -169,6 +185,7 @@ export function buildCbeSmsText({
   balance,
   receiptUrl,
   isDeposit,
+  userPhone,
 }: {
   fullName: string;
   amount: string;
@@ -179,6 +196,7 @@ export function buildCbeSmsText({
   balance: string;
   receiptUrl?: string;
   isDeposit?: boolean;
+  userPhone?: string;
 }): string {
   const rawNum = typeof balance === 'number' ? balance : parseFloat(String(balance).replace(/,/g, ''));
   const formattedBalance = isNaN(rawNum)
@@ -189,11 +207,14 @@ export function buildCbeSmsText({
     return `Dear Customer, you have deposited ${amount}Br. into your CBE Birr account on ${dateTimeStr} with receipt number ${txnId}. Your current balance is ${formattedBalance}Br. Thank you!`;
   }
 
-  const workingUrl = receiptUrl || `https://cbepay1.cbe.com.et/aureceipt?TID=${txnId}&PH=+251915695670`;
   const recName = receiverName || 'Miss Simera Gofer Abdisa';
   const recAcc = receiverAccount || '1000760389289';
 
-  return `Dear ${fullName}, you have successfully transferred ${amount},Br. to ${recAcc} - ${recName} (Transfer) on ${dateTimeStr}.Txn ID ${txnId}.Your balance is ${formattedBalance} Br.Thank You! CBEBirr transaction Receipt. Com ${workingUrl}`;
+  // Authentic visual CBE link format: https://cbepay1.cbe.com.et/aureceipt?TID=[transaction id]&PH=[my number]
+  const ph = formatPhoneForCbeLink(userPhone);
+  const visualUrl = `https://cbepay1.cbe.com.et/aureceipt?TID=${txnId}&PH=${ph}`;
+
+  return `Dear ${fullName}, you have successfully transferred ${amount},Br. to ${recAcc} - ${recName} (Transfer) on ${dateTimeStr}.Txn ID ${txnId}.Your balance is ${formattedBalance} Br.Thank You! CBEBirr transaction Receipt. Com ${visualUrl}`;
 }
 
 /**
@@ -270,6 +291,7 @@ export function buildCbeSmsPayload({
     balance: finalBalance,
     receiptUrl: workingReceiptUrl,
     isDeposit,
+    userPhone: cleanPhone ? `+${cleanPhone}` : '+251915695670',
   });
 
   const rawNum = typeof balance === 'number' ? balance : parseFloat(String(balance).replace(/,/g, ''));

@@ -5186,7 +5186,7 @@ export default function CBEBirrFullscreenApp() {
                   </div>
 
                   {/* 2. AUTHENTICATION SECTION (Fixed directly below Header, matching authentic Screenshot_20261108-132819.png) */}
-                  <div className="shrink-0 w-full bg-[#D4CFD8] px-4 pt-2.5 pb-2 flex flex-col items-center z-20">
+                  <div className="shrink-0 w-full bg-[#D4CFD8] px-4 pt-2 pb-2.5 flex flex-col items-center z-20 border-b border-black/5">
                     {/* Top Purple Chevron Down */}
                     <button
                       type="button"
@@ -5266,7 +5266,7 @@ export default function CBEBirrFullscreenApp() {
                     )}
                   </div>
 
-                  {/* 3. SCROLLABLE CONFIRMATION CARDS (In Middle, Scrolls Smoothly on Web & APK) */}
+                  {/* 3. SCROLLABLE CONFIRMATION CARDS (In Middle, Smoothly Cropped at Top & Bottom Boundaries) */}
                   <div
                     ref={step7ScrollRef}
                     onPointerDown={handleStep7PointerDown}
@@ -5274,15 +5274,15 @@ export default function CBEBirrFullscreenApp() {
                     onPointerUp={handleStep7PointerUp}
                     onPointerCancel={handleStep7PointerUp}
                     onPointerLeave={handleStep7PointerUp}
-                    className="flex-1 min-h-[100px] w-full px-4 overflow-y-auto overflow-x-hidden relative space-y-2.5 pt-1 pb-2 touch-pan-y [scrollbar-width:thin] [scrollbar-color:#8b278e_transparent] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-[#8b278e] [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-transparent"
+                    className="flex-1 min-h-[140px] max-h-full w-full px-4 overflow-y-auto overflow-x-hidden relative space-y-2.5 pt-2 pb-2 touch-pan-y scroll-smooth [scrollbar-width:thin] [scrollbar-color:#8b278e_transparent] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:bg-[#8b278e] [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-black/5"
                     style={{
                       WebkitOverflowScrolling: 'touch',
                       overscrollBehaviorY: 'contain',
                       touchAction: 'pan-y',
                     }}
                   >
-                    {/* Card 1: Bank / Wallet Name */}
-                    <div className="w-full bg-[#fcfbfe] rounded-2xl p-3.5 flex items-center justify-between shadow-xs border border-white/60">
+                    {/* Card 1: Bank / Wallet Name (Bank - MPESA / Awash) */}
+                    <div className="w-full min-h-[56px] bg-[#fcfbfe] rounded-2xl px-3.5 py-2.5 flex items-center justify-between shadow-xs border border-white/60 shrink-0">
                       <div className="flex items-center gap-3 min-w-0">
                         <div className="w-5 h-5 rounded-full bg-black text-white flex items-center justify-center shrink-0">
                           <span className="text-[11px] font-bold italic font-serif">i</span>
@@ -5301,8 +5301,8 @@ export default function CBEBirrFullscreenApp() {
                       <Check className="w-4 h-4 text-black stroke-[2.5] shrink-0" />
                     </div>
 
-                    {/* Card 2: Customer Name (Completely blank if unsaved, never shows CBE customer) */}
-                    <div className="w-full bg-[#fcfbfe] rounded-2xl p-3.5 flex items-center justify-between shadow-xs border border-white/60">
+                    {/* Card 2: Customer Name */}
+                    <div className="w-full min-h-[56px] bg-[#fcfbfe] rounded-2xl px-3.5 py-2.5 flex items-center justify-between shadow-xs border border-white/60 shrink-0">
                       <div className="flex items-center gap-3 min-w-0">
                         <div className="w-5 h-5 rounded-full bg-black text-white flex items-center justify-center shrink-0">
                           <span className="text-[11px] font-bold italic font-serif">i</span>
@@ -5322,7 +5322,7 @@ export default function CBEBirrFullscreenApp() {
                     </div>
 
                     {/* Card 3: Account No. */}
-                    <div className="w-full bg-[#fcfbfe] rounded-2xl p-3.5 flex items-center justify-between shadow-xs border border-white/60">
+                    <div className="w-full min-h-[56px] bg-[#fcfbfe] rounded-2xl px-3.5 py-2.5 flex items-center justify-between shadow-xs border border-white/60 shrink-0">
                       <div className="flex items-center gap-3 min-w-0">
                         <div className="w-5 h-5 rounded-full bg-black text-white flex items-center justify-center shrink-0">
                           <span className="text-[11px] font-bold italic font-serif">i</span>
@@ -5342,7 +5342,7 @@ export default function CBEBirrFullscreenApp() {
                     </div>
 
                     {/* Card 4: Amount */}
-                    <div className="w-full bg-[#fcfbfe] rounded-2xl p-3.5 flex items-center justify-between shadow-xs border border-white/60">
+                    <div className="w-full min-h-[56px] bg-[#fcfbfe] rounded-2xl px-3.5 py-2.5 flex items-center justify-between shadow-xs border border-white/60 shrink-0">
                       <div className="flex items-center gap-3 min-w-0">
                         <div className="w-5 h-5 rounded-full bg-black text-white flex items-center justify-center shrink-0">
                           <span className="text-[11px] font-bold italic font-serif">i</span>
@@ -5361,7 +5361,7 @@ export default function CBEBirrFullscreenApp() {
 
                     {/* Card 5: Reason (if provided) */}
                     {(transferSource === 'other_wallets' ? walletReason : bankReason) ? (
-                      <div className="w-full bg-[#fcfbfe] rounded-2xl p-3.5 flex items-center justify-between shadow-xs border border-white/60">
+                      <div className="w-full min-h-[56px] bg-[#fcfbfe] rounded-2xl px-3.5 py-2.5 flex items-center justify-between shadow-xs border border-white/60 shrink-0">
                         <div className="flex items-center gap-3 min-w-0">
                           <div className="w-5 h-5 rounded-full bg-black text-white flex items-center justify-center shrink-0">
                             <span className="text-[11px] font-bold italic font-serif">i</span>
@@ -5380,7 +5380,7 @@ export default function CBEBirrFullscreenApp() {
                     ) : null}
 
                     {/* Bottom spacer inside scroll container */}
-                    <div className="h-2 w-full shrink-0" />
+                    <div className="h-3 w-full shrink-0" />
                   </div>
 
                   {/* 4. FIXED NUMERIC KEYPAD (Anchored at Bottom) */}

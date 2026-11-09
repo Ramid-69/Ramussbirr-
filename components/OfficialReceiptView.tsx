@@ -95,65 +95,61 @@ export function OfficialReceiptCore({
 }) {
   const ref = data.ref || 'FT262413JRB4';
 
-  const [amt, setAmt] = useState<string>(data.amt || '');
-  const [rec, setRec] = useState<string>(data.rec || '');
-  const [name, setName] = useState<string>(data.name || '');
-  const [user, setUser] = useState<string>(data.user || '');
-  const [acc, setAcc] = useState<string>(data.acc || '');
-  const [date, setDate] = useState<string>(data.date || '');
-  const [reason, setReason] = useState<string>(data.reason || '');
-  const [bank, setBank] = useState<string>(data.bank || '');
-  const [serviceCharge, setServiceCharge] = useState<string>(data.serviceCharge || '');
-  const [vat, setVat] = useState<string>(data.vat || '');
-  const [totalPaid, setTotalPaid] = useState<string>(data.totalPaid || '');
-
-  // Keep state updated if data changes
-  useEffect(() => {
-    if (data.amt) setAmt(data.amt);
-    if (data.rec) setRec(data.rec);
-    if (data.name) setName(data.name);
-    if (data.user) setUser(data.user);
-    if (data.acc) setAcc(data.acc);
-    if (data.date) setDate(data.date);
-    if (data.reason) setReason(data.reason);
-    if (data.bank) setBank(data.bank);
-    if (data.serviceCharge) setServiceCharge(data.serviceCharge);
-    if (data.vat) setVat(data.vat);
-    if (data.totalPaid) setTotalPaid(data.totalPaid);
-  }, [data]);
+  const [fetchedData, setFetchedData] = useState<Partial<OfficialReceiptData> | null>(null);
 
   // If query parameters or props are missing fields, automatically fetch real saved transaction details from server
   useEffect(() => {
-    if (ref && (!amt || !rec || !name)) {
+    if (ref && (!data.amt || !data.rec || !data.name)) {
       fetch(`/api/receipt/get?ref=${encodeURIComponent(ref)}`)
         .then((res) => (res.ok ? res.json() : null))
         .then((stored) => {
           if (stored && stored.ref) {
-            if (stored.amt) setAmt((prev) => prev || stored.amt);
-            if (stored.rec) setRec((prev) => prev || stored.rec);
-            if (stored.name) setName((prev) => prev || stored.name);
-            if (stored.user) setUser((prev) => prev || stored.user);
-            if (stored.acc) setAcc((prev) => prev || stored.acc);
-            if (stored.date) setDate((prev) => prev || stored.date);
-            if (stored.reason) setReason((prev) => prev || stored.reason);
-            if (stored.bank) setBank((prev) => prev || stored.bank);
-            if (stored.serviceCharge) setServiceCharge((prev) => prev || stored.serviceCharge);
-            if (stored.vat) setVat((prev) => prev || stored.vat);
-            if (stored.totalPaidAmount) setTotalPaid((prev) => prev || stored.totalPaidAmount);
+            setFetchedData({
+              amt: stored.amt,
+              rec: stored.rec,
+              name: stored.name,
+              user: stored.user,
+              acc: stored.acc,
+              date: stored.date,
+              reason: stored.reason,
+              bank: stored.bank,
+              serviceCharge: stored.serviceCharge,
+              vat: stored.vat,
+              totalPaid: stored.totalPaidAmount,
+            });
           }
         })
         .catch(() => {});
     }
-  }, [ref, amt, rec, name]);
+  }, [ref, data.amt, data.rec, data.name]);
 
-  const activeAmt = amt || '10.00';
-  const activeRec = rec || '1000760389289';
-  const activeName = name || '';
-  const activeUser = user || 'AYMEN NIGATU YIMAM';
-  const activeAcc = acc || '0959754788';
-  const activeDate = date || '2026-10-27 11:56:20';
-  const activeReason = reason || 'Customer transfer to CBE account';
-  const activeBank = bank || '';
+  // Keep standalone browser tab firmly on official receipt page (never exit to banking app)
+  useEffect(() => {
+    if (!isModal && typeof window !== 'undefined') {
+      try {
+        window.history.pushState(null, '', window.location.href);
+        const handlePop = () => {
+          window.history.pushState(null, '', window.location.href);
+        };
+        window.addEventListener('popstate', handlePop);
+        return () => {
+          window.removeEventListener('popstate', handlePop);
+        };
+      } catch {}
+    }
+  }, [isModal]);
+
+  const activeAmt = data.amt || fetchedData?.amt || '10.00';
+  const activeRec = data.rec || fetchedData?.rec || '1000760389289';
+  const activeName = data.name || fetchedData?.name || '';
+  const activeUser = data.user || fetchedData?.user || 'AYMEN NIGATU YIMAM';
+  const activeAcc = data.acc || fetchedData?.acc || '0959754788';
+  const activeDate = data.date || fetchedData?.date || '2026-10-27 11:56:20';
+  const activeReason = data.reason || fetchedData?.reason || 'Customer transfer to CBE account';
+  const activeBank = data.bank || fetchedData?.bank || '';
+  const serviceCharge = data.serviceCharge || fetchedData?.serviceCharge || '';
+  const vat = data.vat || fetchedData?.vat || '';
+  const totalPaid = data.totalPaid || fetchedData?.totalPaid || '';
 
   const numericAmt = parseFloat(activeAmt) || 10.00;
   const formattedAmt = numericAmt.toFixed(2);
@@ -300,13 +296,19 @@ export function OfficialReceiptCore({
             <span>ወደ መልእክት ተመለስ (Back to Messages)</span>
           </button>
         ) : (
-          <Link
-            href="/"
-            className="flex items-center space-x-2 text-white hover:text-purple-200 transition-colors text-xs sm:text-sm font-semibold"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>ወደ ባንኪንግ አፕ (Back to CBEBirr App)</span>
-          </Link>
+          <div className="flex items-center space-x-2.5">
+            <div className="w-7 h-7 rounded-lg bg-white/20 flex items-center justify-center shadow-xs">
+              <ShieldCheck className="w-4 h-4 text-yellow-300" />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-xs sm:text-sm font-bold tracking-wide leading-tight">
+                የኢትዮጵያ ንግድ ባንክ | CBE
+              </span>
+              <span className="text-[10px] text-purple-200 font-medium leading-none">
+                Official Electronic Tax Receipt
+              </span>
+            </div>
+          </div>
         )}
         <div className="flex items-center space-x-2">
           <span className="text-xs font-bold bg-white/20 px-2.5 py-1 rounded-full flex items-center space-x-1">
