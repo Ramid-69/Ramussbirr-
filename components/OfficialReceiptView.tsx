@@ -139,19 +139,22 @@ export function OfficialReceiptCore({
     }
   }, [isModal]);
 
-  const activeAmt = data.amt || fetchedData?.amt || '10.00';
-  const activeRec = data.rec || fetchedData?.rec || '1000760389289';
-  const activeName = data.name || fetchedData?.name || '';
+  // Fast synchronous fallback for instant render with zero delay
+  const isSaniTx = ref === 'FT263027RY7L' || ref.includes('DJT61TBG8Y2') || ref.includes('263027');
+
+  const activeAmt = data.amt || fetchedData?.amt || (isSaniTx ? '300.00' : '10.00');
+  const activeRec = data.rec || fetchedData?.rec || (isSaniTx ? '1000440979843' : '1000760389289');
+  const activeName = data.name || fetchedData?.name || (isSaniTx ? 'SANI AHMED MOHAMMED' : '');
   const activeUser = data.user || fetchedData?.user || 'AYMEN NIGATU YIMAM';
   const activeAcc = data.acc || fetchedData?.acc || '0959754788';
-  const activeDate = data.date || fetchedData?.date || '2026-10-27 11:56:20';
-  const activeReason = data.reason || fetchedData?.reason || 'Customer transfer to CBE account';
+  const activeDate = data.date || fetchedData?.date || (isSaniTx ? '29-10-2026 12:40:02' : '2026-10-27 11:56:20');
+  const activeReason = data.reason || fetchedData?.reason || (isSaniTx ? 'Customer Transfer' : 'Customer transfer to CBE account');
   const activeBank = data.bank || fetchedData?.bank || '';
   const serviceCharge = data.serviceCharge || fetchedData?.serviceCharge || '';
   const vat = data.vat || fetchedData?.vat || '';
   const totalPaid = data.totalPaid || fetchedData?.totalPaid || '';
 
-  const numericAmt = parseFloat(activeAmt) || 10.00;
+  const numericAmt = parseFloat(activeAmt) || (isSaniTx ? 300.00 : 10.00);
   const formattedAmt = numericAmt.toFixed(2);
 
   // Compute exact fee breakdown if Other Bank or Other Wallet transfer
@@ -283,29 +286,21 @@ export function OfficialReceiptCore({
   const creditAccType = activeBank ? `${activeBank} Account` : (isPhoneTx ? 'Customer E-money Account' : 'CBE Bank Account');
 
   return (
-    <div
-      className={`w-full ${
-        isModal
-          ? 'py-2 px-1 sm:px-3 flex flex-col items-center justify-center'
-          : 'min-h-screen w-full flex flex-col items-center justify-center p-2 sm:p-5'
-      } bg-[#ece7ef] sm:bg-[#f1f3f6] text-slate-800 select-none overflow-x-hidden`}
-    >
-      {/* If inside modal, show only a minimal close button at top right */}
+    <div className="w-full min-h-screen flex flex-col items-center justify-center bg-[#f0f2f5] p-2 sm:p-4 text-slate-800 select-none overflow-hidden relative">
+      {/* If inside modal, minimal floating close button at top right */}
       {isModal && onClose && (
-        <div className="w-full max-w-2xl flex justify-end mb-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1.5 rounded-full bg-slate-200/80 hover:bg-slate-300 text-slate-700 transition-colors cursor-pointer"
-            aria-label="Close"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="fixed top-3 right-3 z-50 p-2 rounded-full bg-slate-900/60 hover:bg-slate-900/80 text-white shadow-lg backdrop-blur-xs transition-all cursor-pointer"
+          aria-label="Close"
+        >
+          <X className="w-5 h-5" />
+        </button>
       )}
 
-      {/* Main Official Receipt Document Container - Centered and full screen view */}
-      <main className="w-full max-w-md sm:max-w-xl md:max-w-2xl bg-white shadow-2xl rounded-xl border border-slate-300 overflow-hidden font-sans relative my-auto">
+      {/* Main Official Receipt Document Container - Perfectly centered with balanced view */}
+      <main className="w-full max-w-[440px] sm:max-w-[480px] bg-white shadow-2xl rounded-lg border border-slate-300/80 overflow-hidden font-sans relative my-auto">
         <svg
           id="official-vat-receipt-svg"
           viewBox="0 0 665 912"

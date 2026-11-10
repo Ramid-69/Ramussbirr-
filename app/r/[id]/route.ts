@@ -4,14 +4,14 @@ import { getReceipt } from '@/lib/receipt-store';
 function getSafeBaseUrl(req: NextRequest): string {
   const forwardedHost = req.headers.get('x-forwarded-host');
   const forwardedProto = req.headers.get('x-forwarded-proto') || 'https';
-  if (forwardedHost && !forwardedHost.includes('0.0.0.0') && !forwardedHost.includes('localhost') && !forwardedHost.includes('127.0.0.1')) {
+  if (forwardedHost) {
     return `${forwardedProto}://${forwardedHost}`;
   }
   const host = req.headers.get('host');
-  if (host && !host.includes('0.0.0.0') && !host.includes('localhost') && !host.includes('127.0.0.1')) {
+  if (host) {
     return `${forwardedProto}://${host}`;
   }
-  return 'https://ramussbirr.vercel.app';
+  return req.nextUrl.origin;
 }
 
 export async function GET(
