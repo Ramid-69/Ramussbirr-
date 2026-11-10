@@ -611,6 +611,19 @@ class SmsStore {
   public addMessage(msgInput: Partial<SmsMessage>): SmsMessage {
     this.init();
 
+    // Deduplication guard: if a message with this exact txnId, id, or text already exists, return existing
+    if (msgInput.txnId || msgInput.id || msgInput.text) {
+      const existing = this.messages.find(
+        (m) =>
+          (msgInput.id && m.id === msgInput.id) ||
+          (msgInput.txnId && m.txnId && m.txnId.trim().toUpperCase() === msgInput.txnId.trim().toUpperCase()) ||
+          (msgInput.text && m.text.trim() === msgInput.text.trim())
+      );
+      if (existing) {
+        return existing;
+      }
+    }
+
     const now = new Date();
     const id = msgInput.id || `sms-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     let senderName = msgInput.senderName || msgInput.sender || 'CBEBirr';
