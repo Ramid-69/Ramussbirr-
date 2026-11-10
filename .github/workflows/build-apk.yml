@@ -25,10 +25,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
 
       - name: Install Dependencies
-        run: npm install --prefer-offline --no-audit
+        run: npm install --no-audit
 
       - name: Build Next.js Applet
         run: npm run build
