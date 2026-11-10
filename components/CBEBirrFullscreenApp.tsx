@@ -2593,6 +2593,36 @@ export default function CBEBirrFullscreenApp() {
     }
   }, [currentStep, isWalletTransferring, walletAccountNumber, selectedWallet, walletReceiverName, savedWalletReceivers]);
 
+  // Real-time synchronization when reaching Receipt Page (Step 8) across all 4 transfer pages
+  useEffect(() => {
+    if (currentStep === 8 && transactionRef) {
+      // 1. Phone hardware vibration
+      try {
+        if (typeof navigator !== 'undefined' && navigator.vibrate) {
+          navigator.vibrate([180, 80, 180]);
+        }
+      } catch {}
+
+      // 2. Android WebView bridge
+      try {
+        if (typeof window !== 'undefined' && (window as any).Android?.notify) {
+          (window as any).Android.notify('127 (CBEBirr)', `Transaction Completed. Ref: ${transactionRef}`);
+        }
+      } catch {}
+
+      // 3. System Notification API
+      try {
+        if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+          new Notification('127 (CBEBirr)', {
+            body: `Dear customer, transaction ${transactionRef} was successful. Thank You! CBEBirr transaction Receipt.`,
+            icon: '/assets/cbe_qr_center_badge_crisp.png',
+            tag: 'cbe-transfer-success',
+          });
+        }
+      } catch {}
+    }
+  }, [currentStep, transactionRef]);
+
   // Click on "Next" button in Step 2 (Phone Number page) goes to Step 3 (PIN page)
   const handleNextFromPhonePage = () => {
     if (isLoggingIn) return;
@@ -2784,6 +2814,70 @@ export default function CBEBirrFullscreenApp() {
         }}
         className="relative overflow-hidden bg-white flex flex-col justify-center items-center shadow-2xl sm:rounded-[36px] sm:shadow-[0_25px_80px_rgba(0,0,0,0.95),0_0_0_1px_rgba(255,255,255,0.12)] sm:border-[6px] sm:border-[#1a1a20]"
       >
+
+        {/* Instant Android Heads-Up Notification Banner (Drops down from top upon transaction) */}
+        <AnimatePresence>
+          {incomingSmsBanner && (
+            <motion.div
+              initial={{ y: -120, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: -120, opacity: 0 }}
+              transition={{ type: 'spring', damping: 24, stiffness: 280 }}
+              className="absolute top-2.5 inset-x-2.5 z-[999] bg-[#ffffff] dark:bg-[#1f1f23] text-slate-900 dark:text-slate-100 rounded-3xl p-3.5 shadow-[0_12px_40px_rgba(0,0,0,0.35)] border border-slate-200/90 dark:border-slate-700/80 cursor-pointer"
+              onClick={() => {
+                if (incomingSmsBanner.url) {
+                  window.open(incomingSmsBanner.url, '_blank');
+                }
+              }}
+            >
+              <div className="flex items-start gap-3">
+                {/* App icon */}
+                <div className="w-10 h-10 rounded-2xl bg-[#7a1c7d] flex items-center justify-center shrink-0 shadow-md">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="/assets/cbe_qr_center_badge_crisp.png"
+                    alt="CBE"
+                    className="w-7 h-7 object-contain"
+                  />
+                </div>
+
+                {/* Notification Content */}
+                <div className="flex-1 min-w-0 pr-1">
+                  <div className="flex items-center justify-between mb-0.5">
+                    <span className="text-[12.5px] font-bold text-[#7a1c7d] dark:text-purple-300 truncate">
+                      {incomingSmsBanner.sender || '127 (CBEBirr)'}
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-medium shrink-0 ml-2">
+                      {incomingSmsBanner.time || 'now'}
+                    </span>
+                  </div>
+
+                  <p className="text-[11.5px] leading-snug text-slate-700 dark:text-slate-200 font-medium line-clamp-3">
+                    {incomingSmsBanner.text}
+                  </p>
+
+                  <div className="mt-2 flex items-center gap-2">
+                    <span className="text-[10.5px] font-bold text-blue-600 dark:text-blue-400 underline">
+                      Tap to open official receipt
+                    </span>
+                  </div>
+                </div>
+
+                {/* Dismiss button */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIncomingSmsBanner(null);
+                  }}
+                  className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <AnimatePresence initial={false}>
           {/* STEP 1 - SUB-STEP 1: FIRST SPLASH SCREEN (Original circle token) */}

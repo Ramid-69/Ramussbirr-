@@ -54,54 +54,48 @@ interface SamsungMessagesAppProps {
 // Global debounce lock to prevent double-firing, sound overlapping, or vibration stutter
 let lastNotificationTimestamp = 0;
 
-function playSamsungSmsTone() {
-  try {
-    if (typeof window === 'undefined') return;
-    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-    if (!AudioCtx) return;
-    const ctx = new AudioCtx();
-    const t = ctx.currentTime;
-
-    // Ping 1: 880Hz (A5)
-    const osc1 = ctx.createOscillator();
-    const gain1 = ctx.createGain();
-    osc1.type = 'sine';
-    osc1.frequency.setValueAtTime(880, t);
-    gain1.gain.setValueAtTime(0.12, t);
-    gain1.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
-    osc1.connect(gain1);
-    gain1.connect(ctx.destination);
-    osc1.start(t);
-    osc1.stop(t + 0.16);
-
-    // Ping 2: 1320Hz (E6)
-    const osc2 = ctx.createOscillator();
-    const gain2 = ctx.createGain();
-    osc2.type = 'sine';
-    osc2.frequency.setValueAtTime(1320, t + 0.08);
-    gain2.gain.setValueAtTime(0.10, t + 0.08);
-    gain2.gain.exponentialRampToValueAtTime(0.001, t + 0.30);
-    osc2.connect(gain2);
-    gain2.connect(ctx.destination);
-    osc2.start(t + 0.08);
-    osc2.stop(t + 0.30);
-  } catch {}
+// Deterministic client-side date parser for message ordering (supports DD-MM-YYYY, YYYY-MM-DD, and ISO)
+function parseClientDate(dateStr?: string): number {
+  if (!dateStr) return 0;
+  const direct = Date.parse(dateStr);
+  if (!isNaN(direct)) return direct;
+  const dmyMatch = dateStr.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
+  if (dmyMatch) {
+    const day = parseInt(dmyMatch[1], 10);
+    const month = parseInt(dmyMatch[2], 10) - 1;
+    let year = parseInt(dmyMatch[3], 10);
+    if (year < 100) year += 2000;
+    const hour = dmyMatch[4] ? parseInt(dmyMatch[4], 10) : 0;
+    const min = dmyMatch[5] ? parseInt(dmyMatch[5], 10) : 0;
+    const sec = dmyMatch[6] ? parseInt(dmyMatch[6], 10) : 0;
+    const d = new Date(year, month, day, hour, min, sec);
+    if (!isNaN(d.getTime())) return d.getTime();
+  }
+  const ymdMatch = dateStr.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
+  if (ymdMatch) {
+    const year = parseInt(ymdMatch[1], 10);
+    const month = parseInt(ymdMatch[2], 10) - 1;
+    const day = parseInt(ymdMatch[3], 10);
+    const hour = ymdMatch[4] ? parseInt(ymdMatch[4], 10) : 0;
+    const min = ymdMatch[5] ? parseInt(ymdMatch[5], 10) : 0;
+    const sec = ymdMatch[6] ? parseInt(ymdMatch[6], 10) : 0;
+    const d = new Date(year, month, day, hour, min, sec);
+    if (!isNaN(d.getTime())) return d.getTime();
+  }
+  return 0;
 }
 
-// Native system notification and phone vibration strictly debounced (zero overlap)
+// Native system notification and phone hardware vibration (no artificial oscillator sound per user request)
 function triggerSystemNotification(title: string, body: string) {
   const now = Date.now();
   if (now - lastNotificationTimestamp < 2500) {
-    // Strictly prevent overlapping sound or double vibration within 2.5 seconds
+    // Strictly prevent double vibration within 2.5 seconds
     return;
   }
   lastNotificationTimestamp = now;
 
   try {
-    // 1. Play Samsung One UI notification chime
-    playSamsungSmsTone();
-
-    // 2. Hardware vibration (single clean pattern)
+    // 1. Hardware vibration using phone's native vibration motor
     if (typeof navigator !== 'undefined' && navigator.vibrate) {
       navigator.vibrate([100, 50, 100]);
     }
@@ -310,6 +304,11 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
           const convMsgs = (data.messages || []).filter(
             (m: SmsMessage) => m.conversationId.trim().toLowerCase() === activeConversationId.trim().toLowerCase()
           );
+          convMsgs.sort((a: SmsMessage, b: SmsMessage) => {
+            const diff = parseClientDate(a.date) - parseClientDate(b.date);
+            if (diff !== 0) return diff;
+            return a.id.localeCompare(b.id);
+          });
           setCurrentMessages(convMsgs);
         }
       }
@@ -336,6 +335,11 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
             const convMsgs = (data.messages || []).filter(
               (m: SmsMessage) => m.conversationId.trim().toLowerCase() === activeConversationId.trim().toLowerCase()
             );
+            convMsgs.sort((a: SmsMessage, b: SmsMessage) => {
+              const diff = parseClientDate(a.date) - parseClientDate(b.date);
+              if (diff !== 0) return diff;
+              return a.id.localeCompare(b.id);
+            });
             setCurrentMessages(convMsgs);
           }
         }
@@ -742,7 +746,7 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
         origin = locOrigin;
       }
     }
-    return `${origin}/official-receipt?${params.toString()}`;
+    return `${origin}/aureceipt?${params.toString()}`;
   };
 
   // Open Official Receipt directly in-app modal (instant, reliable, no network/browser error)
@@ -845,17 +849,18 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
               if (data.totalPaid) params.set('totalPaid', data.totalPaid);
 
               return (
-                <button
-                  type="button"
+                <a
                   key={idx}
+                  href={`/aureceipt?${params.toString()}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleOpenReceiptFromMsg(msg);
                   }}
                   className="text-[#0381FE] underline font-medium cursor-pointer active:opacity-75 inline text-left p-0 bg-transparent border-0"
                 >
                   {displayUrl}
-                </button>
+                </a>
               );
             }
 
