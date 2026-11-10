@@ -51,8 +51,8 @@ self.addEventListener('fetch', (event) => {
   const req = event.request;
   const url = new URL(req.url);
 
-  // Skip non-GET requests or APIs that post data
-  if (req.method !== 'GET') return;
+  // Skip non-GET requests or dynamic API endpoints
+  if (req.method !== 'GET' || url.pathname.startsWith('/api/')) return;
 
   // Stale-While-Revalidate or Cache-First for static assets & pages
   event.respondWith(

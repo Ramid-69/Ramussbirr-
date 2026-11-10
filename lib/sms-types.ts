@@ -21,6 +21,7 @@ export interface SmsMessage {
   deviceId?: string;
   synced?: boolean;
   isDeposit?: boolean;
+  createdAt?: number;
 }
 
 export interface ConversationSummary {

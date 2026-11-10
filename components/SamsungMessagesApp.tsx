@@ -85,6 +85,11 @@ function parseClientDate(dateStr?: string): number {
   return 0;
 }
 
+function getMsgSortTime(m: SmsMessage): number {
+  if (typeof m.createdAt === 'number' && m.createdAt > 0) return m.createdAt;
+  return parseClientDate(m.date);
+}
+
 // Native system notification and phone hardware vibration (no artificial oscillator sound per user request)
 function triggerSystemNotification(title: string, body: string) {
   const now = Date.now();
@@ -275,6 +280,7 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const previousMessageCountRef = useRef<number>(0);
+  const allMessagesRef = useRef<SmsMessage[]>([]);
 
   // Show Toast Helper
   const showToast = useCallback((msg: string) => {
@@ -287,10 +293,11 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
   // Fetch conversations and messages from backend
   const fetchMessagesData = useCallback(async (isPolling = false) => {
     try {
-      const res = await fetch(`/api/sms/messages?deviceId=all`);
+      const res = await fetch(`/api/sms/messages?deviceId=all&_t=${Date.now()}`, { cache: 'no-store' });
       if (!res.ok) return;
       const data = await res.json();
       if (data && data.success) {
+        allMessagesRef.current = data.messages || [];
         setConversations(data.conversations || []);
         setAllMessagesCount(data.count || 0);
 
@@ -305,7 +312,7 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
             (m: SmsMessage) => m.conversationId.trim().toLowerCase() === activeConversationId.trim().toLowerCase()
           );
           convMsgs.sort((a: SmsMessage, b: SmsMessage) => {
-            const diff = parseClientDate(a.date) - parseClientDate(b.date);
+            const diff = getMsgSortTime(a) - getMsgSortTime(b);
             if (diff !== 0) return diff;
             return a.id.localeCompare(b.id);
           });
@@ -324,10 +331,11 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
     let isMounted = true;
     const loadInitialMessages = async () => {
       try {
-        const res = await fetch(`/api/sms/messages?deviceId=all`);
+        const res = await fetch(`/api/sms/messages?deviceId=all&_t=${Date.now()}`, { cache: 'no-store' });
         if (!res.ok || !isMounted) return;
         const data = await res.json();
         if (data && data.success && isMounted) {
+          allMessagesRef.current = data.messages || [];
           setConversations(data.conversations || []);
           setAllMessagesCount(data.count || 0);
           previousMessageCountRef.current = data.count || 0;
@@ -336,7 +344,7 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
               (m: SmsMessage) => m.conversationId.trim().toLowerCase() === activeConversationId.trim().toLowerCase()
             );
             convMsgs.sort((a: SmsMessage, b: SmsMessage) => {
-              const diff = parseClientDate(a.date) - parseClientDate(b.date);
+              const diff = getMsgSortTime(a) - getMsgSortTime(b);
               if (diff !== 0) return diff;
               return a.id.localeCompare(b.id);
             });
@@ -466,6 +474,17 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
     if (convMsgs) {
       // Mark read locally
       convMsgs.unreadCount = 0;
+    }
+    if (allMessagesRef.current && allMessagesRef.current.length > 0) {
+      const msgs = allMessagesRef.current.filter(
+        (m: SmsMessage) => m.conversationId.trim().toLowerCase() === id.trim().toLowerCase()
+      );
+      msgs.sort((a, b) => {
+        const diff = getMsgSortTime(a) - getMsgSortTime(b);
+        if (diff !== 0) return diff;
+        return a.id.localeCompare(b.id);
+      });
+      setCurrentMessages(msgs);
     }
   };
 

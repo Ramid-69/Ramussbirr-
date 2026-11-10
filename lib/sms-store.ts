@@ -483,6 +483,11 @@ export function parseDateToTimestamp(dateStr?: string): number {
   return 0;
 }
 
+export function getMessageSortTime(m: SmsMessage): number {
+  if (typeof m.createdAt === 'number' && m.createdAt > 0) return m.createdAt;
+  return parseDateToTimestamp(m.date);
+}
+
 class SmsStore {
   private messages: SmsMessage[] = [];
   private initialized = false;
@@ -576,7 +581,7 @@ class SmsStore {
       res = res.filter((m) => !m.synced);
     }
     return res.sort((a, b) => {
-      const diff = parseDateToTimestamp(a.date) - parseDateToTimestamp(b.date);
+      const diff = getMessageSortTime(a) - getMessageSortTime(b);
       if (diff !== 0) return diff;
       return a.id.localeCompare(b.id);
     });
@@ -588,7 +593,7 @@ class SmsStore {
     return this.messages
       .filter((m) => m.conversationId.trim().toLowerCase() === cleanId)
       .sort((a, b) => {
-        const diff = parseDateToTimestamp(a.date) - parseDateToTimestamp(b.date);
+        const diff = getMessageSortTime(a) - getMessageSortTime(b);
         if (diff !== 0) return diff;
         return a.id.localeCompare(b.id);
       });
@@ -687,23 +692,27 @@ class SmsStore {
     const currentConvMsgs = this.messages.filter(
       (m) => m.conversationId.trim().toLowerCase() === conversationId.trim().toLowerCase()
     );
-    if (currentConvMsgs.length > 0) {
-      const maxTime = Math.max(...currentConvMsgs.map((m) => parseDateToTimestamp(m.date)));
-      if (parsedInputTime <= maxTime) {
-        // Increment timestamp by 2 seconds past the latest message
-        const bumped = new Date(maxTime + 2000);
-        const bYYYY = bumped.getFullYear();
-        const bMM = String(bumped.getMonth() + 1).padStart(2, '0');
-        const bDD = String(bumped.getDate()).padStart(2, '0');
-        const bHH = String(bumped.getHours()).padStart(2, '0');
-        const bMin = String(bumped.getMinutes()).padStart(2, '0');
-        const bSec = String(bumped.getSeconds()).padStart(2, '0');
-        dateStr = `${bYYYY}-${bMM}-${bDD} ${bHH}:${bMin}:${bSec}`;
-      }
+    let maxTime = 0;
+    for (const m of currentConvMsgs) {
+      const t = m.createdAt || parseDateToTimestamp(m.date);
+      if (t > maxTime) maxTime = t;
     }
 
-    const hours = now.getHours();
-    const mins = String(now.getMinutes()).padStart(2, '0');
+    const inputTime = msgInput.createdAt || (msgInput.date ? parseDateToTimestamp(msgInput.date) : 0);
+    const nowTime = Date.now();
+    const finalCreatedAt = Math.max(inputTime || nowTime, nowTime, maxTime + 1000);
+
+    const finalDateObj = new Date(finalCreatedAt);
+    const bYYYY = finalDateObj.getFullYear();
+    const bMM = String(finalDateObj.getMonth() + 1).padStart(2, '0');
+    const bDD = String(finalDateObj.getDate()).padStart(2, '0');
+    const bHH = String(finalDateObj.getHours()).padStart(2, '0');
+    const bMin = String(finalDateObj.getMinutes()).padStart(2, '0');
+    const bSec = String(finalDateObj.getSeconds()).padStart(2, '0');
+    const dateStr = `${bYYYY}-${bMM}-${bDD} ${bHH}:${bMin}:${bSec}`;
+
+    const hours = finalDateObj.getHours();
+    const mins = String(finalDateObj.getMinutes()).padStart(2, '0');
     const ampm = hours >= 12 ? 'PM' : 'AM';
     const hour12 = hours % 12 || 12;
     const timestamp = msgInput.timestamp || `${hour12}:${mins} ${ampm}`;
@@ -716,6 +725,7 @@ class SmsStore {
       text: msgInput.text || '',
       timestamp,
       date: dateStr,
+      createdAt: finalCreatedAt,
       isOutgoing: !!msgInput.isOutgoing,
       status: msgInput.status || 'delivered',
       isBank: msgInput.isBank ?? ['CBEBirr', '127', 'Safaricom'].includes(conversationId),

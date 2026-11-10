@@ -87,6 +87,8 @@ export async function POST(req: NextRequest) {
         txnId,
         reference: item.reference || txnId,
         receiptUrl,
+        date: item.date,
+        createdAt: item.createdAt || Date.now(),
         deviceId: item.deviceId || reqDeviceId || 'all',
         isOutgoing: false,
         status: 'delivered',
