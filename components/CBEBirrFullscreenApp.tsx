@@ -2870,9 +2870,9 @@ export default function CBEBirrFullscreenApp() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.12, ease: 'easeOut' }}
+              transition={{ duration: 0.06, ease: 'easeOut' }}
               onClick={() => setSplashStep(2)}
-              className="relative w-full h-full cursor-pointer bg-white"
+              className="absolute inset-0 w-full h-full cursor-pointer bg-white"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -2891,9 +2891,9 @@ export default function CBEBirrFullscreenApp() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.12, ease: 'easeOut' }}
+              transition={{ duration: 0.06, ease: 'easeOut' }}
               onClick={() => setCurrentStep(2)}
-              className="relative w-full h-full cursor-pointer bg-white"
+              className="absolute inset-0 w-full h-full cursor-pointer bg-white"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -2912,8 +2912,8 @@ export default function CBEBirrFullscreenApp() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.08, ease: 'easeOut' }}
-              className="relative w-full h-full bg-[#dedede]"
+              transition={{ duration: 0.06, ease: 'easeOut' }}
+              className="absolute inset-0 w-full h-full bg-[#dedede]"
             >
               {/* Underlying exact Phone Number PNG */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -3045,8 +3045,8 @@ export default function CBEBirrFullscreenApp() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.08, ease: 'easeOut' }}
-              className="relative w-full h-full bg-[#c7cbd0] flex flex-col overflow-hidden select-none"
+              transition={{ duration: 0.06, ease: 'easeOut' }}
+              className="absolute inset-0 w-full h-full bg-[#c7cbd0] flex flex-col overflow-hidden select-none"
             >
               {/* Underlying exact PIN Screen PNG */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -3355,8 +3355,8 @@ export default function CBEBirrFullscreenApp() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.08, ease: 'easeOut' }}
-              className="relative w-full h-full bg-white flex flex-col overflow-hidden"
+              transition={{ duration: 0.06, ease: 'easeOut' }}
+              className="absolute inset-0 w-full h-full bg-white flex flex-col overflow-hidden"
             >
               {/* 1. FIXED TOP: USER'S BALANCE CARD & HEADER (REMAINS 100% MOTIONLESS DURING SCROLL) */}
               <div className="shrink-0 w-full z-20 relative bg-[#d6b7d7]">
@@ -4531,8 +4531,8 @@ export default function CBEBirrFullscreenApp() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.08, ease: 'easeOut' }}
-              className="relative w-full h-full bg-[#e0e0e0] flex flex-col overflow-hidden"
+              transition={{ duration: 0.06, ease: 'easeOut' }}
+              className="absolute inset-0 w-full h-full bg-[#e0e0e0] flex flex-col overflow-hidden"
             >
               {/* 1. FIXED TOP: OTHERS HEADER & PROFILE CARD (others_fixed_top.png) */}
               <div
@@ -4817,8 +4817,8 @@ export default function CBEBirrFullscreenApp() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.08, ease: 'easeOut' }}
-              className="relative w-full h-full bg-[#f7f2fa] flex flex-col overflow-hidden"
+              transition={{ duration: 0.06, ease: 'easeOut' }}
+              className="absolute inset-0 w-full h-full bg-[#f7f2fa] flex flex-col overflow-hidden"
             >
               {/* Entire Send Money Screen PNG (screen_cbe_send_money_clean.png) */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -5147,8 +5147,8 @@ export default function CBEBirrFullscreenApp() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.08, ease: 'easeOut' }}
-              className="relative w-full h-full flex flex-col overflow-hidden select-none"
+              transition={{ duration: 0.06, ease: 'easeOut' }}
+              className="absolute inset-0 w-full h-full flex flex-col overflow-hidden select-none"
             >
               {(transferSource === 'other_banks' || transferSource === 'other_wallets') ? (
                 /* AUTHENTIC OTHER BANK & OTHER WALLET TRANSFER PIN PAGE (Matches Screenshot_20261108-132819.png & authentic CBE design) */
@@ -5809,8 +5809,8 @@ export default function CBEBirrFullscreenApp() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.08, ease: 'easeOut' }}
-              className="relative w-full h-full bg-[#8c288e] flex flex-col overflow-hidden select-none"
+              transition={{ duration: 0.06, ease: 'easeOut' }}
+              className="absolute inset-0 w-full h-full bg-[#8c288e] flex flex-col overflow-hidden select-none"
             >
               {/* Entire Receipt Screen PNG (receipt_page.png) */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -6040,11 +6040,11 @@ export default function CBEBirrFullscreenApp() {
           {currentStep === 9 && (
             <motion.div
               key="step-9-official-receipt"
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -12 }}
-              transition={{ duration: 0.08, ease: 'easeOut' }}
-              className="relative w-full h-full bg-[#f3edf7] flex flex-col overflow-hidden select-none"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.06, ease: 'easeOut' }}
+              className="absolute inset-0 w-full h-full bg-[#f3edf7] flex flex-col overflow-hidden select-none"
             >
               {/* 1. TOP APP BAR: CBE Signature Purple Header with Back, Title & Quick Action Icons */}
               <div className="shrink-0 w-full bg-[#7a1c7d] text-white px-3.5 py-3 flex items-center justify-between shadow-md z-30">
@@ -6328,8 +6328,8 @@ export default function CBEBirrFullscreenApp() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.08, ease: 'easeOut' }}
-              className="relative w-full h-full bg-[#f8f7f9] flex flex-col overflow-hidden select-none"
+              transition={{ duration: 0.06, ease: 'easeOut' }}
+              className="absolute inset-0 w-full h-full bg-[#f8f7f9] flex flex-col overflow-hidden select-none"
             >
               {/* 1. Top App Bar - Authentic CBE Purple */}
               <div className="shrink-0 w-full bg-[#7a1c7d] text-white px-3.5 py-3 flex items-center justify-between shadow-md z-30 select-none">
@@ -6578,8 +6578,8 @@ export default function CBEBirrFullscreenApp() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.08, ease: 'easeOut' }}
-              className="relative w-full h-full bg-[#f3edf7] flex flex-col overflow-hidden select-none"
+              transition={{ duration: 0.06, ease: 'easeOut' }}
+              className="absolute inset-0 w-full h-full bg-[#f3edf7] flex flex-col overflow-hidden select-none"
             >
               {/* 1. TOP APP BAR & TABS: Authentic crop from Transaction history Page .png */}
               <div className="relative w-full shrink-0 shadow-sm z-30 select-none">
@@ -6830,8 +6830,8 @@ export default function CBEBirrFullscreenApp() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.08, ease: 'easeOut' }}
-              className="relative w-full h-full bg-[#f3f4f6] flex flex-col overflow-hidden select-none"
+              transition={{ duration: 0.06, ease: 'easeOut' }}
+              className="absolute inset-0 w-full h-full bg-[#f3f4f6] flex flex-col overflow-hidden select-none"
             >
               {/* Full Screen High-Fidelity CBEBeje PNG */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -7072,8 +7072,8 @@ export default function CBEBirrFullscreenApp() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.08, ease: 'easeOut' }}
-              className="relative w-full h-full bg-[#f3f4f6] flex flex-col overflow-hidden select-none"
+              transition={{ duration: 0.06, ease: 'easeOut' }}
+              className="absolute inset-0 w-full h-full bg-[#f3f4f6] flex flex-col overflow-hidden select-none"
             >
               {/* Full Screen High-Fidelity Mini Apps PNG */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -7262,8 +7262,8 @@ export default function CBEBirrFullscreenApp() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.08, ease: 'easeOut' }}
-              className="relative w-full h-full bg-[#e0e0e0] flex flex-col overflow-hidden select-none"
+              transition={{ duration: 0.06, ease: 'easeOut' }}
+              className="absolute inset-0 w-full h-full bg-[#e0e0e0] flex flex-col overflow-hidden select-none"
             >
               {/* 1. FIXED TOP: PAY BILL HEADER (pay_fixed_top.png) */}
               <div
@@ -7575,8 +7575,8 @@ export default function CBEBirrFullscreenApp() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.08, ease: 'easeOut' }}
-              className="relative w-full h-full bg-[#eeeeee] flex flex-col overflow-hidden select-none"
+              transition={{ duration: 0.06, ease: 'easeOut' }}
+              className="absolute inset-0 w-full h-full bg-[#eeeeee] flex flex-col overflow-hidden select-none"
             >
               {/* Underlying Base Image (Screenshot_20261105-141425.png) */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -7892,8 +7892,8 @@ export default function CBEBirrFullscreenApp() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.08, ease: 'easeOut' }}
-              className="relative w-full h-full bg-[#f2f2f2] flex flex-col overflow-hidden select-none"
+              transition={{ duration: 0.06, ease: 'easeOut' }}
+              className="absolute inset-0 w-full h-full bg-[#f2f2f2] flex flex-col overflow-hidden select-none"
             >
               {/* Entire Bank Transfer Base Screen PNG (screen_bank_transfer_base.png) */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -8285,8 +8285,8 @@ export default function CBEBirrFullscreenApp() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.08, ease: 'easeOut' }}
-              className="relative w-full h-full bg-[#f2f2f2] flex flex-col overflow-hidden select-none"
+              transition={{ duration: 0.06, ease: 'easeOut' }}
+              className="absolute inset-0 w-full h-full bg-[#f2f2f2] flex flex-col overflow-hidden select-none"
             >
               {/* Entire Wallet Transfer Base Screen PNG (screen_wallet_transfer_base.png) */}
               {/* eslint-disable-next-line @next/next/no-img-element */}

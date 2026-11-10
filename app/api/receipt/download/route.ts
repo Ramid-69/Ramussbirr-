@@ -167,30 +167,30 @@ export async function GET(req: NextRequest) {
         <!-- 6. Transaction Date in Table -->
         <text x="570" y="1154" class="val">${escapeXml(date)}</text>
 
-        <!-- 7. Amount in Table (Clean Mask & Value starting at x=1102, expanding to the right) -->
-        <rect x="1075" y="1126" width="220" height="38" fill="white" />
-        <text x="1102" y="1154" class="val">${escapeXml(formattedAmt)}</text>
+        <!-- 7. Amount in Table (Clean Mask & Value right-aligned at x=1144) -->
+        <rect x="1080" y="1126" width="240" height="38" fill="white" />
+        <text x="1144" y="1154" class="val" text-anchor="end">${escapeXml(formattedAmt)}</text>
 
-        <!-- Solid white mask covering all rows cleanly up to right edge (labels end at x=1045) -->
-        <rect x="1075" y="1172" width="220" height="252" fill="white" />
+        <!-- Solid white mask covering all rows cleanly up to right edge without touching labels (starts at x=1080) -->
+        <rect x="1080" y="1172" width="240" height="252" fill="white" />
 
         <!-- 8. Paid amount -->
-        <text x="1102" y="1204" class="val">${escapeXml(formattedAmt)}</text>
+        <text x="1144" y="1204" class="val" text-anchor="end">${escapeXml(formattedAmt)}</text>
 
         <!-- 9. Service Charge -->
-        <text x="1102" y="1238" class="val">${escapeXml(serviceCharge)}</text>
+        <text x="1144" y="1236" class="val" text-anchor="end">${escapeXml(serviceCharge)}</text>
 
         <!-- Disaster Response Fee (First line has 0.00, second line 'Fee' has NO number) -->
-        <text x="1102" y="1270" class="val">0.00</text>
+        <text x="1144" y="1268" class="val" text-anchor="end">0.00</text>
 
         <!-- VAT -->
-        <text x="1102" y="1336" class="val">${escapeXml(vatAmount)}</text>
+        <text x="1144" y="1334" class="val" text-anchor="end">${escapeXml(vatAmount)}</text>
 
         <!-- Tip -->
-        <text x="1102" y="1370" class="val">0.00</text>
+        <text x="1144" y="1368" class="val" text-anchor="end">0.00</text>
 
-        <!-- 10. Total Paid Amount (Bold) -->
-        <text x="1102" y="1404" class="boldVal">${escapeXml(totalPaid)}</text>
+        <!-- 10. Total Paid Amount (Regular weight, matching authentic Image 2) -->
+        <text x="1144" y="1404" class="val" text-anchor="end">${escapeXml(totalPaid)}</text>
 
         <!-- 11. Total Amount in word (cleans existing text if any) -->
         <rect x="360" y="1415" width="500" height="30" fill="white" />
