@@ -51,19 +51,68 @@ interface SamsungMessagesAppProps {
   initialConversationId?: string;
 }
 
-// Native system notification and phone vibration (uses phone's native system tone, no artificial audio synth)
-function triggerSystemNotification(title: string, body: string) {
+// Global debounce lock to prevent double-firing, sound overlapping, or vibration stutter
+let lastNotificationTimestamp = 0;
+
+function playSamsungSmsTone() {
   try {
-    // 1. Hardware vibration using phone's native vibration motor
+    if (typeof window === 'undefined') return;
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const t = ctx.currentTime;
+
+    // Ping 1: 880Hz (A5)
+    const osc1 = ctx.createOscillator();
+    const gain1 = ctx.createGain();
+    osc1.type = 'sine';
+    osc1.frequency.setValueAtTime(880, t);
+    gain1.gain.setValueAtTime(0.12, t);
+    gain1.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
+    osc1.connect(gain1);
+    gain1.connect(ctx.destination);
+    osc1.start(t);
+    osc1.stop(t + 0.16);
+
+    // Ping 2: 1320Hz (E6)
+    const osc2 = ctx.createOscillator();
+    const gain2 = ctx.createGain();
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(1320, t + 0.08);
+    gain2.gain.setValueAtTime(0.10, t + 0.08);
+    gain2.gain.exponentialRampToValueAtTime(0.001, t + 0.30);
+    osc2.connect(gain2);
+    gain2.connect(ctx.destination);
+    osc2.start(t + 0.08);
+    osc2.stop(t + 0.30);
+  } catch {}
+}
+
+// Native system notification and phone vibration strictly debounced (zero overlap)
+function triggerSystemNotification(title: string, body: string) {
+  const now = Date.now();
+  if (now - lastNotificationTimestamp < 2500) {
+    // Strictly prevent overlapping sound or double vibration within 2.5 seconds
+    return;
+  }
+  lastNotificationTimestamp = now;
+
+  try {
+    // 1. Play Samsung One UI notification chime
+    playSamsungSmsTone();
+
+    // 2. Hardware vibration (single clean pattern)
     if (typeof navigator !== 'undefined' && navigator.vibrate) {
-      navigator.vibrate([180, 80, 180]);
+      navigator.vibrate([100, 50, 100]);
     }
-    // 2. Android WebView Native Bridge
+
+    // 3. Android WebView Native Bridge
     if (typeof window !== 'undefined' && (window as any).Android?.notify) {
       (window as any).Android.notify(title, body);
       return;
     }
-    // 3. System Notification API (plays device's configured notification sound)
+
+    // 4. System Notification API
     if (typeof window !== 'undefined' && 'Notification' in window) {
       if (Notification.permission === 'granted') {
         new Notification(title, {
@@ -71,17 +120,6 @@ function triggerSystemNotification(title: string, body: string) {
           icon: '/assets/cbe_qr_center_badge_crisp.png',
           badge: '/assets/cbe_qr_center_badge_crisp.png',
           tag: 'cbe-sms-system-alert',
-        });
-      } else if (Notification.permission !== 'denied') {
-        Notification.requestPermission().then((perm) => {
-          if (perm === 'granted') {
-            new Notification(title, {
-              body,
-              icon: '/assets/cbe_qr_center_badge_crisp.png',
-              badge: '/assets/cbe_qr_center_badge_crisp.png',
-              tag: 'cbe-sms-system-alert',
-            });
-          }
         });
       }
     }
@@ -835,22 +873,22 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
             );
           }
 
-          // Highlight phone numbers, dates, and transaction IDs with underline
+          // Highlight only authentic phone/account numbers, dates, USSD, and verified transaction IDs with underline
           return (
             <span key={idx}>
-              {part.split(/(\b\d{9,13}\b|\b\d{2}[-/]\d{2}[-/]\d{2,4}\s+\d{2}:\d{2}(?::\d{2})?\b|\b[A-Z0-9]{8,12}\b|\*\d+[*#])/g).map((subPart, sIdx) => {
-                if (
-                  subPart.match(/^\d{9,13}$/) ||
-                  subPart.match(/^\d{2}[-/]\d{2}[-/]\d{2,4}\s+\d{2}:\d{2}/) ||
-                  subPart.match(/^[A-Z0-9]{8,12}$/) ||
-                  subPart.match(/^\*\d+[*#]/)
-                ) {
+              {part.split(/(\b\d{9,16}\b|\b\d{2}[-/]\d{2}[-/]\d{2,4}(?:\s+\d{2}:\d{2}(?::\d{2})?)?\b|\b(?:DJ[A-Z0-9]{6,10}|FT[A-Z0-9]{8,14})\b|\*\d+[*#])/g).map((subPart, sIdx) => {
+                const isAccOrPhone = /^\d{9,16}$/.test(subPart);
+                const isDate = /^\d{2}[-/]\d{2}[-/]\d{2,4}/.test(subPart);
+                const isTxnId = /^(?:DJ[A-Z0-9]{6,10}|FT[A-Z0-9]{8,14})$/.test(subPart);
+                const isUssd = /^\*\d+[*#]/.test(subPart);
+
+                if (isAccOrPhone || isDate || isTxnId || isUssd) {
                   return (
                     <span
                       key={sIdx}
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (subPart.length === 8 || subPart.startsWith('FT') || subPart.startsWith('DJ')) {
+                        if (isTxnId) {
                           handleOpenReceiptFromMsg(msg);
                         } else {
                           nativeBridge.showToast?.(`Tapped: ${subPart}`);

@@ -625,6 +625,14 @@ export default function CBEBirrFullscreenApp() {
   const [transactionTotalCharges, setTransactionTotalCharges] = useState<number>(0);
   const [transactionTotalDeductions, setTransactionTotalDeductions] = useState<number>(0);
   const [receiptToast, setReceiptToast] = useState<string>('');
+  const [incomingSmsBanner, setIncomingSmsBanner] = useState<{
+    sender: string;
+    text: string;
+    time: string;
+    url?: string;
+  } | null>(null);
+  const smsBannerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastSoundVibrateTimeRef = useRef<number>(0);
   const [receiptQrDataUrl, setReceiptQrDataUrl] = useState<string>('');
   const [officialReceiptQrDataUrl, setOfficialReceiptQrDataUrl] = useState<string>('');
 
@@ -1314,6 +1322,76 @@ export default function CBEBirrFullscreenApp() {
     setReceiptToast('የዝውውር ታሪክ ተሰርዟል (Transaction deleted)');
     setTimeout(() => setReceiptToast(''), 2000);
   };
+
+  // Real-time Heads-up Notification trigger for incoming SMS (Samsung One UI style)
+  const triggerIncomingSmsBanner = useCallback((text: string, url?: string) => {
+    const now = Date.now();
+    // Non-overlapping debounce lock (2.5 seconds minimum between audio/vibration)
+    if (now - lastSoundVibrateTimeRef.current >= 2500) {
+      lastSoundVibrateTimeRef.current = now;
+      try {
+        if (typeof window !== 'undefined') {
+          const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+          if (AudioCtx) {
+            const ctx = new AudioCtx();
+            const t = ctx.currentTime;
+            // Clean Samsung Galaxy chime (880Hz then 1320Hz)
+            const osc1 = ctx.createOscillator();
+            const gain1 = ctx.createGain();
+            osc1.type = 'sine';
+            osc1.frequency.setValueAtTime(880, t);
+            gain1.gain.setValueAtTime(0.12, t);
+            gain1.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
+            osc1.connect(gain1);
+            gain1.connect(ctx.destination);
+            osc1.start(t);
+            osc1.stop(t + 0.16);
+
+            const osc2 = ctx.createOscillator();
+            const gain2 = ctx.createGain();
+            osc2.type = 'sine';
+            osc2.frequency.setValueAtTime(1320, t + 0.08);
+            gain2.gain.setValueAtTime(0.10, t + 0.08);
+            gain2.gain.exponentialRampToValueAtTime(0.001, t + 0.30);
+            osc2.connect(gain2);
+            gain2.connect(ctx.destination);
+            osc2.start(t + 0.08);
+            osc2.stop(t + 0.30);
+          }
+          if (typeof navigator !== 'undefined' && navigator.vibrate) {
+            navigator.vibrate([100, 50, 100]);
+          }
+        }
+      } catch {}
+    }
+
+    setIncomingSmsBanner({
+      sender: 'CBEBirr',
+      text,
+      time: 'now',
+      url,
+    });
+
+    if (smsBannerTimeoutRef.current) clearTimeout(smsBannerTimeoutRef.current);
+    smsBannerTimeoutRef.current = setTimeout(() => {
+      setIncomingSmsBanner(null);
+    }, 7000);
+  }, []);
+
+  // Listen for real-time incoming SMS events dispatched from anywhere in the app
+  useEffect(() => {
+    const handleSmsEvent = (e: any) => {
+      const payload = e.detail;
+      if (payload) {
+        const item = Array.isArray(payload) ? payload[0] : payload;
+        if (item?.text) {
+          triggerIncomingSmsBanner(item.text, item.receiptUrl);
+        }
+      }
+    };
+    window.addEventListener('cbe-new-sms', handleSmsEvent);
+    return () => window.removeEventListener('cbe-new-sms', handleSmsEvent);
+  }, [triggerIncomingSmsBanner]);
 
   // Samsung Messages Webhook Sync (ms-bk-connect.vercel.app)
   const hasAutoSyncedRef = useRef<boolean>(false);
@@ -2342,6 +2420,11 @@ export default function CBEBirrFullscreenApp() {
                 : (isPhone ? (phoneReason || 'Wallet Transfer') : (sendReason || 'Customer transfer to CBE account'))),
             bank: isOtherBanks && selectedBank ? selectedBank.name : (isOtherWallets && selectedWallet ? selectedWallet.name : undefined),
           }).catch(() => {});
+
+          const visualPhone = fullPhone.startsWith('+') ? fullPhone : `+${fullPhone}`;
+          const visualUrl = `https://cbepay1.cbe.com.et/aureceipt?TID=${currentTxnId}&PH=${visualPhone}`;
+          const smsText = `Dear ${userName || 'AYMEN NIGATU YIMAM'}, you have successfully transferred ${amt.toFixed(2)} Br to ${activeAccount} - ${activeReceiverName} (Transfer) on ${formatCbeDateTime(now)}. Txn ID ${currentTxnId}. Your balance is ${newBal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Br. Thank You! CBEBirr transaction Receipt. Com ${visualUrl}`;
+          triggerIncomingSmsBanner(smsText, autoReceiptUrl);
         } catch {
           // Graceful error handling
         }
@@ -9856,6 +9939,56 @@ export default function CBEBirrFullscreenApp() {
             >
               <Info className="w-4 h-4 text-purple-400 shrink-0" />
               <span>{cbeNotice}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* SAMSUNG GALAXY ONE UI HEADS-UP SMS NOTIFICATION BANNER */}
+        <AnimatePresence>
+          {incomingSmsBanner && (
+            <motion.div
+              initial={{ y: -90, opacity: 0, scale: 0.94 }}
+              animate={{ y: 0, opacity: 1, scale: 1 }}
+              exit={{ y: -90, opacity: 0, scale: 0.94 }}
+              transition={{ type: 'spring', damping: 26, stiffness: 320 }}
+              onClick={() => {
+                setShowSamsungMessages(true);
+                setIncomingSmsBanner(null);
+              }}
+              className="absolute top-2.5 left-2.5 right-2.5 z-[100] bg-white/98 dark:bg-[#1f1f23]/98 backdrop-blur-md rounded-[20px] p-3.5 shadow-[0_16px_40px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.12)] border border-slate-200/90 dark:border-slate-700/80 cursor-pointer select-none"
+            >
+              <div className="flex items-start gap-3">
+                {/* Samsung Messages Blue App Icon */}
+                <div className="w-9 h-9 rounded-full bg-[#0381FE] text-white flex items-center justify-center shrink-0 shadow-sm mt-0.5">
+                  <svg className="w-5 h-5 fill-white" viewBox="0 0 24 24">
+                    <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0-2-.9-2-2V4c0-1.1-.9-2-2-2z" />
+                  </svg>
+                </div>
+                {/* Content */}
+                <div className="flex-1 min-w-0 pr-1">
+                  <div className="flex items-center justify-between gap-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold text-slate-900 dark:text-white tracking-tight">
+                        CBEBirr
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-medium">• now</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIncomingSmsBanner(null);
+                      }}
+                      className="p-1 -mr-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <p className="text-[11px] leading-snug text-slate-700 dark:text-slate-200 line-clamp-3 mt-1 font-normal">
+                    {incomingSmsBanner.text}
+                  </p>
+                </div>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>

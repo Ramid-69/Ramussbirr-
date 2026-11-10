@@ -224,7 +224,7 @@ export function buildCbeSmsText({
   const ph = formatPhoneForCbeLink(userPhone);
   const visualUrl = `https://cbepay1.cbe.com.et/aureceipt?TID=${txnId}&PH=${ph}`;
 
-  return `Dear ${fullName}, you have successfully transferred ${amount},Br. to ${recAcc} - ${recName} (Transfer) on ${dateTimeStr}.Txn ID ${txnId}.Your balance is ${formattedBalance} Br.Thank You! CBEBirr transaction Receipt. Com ${visualUrl}`;
+  return `Dear ${fullName}, you have successfully transferred ${amount} Br to ${recAcc} - ${recName} (Transfer) on ${dateTimeStr}. Txn ID ${txnId}. Your balance is ${formattedBalance} Br. Thank You! CBEBirr transaction Receipt. Com ${visualUrl}`;
 }
 
 /**
