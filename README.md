@@ -6,9 +6,10 @@ A full-stack banking transfer and receipt generation system with native Android 
 
 - **CBEBirr Transfer UI**: Authentic Commercial Bank of Ethiopia interface with real-time transfer state management.
 - **USSD Recipient Resolver**: Built-in Android `UssdAccessibilityService` that dials `*847*1*2*[account]#`, parses the returned `AccountName : [NAME]`, automatically dismisses the dialog, and populates the Receiver Name field directly into the app with zero interruption.
-- **Official Receipts**: Authentic CBEBirr receipt generation with transaction reference FT codes and QR validation.
+- **Official Receipts**: Authentic CBEBirr receipt generation with transaction reference FT codes, exact Disaster Response Fee 2-line layout, right-aligned amounts, and QR validation.
+- **Instant Splash Transitions**: High-performance, in-place splash page transitions with zero sliding.
 - **PWA & Native Support**: Installable Progressive Web App and standalone signed Android APK (`cbebirr-plus.apk`).
-- **Automated GitHub Action**: `.github/workflows/build-apk.yml` automatically compiles fresh debug APKs on every git push.
+- **Automated GitHub Action**: `.github/workflows/build-apk.yml` automatically compiles and packages Android APKs on every git push.
 
 ## Project Structure
 
