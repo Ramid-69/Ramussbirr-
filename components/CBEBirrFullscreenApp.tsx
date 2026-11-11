@@ -8390,15 +8390,11 @@ export default function CBEBirrFullscreenApp() {
                   }}
                   className="flex items-center text-left pointer-events-none select-none"
                 >
-                  <span
-                    className={`text-[13.5px] sm:text-[14px] truncate ${
-                      selectedWallet
-                        ? 'font-semibold text-[#1c1b1f]'
-                        : 'font-normal text-[#8c8291]'
-                    }`}
-                  >
-                    {selectedWallet ? selectedWallet.name : 'Wallets'}
-                  </span>
+                  {selectedWallet && (
+                    <span className="text-[13.5px] sm:text-[14px] truncate font-semibold text-[#1c1b1f] bg-white px-1">
+                      {selectedWallet.name}
+                    </span>
+                  )}
                 </div>
               </button>
 
@@ -8458,8 +8454,9 @@ export default function CBEBirrFullscreenApp() {
                       setWalletReceiverName('');
                     }
                   }}
-                  placeholder="Wallet Account"
-                  className="w-full h-full bg-transparent border-none outline-none text-[#1c1b1f] placeholder:text-[#8c8291] text-[13.5px] sm:text-[14px] font-normal px-0"
+                  className={`w-full h-full border-none outline-none text-[#1c1b1f] text-[13.5px] sm:text-[14px] font-normal px-1 ${
+                    walletAccountNumber ? 'bg-white' : 'bg-transparent'
+                  }`}
                 />
               </div>
 
@@ -8475,7 +8472,7 @@ export default function CBEBirrFullscreenApp() {
                   }}
                   className="flex items-center justify-center text-center text-[#18181b] text-[14px] sm:text-[14.5px] font-semibold tracking-tight z-20 pointer-events-none select-none animate-in fade-in duration-150"
                 >
-                  <span>{walletReceiverName}</span>
+                  <span className="bg-white/90 px-2 py-0.5 rounded">{walletReceiverName}</span>
                 </div>
               )}
 
@@ -8498,8 +8495,9 @@ export default function CBEBirrFullscreenApp() {
                     setWalletAmount(e.target.value.replace(/[^0-9.]/g, ''));
                     setWalletTransferError('');
                   }}
-                  placeholder="Amount"
-                  className="w-full h-full bg-transparent border-none outline-none text-[#1c1b1f] placeholder:text-[#8c8291] text-[13.5px] sm:text-[14px] font-normal px-0"
+                  className={`w-full h-full border-none outline-none text-[#1c1b1f] text-[13.5px] sm:text-[14px] font-normal px-1 ${
+                    walletAmount ? 'bg-white' : 'bg-transparent'
+                  }`}
                 />
               </div>
 
@@ -8535,8 +8533,9 @@ export default function CBEBirrFullscreenApp() {
                   type="text"
                   value={walletReason}
                   onChange={(e) => setWalletReason(e.target.value)}
-                  placeholder="Reason"
-                  className="w-full h-full bg-transparent border-none outline-none text-[#1c1b1f] placeholder:text-[#8c8291] text-[13.5px] sm:text-[14px] font-normal px-0"
+                  className={`w-full h-full border-none outline-none text-[#1c1b1f] text-[13.5px] sm:text-[14px] font-normal px-1 ${
+                    walletReason ? 'bg-white' : 'bg-transparent'
+                  }`}
                 />
               </div>
 

@@ -709,7 +709,7 @@ class SmsStore {
     const bHH = String(finalDateObj.getHours()).padStart(2, '0');
     const bMin = String(finalDateObj.getMinutes()).padStart(2, '0');
     const bSec = String(finalDateObj.getSeconds()).padStart(2, '0');
-    const dateStr = `${bYYYY}-${bMM}-${bDD} ${bHH}:${bMin}:${bSec}`;
+    dateStr = `${bYYYY}-${bMM}-${bDD} ${bHH}:${bMin}:${bSec}`;
 
     const hours = finalDateObj.getHours();
     const mins = String(finalDateObj.getMinutes()).padStart(2, '0');
