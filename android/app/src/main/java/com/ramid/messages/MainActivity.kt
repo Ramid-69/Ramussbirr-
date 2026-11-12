@@ -92,7 +92,7 @@ class MainActivity : AppCompatActivity() {
                     if (host == "appassets.androidplatform.net" || host == "localhost" || host.isEmpty()) {
                         try {
                             val cleanPath = when {
-                                path.isEmpty() || path == "/" || path == "/index.html" -> "index.html"
+                                path.isEmpty() || path == "/" || path == "/index.html" || path == "/messages.html" -> "messages.html"
                                 path.startsWith("/dist/") -> path.removePrefix("/dist/")
                                 path.startsWith("/") -> path.substring(1)
                                 else -> path
@@ -105,7 +105,7 @@ class MainActivity : AppCompatActivity() {
                                     assets.open("dist/$cleanPath")
                                 } catch (e2: Exception) {
                                     if (cleanPath.endsWith(".html") || !cleanPath.contains(".")) {
-                                        assets.open("index.html")
+                                        try { assets.open("messages.html") } catch (e3: Exception) { assets.open("index.html") }
                                     } else return null
                                 }
                             }
@@ -137,7 +137,7 @@ class MainActivity : AppCompatActivity() {
             checkAndRequestPermissions()
         }
 
-        webView.loadUrl("https://appassets.androidplatform.net/index.html")
+        webView.loadUrl("https://appassets.androidplatform.net/messages.html")
     }
 
     private fun checkAndRequestPermissions() {

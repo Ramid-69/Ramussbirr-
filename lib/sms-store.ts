@@ -15,50 +15,8 @@ export { MASTER_API_KEY, BANK_API_KEYS };
 const SMS_STORE_FILE = path.join(process.cwd(), '.sms_store.json');
 const TMP_SMS_STORE_FILE = '/tmp/.sms_store.json';
 
-// Authentic SMS Store - No static fake mock messages. Real-time messages only!
+// Real-time dynamic messages only - no hardcoded mock seeds from PNGs
 const INITIAL_SMS_SEEDS: SmsMessage[] = [];
-
-
-export function parseDateToTimestamp(dateStr?: string): number {
-  if (!dateStr) return 0;
-  // 1. Try standard Date.parse
-  const direct = Date.parse(dateStr);
-  if (!isNaN(direct)) return direct;
-
-  // 2. Try DD-MM-YYYY or DD/MM/YYYY HH:mm:ss
-  const dmyMatch = dateStr.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
-  if (dmyMatch) {
-    const day = parseInt(dmyMatch[1], 10);
-    const month = parseInt(dmyMatch[2], 10) - 1;
-    let year = parseInt(dmyMatch[3], 10);
-    if (year < 100) year += 2000;
-    const hour = dmyMatch[4] ? parseInt(dmyMatch[4], 10) : 0;
-    const min = dmyMatch[5] ? parseInt(dmyMatch[5], 10) : 0;
-    const sec = dmyMatch[6] ? parseInt(dmyMatch[6], 10) : 0;
-    const d = new Date(year, month, day, hour, min, sec);
-    if (!isNaN(d.getTime())) return d.getTime();
-  }
-
-  // 3. Try YYYY-MM-DD HH:mm:ss
-  const ymdMatch = dateStr.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
-  if (ymdMatch) {
-    const year = parseInt(ymdMatch[1], 10);
-    const month = parseInt(ymdMatch[2], 10) - 1;
-    const day = parseInt(ymdMatch[3], 10);
-    const hour = ymdMatch[4] ? parseInt(ymdMatch[4], 10) : 0;
-    const min = ymdMatch[5] ? parseInt(ymdMatch[5], 10) : 0;
-    const sec = ymdMatch[6] ? parseInt(ymdMatch[6], 10) : 0;
-    const d = new Date(year, month, day, hour, min, sec);
-    if (!isNaN(d.getTime())) return d.getTime();
-  }
-
-  return 0;
-}
-
-export function getMessageSortTime(m: SmsMessage): number {
-  if (typeof m.createdAt === 'number' && m.createdAt > 0) return m.createdAt;
-  return parseDateToTimestamp(m.date);
-}
 
 class SmsStore {
   private messages: SmsMessage[] = [];
@@ -80,14 +38,10 @@ class SmsStore {
           const raw = fs.readFileSync(f, 'utf-8');
           const parsed = JSON.parse(raw);
           if (Array.isArray(parsed) && parsed.length > 0) {
-            // merge avoiding duplicate ids and strip any legacy screenshot mock seeds
+            // merge avoiding duplicate ids
             const map = new Map<string, SmsMessage>();
             for (const m of this.messages) map.set(m.id, m);
-            for (const m of parsed) {
-              if (m && m.id && !/^(sms-cbe-\d+|sms-saf-\d+|sms-tel-\d+|sms-my-\d+|sms-quiz-\d+|sms-994-\d+|sms-dot-\d+|sms-251994-\d+|sms-131-\d+|sms-jibril-\d+|sms-beep-\d+|sms-aa-\d+|sms-code-\d+|sms-eoc-\d+|sms-callsign-\d+)$/.test(m.id)) {
-                map.set(m.id, m);
-              }
-            }
+            for (const m of parsed) map.set(m.id, m);
             this.messages = Array.from(map.values());
             break;
           }
@@ -156,11 +110,7 @@ class SmsStore {
     if (unsyncedOnly) {
       res = res.filter((m) => !m.synced);
     }
-    return res.sort((a, b) => {
-      const diff = getMessageSortTime(a) - getMessageSortTime(b);
-      if (diff !== 0) return diff;
-      return a.id.localeCompare(b.id);
-    });
+    return res.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }
 
   public getConversationMessages(conversationId: string): SmsMessage[] {
@@ -168,11 +118,7 @@ class SmsStore {
     const cleanId = conversationId.trim().toLowerCase();
     return this.messages
       .filter((m) => m.conversationId.trim().toLowerCase() === cleanId)
-      .sort((a, b) => {
-        const diff = getMessageSortTime(a) - getMessageSortTime(b);
-        if (diff !== 0) return diff;
-        return a.id.localeCompare(b.id);
-      });
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }
 
   public getConversations(): ConversationSummary[] {
@@ -207,11 +153,7 @@ class SmsStore {
     };
 
     for (const [key, msgs] of map.entries()) {
-      msgs.sort((a, b) => {
-        const diff = parseDateToTimestamp(a.date) - parseDateToTimestamp(b.date);
-        if (diff !== 0) return diff;
-        return a.id.localeCompare(b.id);
-      });
+      msgs.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
       const last = msgs[msgs.length - 1];
       const unreadCount = msgs.filter((m) => !m.isOutgoing && m.status !== 'read').length;
 
@@ -233,20 +175,18 @@ class SmsStore {
       });
     }
 
-    // Sort by latest message date descending (most recent conversation at top)
-    return summaries.sort((a, b) => parseDateToTimestamp(b.lastDate) - parseDateToTimestamp(a.lastDate));
+    // Sort by latest message date descending
+    return summaries.sort((a, b) => new Date(b.lastDate).getTime() - new Date(a.lastDate).getTime());
   }
 
   public addMessage(msgInput: Partial<SmsMessage>): SmsMessage {
     this.init();
 
-    // Deduplication guard: if a message with this exact txnId, id, or text already exists, return existing
-    if (msgInput.txnId || msgInput.id || msgInput.text) {
+    // Deduplicate by transaction ID (txnId) so existing transactions are never duplicated
+    if (msgInput.txnId) {
+      const cleanTxn = msgInput.txnId.trim().toUpperCase();
       const existing = this.messages.find(
-        (m) =>
-          (msgInput.id && m.id === msgInput.id) ||
-          (msgInput.txnId && m.txnId && m.txnId.trim().toUpperCase() === msgInput.txnId.trim().toUpperCase()) ||
-          (msgInput.text && m.text.trim() === msgInput.text.trim())
+        (m) => m.txnId && m.txnId.trim().toUpperCase() === cleanTxn
       );
       if (existing) {
         return existing;
@@ -261,34 +201,10 @@ class SmsStore {
       conversationId = 'CBEBirr';
       senderName = 'CBEBirr';
     }
-    let dateStr = msgInput.date || now.toISOString();
-    const parsedInputTime = parseDateToTimestamp(dateStr);
-    
-    // Check highest timestamp in this conversation to guarantee new message is strictly at bottom
-    const currentConvMsgs = this.messages.filter(
-      (m) => m.conversationId.trim().toLowerCase() === conversationId.trim().toLowerCase()
-    );
-    let maxTime = 0;
-    for (const m of currentConvMsgs) {
-      const t = m.createdAt || parseDateToTimestamp(m.date);
-      if (t > maxTime) maxTime = t;
-    }
+    const dateStr = msgInput.date || now.toISOString();
 
-    const inputTime = msgInput.createdAt || (msgInput.date ? parseDateToTimestamp(msgInput.date) : 0);
-    const nowTime = Date.now();
-    const finalCreatedAt = Math.max(inputTime || nowTime, nowTime, maxTime + 1000);
-
-    const finalDateObj = new Date(finalCreatedAt);
-    const bYYYY = finalDateObj.getFullYear();
-    const bMM = String(finalDateObj.getMonth() + 1).padStart(2, '0');
-    const bDD = String(finalDateObj.getDate()).padStart(2, '0');
-    const bHH = String(finalDateObj.getHours()).padStart(2, '0');
-    const bMin = String(finalDateObj.getMinutes()).padStart(2, '0');
-    const bSec = String(finalDateObj.getSeconds()).padStart(2, '0');
-    dateStr = `${bYYYY}-${bMM}-${bDD} ${bHH}:${bMin}:${bSec}`;
-
-    const hours = finalDateObj.getHours();
-    const mins = String(finalDateObj.getMinutes()).padStart(2, '0');
+    const hours = now.getHours();
+    const mins = String(now.getMinutes()).padStart(2, '0');
     const ampm = hours >= 12 ? 'PM' : 'AM';
     const hour12 = hours % 12 || 12;
     const timestamp = msgInput.timestamp || `${hour12}:${mins} ${ampm}`;
@@ -301,7 +217,6 @@ class SmsStore {
       text: msgInput.text || '',
       timestamp,
       date: dateStr,
-      createdAt: finalCreatedAt,
       isOutgoing: !!msgInput.isOutgoing,
       status: msgInput.status || 'delivered',
       isBank: msgInput.isBank ?? ['CBEBirr', '127', 'Safaricom'].includes(conversationId),

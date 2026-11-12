@@ -7,8 +7,6 @@ import android.content.BroadcastReceiver
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
-import android.graphics.Color
-import android.media.RingtoneManager
 import android.os.Build
 import android.provider.Telephony
 import androidx.core.app.NotificationCompat
@@ -17,11 +15,22 @@ import org.json.JSONObject
 class SmsReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
-        val action = intent.action
-        if (action != Telephony.Sms.Intents.SMS_DELIVER_ACTION && action != Telephony.Sms.Intents.SMS_RECEIVED_ACTION) {
+        val action = intent.action ?: return
+
+        // 1. Check for CBEBirr internal transfer broadcast
+        if (action == "com.cbe.cbebirrtransfer.SMS_WEBHOOK") {
+            handleCbeWebhookBroadcast(context, intent)
             return
         }
 
+        // 2. Standard Android SMS delivery (SMS_DELIVER / SMS_RECEIVED)
+        if (action == Telephony.Sms.Intents.SMS_DELIVER_ACTION ||
+            action == Telephony.Sms.Intents.SMS_RECEIVED_ACTION) {
+            handleIncomingSimSms(context, intent)
+        }
+    }
+
+    private fun handleIncomingSimSms(context: Context, intent: Intent) {
         val messages = Telephony.Sms.Intents.getMessagesFromIntent(intent) ?: return
         if (messages.isEmpty()) return
 
@@ -30,12 +39,13 @@ class SmsReceiver : BroadcastReceiver() {
         var timestamp = System.currentTimeMillis()
 
         for (msg in messages) {
-            bodyBuilder.append(msg.displayMessageBody)
+            bodyBuilder.append(msg.displayMessageBody ?: "")
             timestamp = msg.timestampMillis
         }
+
         val fullBody = bodyBuilder.toString()
 
-        // 1. Write to Telephony.Sms.Inbox if default SMS app
+        // Write to system SMS Inbox (required for default SMS app)
         try {
             val values = ContentValues().apply {
                 put(Telephony.Sms.ADDRESS, address)
@@ -47,68 +57,79 @@ class SmsReceiver : BroadcastReceiver() {
             context.contentResolver.insert(Telephony.Sms.Inbox.CONTENT_URI, values)
         } catch (ignored: Exception) {}
 
-        // 2. Dispatch real-time event to running WebView in MainActivity
-        try {
-            val json = JSONObject().apply {
-                put("id", "sms-native-$timestamp")
-                put("address", address)
-                put("body", fullBody)
-                put("date", timestamp)
-                put("type", "inbox")
-                put("read", false)
-            }
-            MainActivity.dispatchIncomingSms(json.toString())
-        } catch (ignored: Exception) {}
+        // Notify active WebView
+        val json = JSONObject().apply {
+            put("id", "sim-${System.currentTimeMillis()}")
+            put("address", address)
+            put("sender", address)
+            put("senderName", address)
+            put("body", fullBody)
+            put("text", fullBody)
+            put("date", timestamp)
+            put("type", "inbox")
+            put("read", false)
+        }
+        MainActivity.dispatchIncomingSms(json.toString())
 
-        // 3. Trigger High-Priority Heads-Up System Notification
-        showHeadsUpNotification(context, address, fullBody)
+        // Show Heads-Up Notification
+        showNotification(context, address, fullBody)
     }
 
-    private fun showHeadsUpNotification(context: Context, sender: String, message: String) {
-        try {
-            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            val channelId = "cbe_samsung_messages_channel"
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                val channel = NotificationChannel(
-                    channelId,
-                    "Messages Incoming SMS",
-                    NotificationManager.IMPORTANCE_HIGH
-                ).apply {
-                    description = "Alerts for incoming SIM and banking SMS messages"
-                    enableLights(true)
-                    lightColor = Color.parseColor("#0381FE")
-                    enableVibration(true)
-                    vibrationPattern = longArrayOf(0, 180, 80, 240)
+    private fun handleCbeWebhookBroadcast(context: Context, intent: Intent) {
+        val payloadStr = intent.getStringExtra("payload") ?: intent.getStringExtra("body")
+        if (!payloadStr.isNullOrEmpty()) {
+            try {
+                val json = JSONObject(payloadStr)
+                val sender = json.optString("senderName", json.optString("sender", "CBEBirr"))
+                val text = json.optString("text", json.optString("body", ""))
+                MainActivity.dispatchIncomingSms(json.toString())
+                if (text.isNotEmpty()) {
+                    showNotification(context, sender, text)
                 }
-                notificationManager.createNotificationChannel(channel)
+            } catch (e: Exception) {
+                MainActivity.dispatchIncomingSms(payloadStr)
             }
+        }
+    }
 
-            val launchIntent = Intent(context, MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+    private fun showNotification(context: Context, title: String, message: String) {
+        val channelId = "messages_high_priority_channel"
+        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                channelId,
+                "New Messages",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Incoming SMS and banking transaction alerts"
+                enableVibration(true)
+                vibrationPattern = longArrayOf(0, 180, 80, 240)
             }
-            val pendingIntent = PendingIntent.getActivity(
-                context,
-                0,
-                launchIntent,
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT else PendingIntent.FLAG_UPDATE_CURRENT
-            )
+            notificationManager.createNotificationChannel(channel)
+        }
 
-            val soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+        val launchIntent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            0,
+            launchIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
+        )
 
-            val builder = NotificationCompat.Builder(context, channelId)
-                .setSmallIcon(android.R.drawable.sym_action_chat)
-                .setContentTitle(sender)
-                .setContentText(message)
-                .setStyle(NotificationCompat.BigTextStyle().bigText(message))
-                .setPriority(NotificationCompat.PRIORITY_MAX)
-                .setCategory(NotificationCompat.CATEGORY_MESSAGE)
-                .setContentIntent(pendingIntent)
-                .setAutoCancel(true)
-                .setSound(soundUri)
-                .setVibrate(longArrayOf(0, 180, 80, 240))
+        val notification = NotificationCompat.Builder(context, channelId)
+            .setSmallIcon(android.R.drawable.sym_action_chat)
+            .setContentTitle(title)
+            .setContentText(message)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(message))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
+            .setVibrate(longArrayOf(0, 180, 80, 240))
+            .build()
 
-            notificationManager.notify((System.currentTimeMillis() % 100000).toInt(), builder.build())
-        } catch (ignored: Exception) {}
+        notificationManager.notify((System.currentTimeMillis() % 100000).toInt(), notification)
     }
 }

@@ -625,14 +625,6 @@ export default function CBEBirrFullscreenApp() {
   const [transactionTotalCharges, setTransactionTotalCharges] = useState<number>(0);
   const [transactionTotalDeductions, setTransactionTotalDeductions] = useState<number>(0);
   const [receiptToast, setReceiptToast] = useState<string>('');
-  const [incomingSmsBanner, setIncomingSmsBanner] = useState<{
-    sender: string;
-    text: string;
-    time: string;
-    url?: string;
-  } | null>(null);
-  const smsBannerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const lastSoundVibrateTimeRef = useRef<number>(0);
   const [receiptQrDataUrl, setReceiptQrDataUrl] = useState<string>('');
   const [officialReceiptQrDataUrl, setOfficialReceiptQrDataUrl] = useState<string>('');
 
@@ -1323,12 +1315,62 @@ export default function CBEBirrFullscreenApp() {
     setTimeout(() => setReceiptToast(''), 2000);
   };
 
-  // User requested ZERO in-app notification popups/banners in Banking App and ZERO startup/background bulk sync of old transactions
-  const triggerIncomingSmsBanner = useCallback((_text: string, _url?: string) => {
-    // In-app banner disabled per user instruction: real-time notifications are delivered natively / in Messages app only
-  }, []);
+  // Samsung Messages Webhook Sync (ms-bk-connect.vercel.app)
+  const hasAutoSyncedRef = useRef<boolean>(false);
+  const lastStep11Ref = useRef<boolean>(false);
+  const lastStep10TxRef = useRef<string | null>(null);
 
-  // Background bulk sync eliminated: only real-time transfers dispatch SMS
+  // Background non-UI SMS trigger strictly following CBEBirr format (does not block UI or add widgets)
+  const backgroundSendSms = useCallback((tx: TransactionItem) => {
+    const amtNum = typeof tx.amount === 'number' ? tx.amount : parseFloat(String(tx.amount)) || 10;
+    const tid = tx.orderId ? tx.orderId.replace(/\D/g, '').slice(-8) : generate8CharTxnId(tx.ref);
+    const cleanUserPhone = (phoneNumber || '251959842829').replace(/\D/g, '');
+    const fullPhone = cleanUserPhone.startsWith('251') ? cleanUserPhone : `251${cleanUserPhone.replace(/^0+/, '')}`;
+
+    sendTransactionSms({
+      fullName: userName || 'AYMEN NIGATU YIMAM',
+      userPhone: fullPhone,
+      amount: amtNum,
+      receiverAccount: tx.account || '1000760389289',
+      receiverName: tx.receiverName || 'Miss Simera Gofer Abdisa',
+      balance: balance,
+      txnId: tid,
+      ftRef: tx.ref || tx.orderId || 'FT262413JRB4',
+      date: tx.date,
+      isDeposit: tx.type === 'credit',
+      reason: tx.title,
+      bank: tx.bank,
+    }).catch(() => {});
+  }, [phoneNumber, userName, balance]);
+
+  // Background non-UI bulk sync of all historical transactions
+  const backgroundSyncAll = useCallback(() => {
+    const targetList = transactions.length > 0 ? transactions : DEFAULT_TRANSACTIONS;
+    if (targetList.length === 0) return;
+    const payloads: CbeSmsWebhookPayload[] = targetList.map((tx, idx) => {
+      const amtNum = typeof tx.amount === 'number' ? tx.amount : parseFloat(String(tx.amount)) || 10;
+      const simBal = Math.max(100, balance + idx * 50);
+      return buildCbeSmsPayload({
+        userFullName: userName || 'AYMEN NIGATU YIMAM',
+        userPhone: phoneNumber || '251959842829',
+        receiverAccount: tx.account || '1000760389289',
+        receiverName: tx.receiverName || 'Miss Simera Gofer Abdisa',
+        amount: amtNum,
+        balance: simBal,
+        txnId: tx.orderId ? tx.orderId.replace(/\D/g, '').slice(-8) : generate8CharTxnId(tx.ref),
+        ftRef: tx.ref || tx.orderId || 'FT262413JRB4',
+        date: tx.date,
+        isDeposit: tx.type === 'credit',
+        reason: tx.title,
+        bank: tx.bank,
+      });
+    });
+    sendSmsWebhook(payloads).catch(() => {});
+  }, [transactions, balance, userName, phoneNumber]);
+
+  // Note: Historical transactions stay in their original chronological places without being re-sent.
+  // Real-time SMS webhook is ONLY dispatched when the user performs an actual new transaction.
+
 
   // Quick payment handler for Bill Payment & Airtime services with real-time SMS webhook
   const handleQuickPayment = (
@@ -2264,7 +2306,6 @@ export default function CBEBirrFullscreenApp() {
                 : (isPhone ? (phoneReason || 'Wallet Transfer') : (sendReason || 'Customer transfer to CBE account'))),
             bank: isOtherBanks && selectedBank ? selectedBank.name : (isOtherWallets && selectedWallet ? selectedWallet.name : undefined),
           }).catch(() => {});
-
         } catch {
           // Graceful error handling
         }
@@ -2593,36 +2634,6 @@ export default function CBEBirrFullscreenApp() {
     }
   }, [currentStep, isWalletTransferring, walletAccountNumber, selectedWallet, walletReceiverName, savedWalletReceivers]);
 
-  // Real-time synchronization when reaching Receipt Page (Step 8) across all 4 transfer pages
-  useEffect(() => {
-    if (currentStep === 8 && transactionRef) {
-      // 1. Phone hardware vibration
-      try {
-        if (typeof navigator !== 'undefined' && navigator.vibrate) {
-          navigator.vibrate([180, 80, 180]);
-        }
-      } catch {}
-
-      // 2. Android WebView bridge
-      try {
-        if (typeof window !== 'undefined' && (window as any).Android?.notify) {
-          (window as any).Android.notify('127 (CBEBirr)', `Transaction Completed. Ref: ${transactionRef}`);
-        }
-      } catch {}
-
-      // 3. System Notification API
-      try {
-        if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-          new Notification('127 (CBEBirr)', {
-            body: `Dear customer, transaction ${transactionRef} was successful. Thank You! CBEBirr transaction Receipt.`,
-            icon: '/assets/cbe_qr_center_badge_crisp.png',
-            tag: 'cbe-transfer-success',
-          });
-        }
-      } catch {}
-    }
-  }, [currentStep, transactionRef]);
-
   // Click on "Next" button in Step 2 (Phone Number page) goes to Step 3 (PIN page)
   const handleNextFromPhonePage = () => {
     if (isLoggingIn) return;
@@ -2814,70 +2825,6 @@ export default function CBEBirrFullscreenApp() {
         }}
         className="relative overflow-hidden bg-white flex flex-col justify-center items-center shadow-2xl sm:rounded-[36px] sm:shadow-[0_25px_80px_rgba(0,0,0,0.95),0_0_0_1px_rgba(255,255,255,0.12)] sm:border-[6px] sm:border-[#1a1a20]"
       >
-
-        {/* Instant Android Heads-Up Notification Banner (Drops down from top upon transaction) */}
-        <AnimatePresence>
-          {incomingSmsBanner && (
-            <motion.div
-              initial={{ y: -120, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: -120, opacity: 0 }}
-              transition={{ type: 'spring', damping: 24, stiffness: 280 }}
-              className="absolute top-2.5 inset-x-2.5 z-[999] bg-[#ffffff] dark:bg-[#1f1f23] text-slate-900 dark:text-slate-100 rounded-3xl p-3.5 shadow-[0_12px_40px_rgba(0,0,0,0.35)] border border-slate-200/90 dark:border-slate-700/80 cursor-pointer"
-              onClick={() => {
-                if (incomingSmsBanner.url) {
-                  window.open(incomingSmsBanner.url, '_blank');
-                }
-              }}
-            >
-              <div className="flex items-start gap-3">
-                {/* App icon */}
-                <div className="w-10 h-10 rounded-2xl bg-[#7a1c7d] flex items-center justify-center shrink-0 shadow-md">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src="/assets/cbe_qr_center_badge_crisp.png"
-                    alt="CBE"
-                    className="w-7 h-7 object-contain"
-                  />
-                </div>
-
-                {/* Notification Content */}
-                <div className="flex-1 min-w-0 pr-1">
-                  <div className="flex items-center justify-between mb-0.5">
-                    <span className="text-[12.5px] font-bold text-[#7a1c7d] dark:text-purple-300 truncate">
-                      {incomingSmsBanner.sender || '127 (CBEBirr)'}
-                    </span>
-                    <span className="text-[10px] text-slate-400 font-medium shrink-0 ml-2">
-                      {incomingSmsBanner.time || 'now'}
-                    </span>
-                  </div>
-
-                  <p className="text-[11.5px] leading-snug text-slate-700 dark:text-slate-200 font-medium line-clamp-3">
-                    {incomingSmsBanner.text}
-                  </p>
-
-                  <div className="mt-2 flex items-center gap-2">
-                    <span className="text-[10.5px] font-bold text-blue-600 dark:text-blue-400 underline">
-                      Tap to open official receipt
-                    </span>
-                  </div>
-                </div>
-
-                {/* Dismiss button */}
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setIncomingSmsBanner(null);
-                  }}
-                  className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
 
         <AnimatePresence initial={false}>
           {/* STEP 1 - SUB-STEP 1: FIRST SPLASH SCREEN (Original circle token) */}
@@ -8390,11 +8337,15 @@ export default function CBEBirrFullscreenApp() {
                   }}
                   className="flex items-center text-left pointer-events-none select-none"
                 >
-                  {selectedWallet && (
-                    <span className="text-[13.5px] sm:text-[14px] truncate font-semibold text-[#1c1b1f] bg-white px-1">
-                      {selectedWallet.name}
-                    </span>
-                  )}
+                  <span
+                    className={`text-[13.5px] sm:text-[14px] truncate ${
+                      selectedWallet
+                        ? 'font-semibold text-[#1c1b1f]'
+                        : 'font-normal text-[#8c8291]'
+                    }`}
+                  >
+                    {selectedWallet ? selectedWallet.name : 'Wallets'}
+                  </span>
                 </div>
               </button>
 
@@ -8454,9 +8405,8 @@ export default function CBEBirrFullscreenApp() {
                       setWalletReceiverName('');
                     }
                   }}
-                  className={`w-full h-full border-none outline-none text-[#1c1b1f] text-[13.5px] sm:text-[14px] font-normal px-1 ${
-                    walletAccountNumber ? 'bg-white' : 'bg-transparent'
-                  }`}
+                  placeholder="Wallet Account"
+                  className="w-full h-full bg-transparent border-none outline-none text-[#1c1b1f] placeholder:text-[#8c8291] text-[13.5px] sm:text-[14px] font-normal px-0"
                 />
               </div>
 
@@ -8472,7 +8422,7 @@ export default function CBEBirrFullscreenApp() {
                   }}
                   className="flex items-center justify-center text-center text-[#18181b] text-[14px] sm:text-[14.5px] font-semibold tracking-tight z-20 pointer-events-none select-none animate-in fade-in duration-150"
                 >
-                  <span className="bg-white/90 px-2 py-0.5 rounded">{walletReceiverName}</span>
+                  <span>{walletReceiverName}</span>
                 </div>
               )}
 
@@ -8495,9 +8445,8 @@ export default function CBEBirrFullscreenApp() {
                     setWalletAmount(e.target.value.replace(/[^0-9.]/g, ''));
                     setWalletTransferError('');
                   }}
-                  className={`w-full h-full border-none outline-none text-[#1c1b1f] text-[13.5px] sm:text-[14px] font-normal px-1 ${
-                    walletAmount ? 'bg-white' : 'bg-transparent'
-                  }`}
+                  placeholder="Amount"
+                  className="w-full h-full bg-transparent border-none outline-none text-[#1c1b1f] placeholder:text-[#8c8291] text-[13.5px] sm:text-[14px] font-normal px-0"
                 />
               </div>
 
@@ -8533,9 +8482,8 @@ export default function CBEBirrFullscreenApp() {
                   type="text"
                   value={walletReason}
                   onChange={(e) => setWalletReason(e.target.value)}
-                  className={`w-full h-full border-none outline-none text-[#1c1b1f] text-[13.5px] sm:text-[14px] font-normal px-1 ${
-                    walletReason ? 'bg-white' : 'bg-transparent'
-                  }`}
+                  placeholder="Reason"
+                  className="w-full h-full bg-transparent border-none outline-none text-[#1c1b1f] placeholder:text-[#8c8291] text-[13.5px] sm:text-[14px] font-normal px-0"
                 />
               </div>
 
@@ -9875,8 +9823,6 @@ export default function CBEBirrFullscreenApp() {
             </motion.div>
           )}
         </AnimatePresence>
-
-
 
         {/* Hidden Samsung Messages (One UI) Application (Opened exclusively via long-press on Chat bot in Others) */}
         <AnimatePresence>

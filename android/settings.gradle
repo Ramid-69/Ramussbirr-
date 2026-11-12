@@ -13,5 +13,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "SamsungMessages"
+rootProject.name = "Messages"
 include ':app'
