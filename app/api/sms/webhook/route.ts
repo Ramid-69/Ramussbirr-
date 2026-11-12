@@ -12,7 +12,51 @@ export async function GET(req: NextRequest) {
   const deviceId = req.headers.get('x-device-id') || url.searchParams.get('deviceId') || 'dev_galaxy_a12';
   const unsyncedOnly = url.searchParams.get('unsynced') === 'true';
 
-  const messages = smsStore.getAllMessages(deviceId, unsyncedOnly);
+  let messages = smsStore.getAllMessages(deviceId, unsyncedOnly);
+
+  // Sync with persistent backend (ms-bk-connect.vercel.app) to ensure real-time delivery across Vercel Lambdas
+  try {
+    const remoteRes = await fetch('https://ms-bk-connect.vercel.app/api/sms/messages?deviceId=all', {
+      cache: 'no-store',
+      signal: AbortSignal.timeout(2000),
+    });
+    if (remoteRes.ok) {
+      const remoteData = await remoteRes.json();
+      if (remoteData && Array.isArray(remoteData.messages) && remoteData.messages.length > 0) {
+        for (const rm of remoteData.messages) {
+          const text = rm.text || rm.message || '';
+          if (!text) continue;
+          const exists = messages.some(
+            (m) => m.text === text || (m.txnId && rm.reference && m.txnId === rm.reference)
+          );
+          if (!exists) {
+            const added = smsStore.addMessage({
+              sender: rm.bank || rm.senderName || 'CBEBirr',
+              senderName: rm.senderName || 'CBEBirr',
+              conversationId: 'CBEBirr',
+              text: text,
+              amount: rm.amount,
+              balance: rm.balance,
+              recipient: rm.recipient,
+              recipientAccount: rm.recipientAccount,
+              fullName: rm.fullName,
+              txnId: rm.reference,
+              reference: rm.reference,
+              receiptUrl: rm.receiptUrl,
+              date: rm.dateTime || rm.date,
+              createdAt: rm.receivedAt || Date.now(),
+              deviceId: 'all',
+              isOutgoing: false,
+              status: 'delivered',
+              isBank: true,
+              bankName: 'CBEBirr',
+            });
+            messages.unshift(added);
+          }
+        }
+      }
+    }
+  } catch {}
 
   return NextResponse.json({
     success: true,

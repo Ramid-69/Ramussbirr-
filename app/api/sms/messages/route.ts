@@ -8,6 +8,51 @@ export async function GET(req: NextRequest) {
   const conversationId = url.searchParams.get('conversationId');
 
   let messages = smsStore.getAllMessages(deviceId, unsyncedOnly);
+
+  // Sync with persistent backend (ms-bk-connect.vercel.app) to ensure real-time delivery
+  try {
+    const remoteRes = await fetch('https://ms-bk-connect.vercel.app/api/sms/messages?deviceId=all', {
+      cache: 'no-store',
+      signal: AbortSignal.timeout(2000),
+    });
+    if (remoteRes.ok) {
+      const remoteData = await remoteRes.json();
+      if (remoteData && Array.isArray(remoteData.messages) && remoteData.messages.length > 0) {
+        for (const rm of remoteData.messages) {
+          const text = rm.text || rm.message || '';
+          if (!text) continue;
+          const exists = messages.some(
+            (m) => m.text === text || (m.txnId && rm.reference && m.txnId === rm.reference)
+          );
+          if (!exists) {
+            const added = smsStore.addMessage({
+              sender: rm.bank || rm.senderName || 'CBEBirr',
+              senderName: rm.senderName || 'CBEBirr',
+              conversationId: 'CBEBirr',
+              text: text,
+              amount: rm.amount,
+              balance: rm.balance,
+              recipient: rm.recipient,
+              recipientAccount: rm.recipientAccount,
+              fullName: rm.fullName,
+              txnId: rm.reference,
+              reference: rm.reference,
+              receiptUrl: rm.receiptUrl,
+              date: rm.dateTime || rm.date,
+              createdAt: rm.receivedAt || Date.now(),
+              deviceId: 'all',
+              isOutgoing: false,
+              status: 'delivered',
+              isBank: true,
+              bankName: 'CBEBirr',
+            });
+            messages.unshift(added);
+          }
+        }
+      }
+    }
+  } catch {}
+
   if (conversationId) {
     messages = messages.filter(
       (m) => m.conversationId.trim().toLowerCase() === conversationId.trim().toLowerCase()

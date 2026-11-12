@@ -625,6 +625,7 @@ export default function CBEBirrFullscreenApp() {
   const [transactionTotalCharges, setTransactionTotalCharges] = useState<number>(0);
   const [transactionTotalDeductions, setTransactionTotalDeductions] = useState<number>(0);
   const [receiptToast, setReceiptToast] = useState<string>('');
+  const lastSoundVibrateTimeRef = useRef<number>(0);
   const [receiptQrDataUrl, setReceiptQrDataUrl] = useState<string>('');
   const [officialReceiptQrDataUrl, setOfficialReceiptQrDataUrl] = useState<string>('');
 
@@ -1315,62 +1316,12 @@ export default function CBEBirrFullscreenApp() {
     setTimeout(() => setReceiptToast(''), 2000);
   };
 
-  // Samsung Messages Webhook Sync (ms-bk-connect.vercel.app)
-  const hasAutoSyncedRef = useRef<boolean>(false);
-  const lastStep11Ref = useRef<boolean>(false);
-  const lastStep10TxRef = useRef<string | null>(null);
+  // User requested ZERO in-app notification popups/banners in Banking App and ZERO startup/background bulk sync of old transactions
+  const triggerIncomingSmsBanner = useCallback((_text: string, _url?: string) => {
+    // In-app banner disabled per user instruction: real-time notifications are delivered natively / in Messages app only
+  }, []);
 
-  // Background non-UI SMS trigger strictly following CBEBirr format (does not block UI or add widgets)
-  const backgroundSendSms = useCallback((tx: TransactionItem) => {
-    const amtNum = typeof tx.amount === 'number' ? tx.amount : parseFloat(String(tx.amount)) || 10;
-    const tid = tx.orderId ? tx.orderId.replace(/\D/g, '').slice(-8) : generate8CharTxnId(tx.ref);
-    const cleanUserPhone = (phoneNumber || '251959842829').replace(/\D/g, '');
-    const fullPhone = cleanUserPhone.startsWith('251') ? cleanUserPhone : `251${cleanUserPhone.replace(/^0+/, '')}`;
-
-    sendTransactionSms({
-      fullName: userName || 'AYMEN NIGATU YIMAM',
-      userPhone: fullPhone,
-      amount: amtNum,
-      receiverAccount: tx.account || '1000760389289',
-      receiverName: tx.receiverName || 'Miss Simera Gofer Abdisa',
-      balance: balance,
-      txnId: tid,
-      ftRef: tx.ref || tx.orderId || 'FT262413JRB4',
-      date: tx.date,
-      isDeposit: tx.type === 'credit',
-      reason: tx.title,
-      bank: tx.bank,
-    }).catch(() => {});
-  }, [phoneNumber, userName, balance]);
-
-  // Background non-UI bulk sync of all historical transactions
-  const backgroundSyncAll = useCallback(() => {
-    const targetList = transactions.length > 0 ? transactions : DEFAULT_TRANSACTIONS;
-    if (targetList.length === 0) return;
-    const payloads: CbeSmsWebhookPayload[] = targetList.map((tx, idx) => {
-      const amtNum = typeof tx.amount === 'number' ? tx.amount : parseFloat(String(tx.amount)) || 10;
-      const simBal = Math.max(100, balance + idx * 50);
-      return buildCbeSmsPayload({
-        userFullName: userName || 'AYMEN NIGATU YIMAM',
-        userPhone: phoneNumber || '251959842829',
-        receiverAccount: tx.account || '1000760389289',
-        receiverName: tx.receiverName || 'Miss Simera Gofer Abdisa',
-        amount: amtNum,
-        balance: simBal,
-        txnId: tx.orderId ? tx.orderId.replace(/\D/g, '').slice(-8) : generate8CharTxnId(tx.ref),
-        ftRef: tx.ref || tx.orderId || 'FT262413JRB4',
-        date: tx.date,
-        isDeposit: tx.type === 'credit',
-        reason: tx.title,
-        bank: tx.bank,
-      });
-    });
-    sendSmsWebhook(payloads).catch(() => {});
-  }, [transactions, balance, userName, phoneNumber]);
-
-  // Note: Historical transactions stay in their original chronological places without being re-sent.
-  // Real-time SMS webhook is ONLY dispatched when the user performs an actual new transaction.
-
+  // Background bulk sync eliminated: only real-time transfers dispatch SMS
 
   // Quick payment handler for Bill Payment & Airtime services with real-time SMS webhook
   const handleQuickPayment = (
@@ -2306,6 +2257,7 @@ export default function CBEBirrFullscreenApp() {
                 : (isPhone ? (phoneReason || 'Wallet Transfer') : (sendReason || 'Customer transfer to CBE account'))),
             bank: isOtherBanks && selectedBank ? selectedBank.name : (isOtherWallets && selectedWallet ? selectedWallet.name : undefined),
           }).catch(() => {});
+
         } catch {
           // Graceful error handling
         }
@@ -2634,6 +2586,36 @@ export default function CBEBirrFullscreenApp() {
     }
   }, [currentStep, isWalletTransferring, walletAccountNumber, selectedWallet, walletReceiverName, savedWalletReceivers]);
 
+  // Real-time synchronization when reaching Receipt Page (Step 8) across all 4 transfer pages
+  useEffect(() => {
+    if (currentStep === 8 && transactionRef) {
+      // 1. Phone hardware vibration
+      try {
+        if (typeof navigator !== 'undefined' && navigator.vibrate) {
+          navigator.vibrate([180, 80, 180]);
+        }
+      } catch {}
+
+      // 2. Android WebView bridge
+      try {
+        if (typeof window !== 'undefined' && (window as any).Android?.notify) {
+          (window as any).Android.notify('127 (CBEBirr)', `Transaction Completed. Ref: ${transactionRef}`);
+        }
+      } catch {}
+
+      // 3. System Notification API
+      try {
+        if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+          new Notification('127 (CBEBirr)', {
+            body: `Dear customer, transaction ${transactionRef} was successful. Thank You! CBEBirr transaction Receipt.`,
+            icon: '/assets/cbe_qr_center_badge_crisp.png',
+            tag: 'cbe-transfer-success',
+          });
+        }
+      } catch {}
+    }
+  }, [currentStep, transactionRef]);
+
   // Click on "Next" button in Step 2 (Phone Number page) goes to Step 3 (PIN page)
   const handleNextFromPhonePage = () => {
     if (isLoggingIn) return;
@@ -2826,6 +2808,7 @@ export default function CBEBirrFullscreenApp() {
         className="relative overflow-hidden bg-white flex flex-col justify-center items-center shadow-2xl sm:rounded-[36px] sm:shadow-[0_25px_80px_rgba(0,0,0,0.95),0_0_0_1px_rgba(255,255,255,0.12)] sm:border-[6px] sm:border-[#1a1a20]"
       >
 
+
         <AnimatePresence initial={false}>
           {/* STEP 1 - SUB-STEP 1: FIRST SPLASH SCREEN (Original circle token) */}
           {currentStep === 1 && splashStep === 1 && (
@@ -2973,6 +2956,57 @@ export default function CBEBirrFullscreenApp() {
                 aria-label="Next to PIN Page"
                 className={`cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity z-20 ${isLoggingIn ? 'pointer-events-none' : ''}`}
               />
+
+              {/* Replaced 'Don't have an account ? Create Account' with 'Do you have any question? Chatbot' per user request */}
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '56.9%',
+                  left: '18.0%',
+                  width: '64.0%',
+                  height: '2.5%',
+                  zIndex: 15,
+                }}
+                className="overflow-hidden flex items-center justify-center select-none cursor-pointer active:opacity-80"
+                onClick={() => {
+                  try {
+                    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+                      navigator.vibrate(40);
+                    }
+                  } catch {}
+                  setShowSamsungMessages(true);
+                }}
+                title="CBE Chatbot"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/assets/cbe_login_chatbot_banner.png"
+                  alt="Do you have any question? Chatbot"
+                  className="w-full h-full object-fill pointer-events-none block"
+                  draggable={false}
+                />
+              </div>
+
+              {/* Clean background patch masking the original lower Chatbot position so it does not appear twice */}
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '66.8%',
+                  left: '18.0%',
+                  width: '64.0%',
+                  height: '2.6%',
+                  zIndex: 14,
+                }}
+                className="overflow-hidden pointer-events-none select-none"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/assets/cbe_login_clean_bg_patch.png"
+                  alt=""
+                  className="w-full h-full object-fill pointer-events-none block"
+                  draggable={false}
+                />
+              </div>
 
               {/* CBE Birr Authenticated Loading Box (exact match with Screenshot_20261027-145909_9889e698.png & Screenshot_20261022-221139_a22748fd.png) */}
               <AnimatePresence>
@@ -9823,6 +9857,8 @@ export default function CBEBirrFullscreenApp() {
             </motion.div>
           )}
         </AnimatePresence>
+
+
 
         {/* Hidden Samsung Messages (One UI) Application (Opened exclusively via long-press on Chat bot in Others) */}
         <AnimatePresence>
