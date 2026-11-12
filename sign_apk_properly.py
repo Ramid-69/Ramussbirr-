@@ -6,9 +6,8 @@ KEY_FILE = os.path.join(KEY_DIR, "debug.key")
 CERT_FILE = os.path.join(KEY_DIR, "debug.crt")
 PUB_FILE = os.path.join(KEY_DIR, "debug.pub.der")
 
-# 1. Ensure permanent persistent key & certificate
+# Ensure permanent persistent key & certificate
 if not os.path.exists(KEY_FILE) or not os.path.exists(CERT_FILE):
-    print("Generating persistent Android debug key...")
     subprocess.run(["openssl", "genrsa", "-out", KEY_FILE, "2048"], check=True)
     subprocess.run([
         "openssl", "req", "-new", "-x509", "-key", KEY_FILE, "-out", CERT_FILE,
@@ -27,7 +26,7 @@ with open(PUB_FILE, "rb") as f:
     pub_der = f.read()
 
 def sign_apk(apk_path):
-    print(f"\n--- Signing {apk_path} ---")
+    print(f"\n--- Aligning and Signing {apk_path} ---")
     if not os.path.exists(apk_path):
         print(f"Skipping {apk_path}: file does not exist.")
         return
@@ -110,8 +109,8 @@ def sign_apk(apk_path):
         with open(rsa_file, "rb") as f:
             rsa_bytes = f.read()
 
-        out_zip_path = os.path.join(tmpdir, "v1_signed.apk")
-        with zipfile.ZipFile(out_zip_path, "w", zipfile.ZIP_DEFLATED) as z_out:
+        unaligned_zip_path = os.path.join(tmpdir, "unaligned.apk")
+        with zipfile.ZipFile(unaligned_zip_path, "w", zipfile.ZIP_DEFLATED) as z_out:
             if "AndroidManifest.xml" in entries:
                 z_out.writestr("AndroidManifest.xml", entries["AndroidManifest.xml"], zipfile.ZIP_DEFLATED)
             for name in sorted(entries.keys()):
@@ -122,10 +121,14 @@ def sign_apk(apk_path):
             z_out.writestr("META-INF/ANDROID.SF", sf_bytes, zipfile.ZIP_DEFLATED)
             z_out.writestr("META-INF/ANDROID.RSA", rsa_bytes, zipfile.ZIP_DEFLATED)
         
-        with open(out_zip_path, "rb") as f:
+        # 2. RUN OFFICIAL ZIPALIGN
+        aligned_zip_path = os.path.join(tmpdir, "aligned.apk")
+        subprocess.run(["zipalign", "-p", "-f", "4", unaligned_zip_path, aligned_zip_path], check=True)
+
+        with open(aligned_zip_path, "rb") as f:
             v1_apk_data = f.read()
 
-    # 2. Generate 100% compliant AOSP APK Signature Scheme v2
+    # 3. Apply 100% compliant AOSP APK Signature Scheme v2
     v1_eocd_idx = v1_apk_data.rfind(b"PK\x05\x06")
     v1_cd_size, v1_cd_offset = struct.unpack("<II", v1_apk_data[v1_eocd_idx+12:v1_eocd_idx+20])
 
@@ -186,7 +189,8 @@ def sign_apk(apk_path):
     with open(apk_path, "wb") as f:
         f.write(final_apk)
 
-    print(f"SUCCESS: {apk_path} signed with 100% verified v1 + v2 signatures ({len(final_apk)} bytes)")
+    print(f"SUCCESS: {apk_path} aligned and signed with 100% verified v1 + v2 signatures ({len(final_apk)} bytes)")
 
+sign_apk("public/CBEMessages.apk")
 sign_apk("public/SamsungMessages.apk")
 sign_apk("public/cbebirr-plus.apk")
