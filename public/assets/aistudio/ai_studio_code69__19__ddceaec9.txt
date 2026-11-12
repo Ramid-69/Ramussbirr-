@@ -1,0 +1,32 @@
+Please build a complete Android Native SMS Messaging Application (with a React + Tailwind + Vite WebView frontend) that functions as a true Android Default SMS App.
+
+It must include:
+1. Android OS Default SMS App compliance:
+   - Ask for RoleManager.ROLE_SMS to become the default SMS app on launch.
+   - Include all 4 mandatory components in AndroidManifest.xml:
+     a) MainActivity (with SEND and SENDTO intent filters for sms, smsto, mms, mmsto)
+     b) ComposeSmsActivity (handles SMS intents and forwards to MainActivity)
+     c) SmsReceiver (registered with android.permission.BROADCAST_SMS for SMS_DELIVER and SMS_RECEIVED)
+     d) MmsReceiver (registered with android.permission.BROADCAST_WAP_PUSH)
+     e) HeadlessSmsSendService (registered with android.permission.SEND_RESPOND_VIA_MESSAGE)
+
+2. Native AndroidSMSBridge (JavascriptInterface):
+   - getAllSms(limit): Queries Android system database "content://sms/" for _id, address, body, date, type (inbox/sent), and read status.
+   - sendSms(address, body): Sends real SMS via SmsManager.sendTextMessage and inserts it into Telephony.Sms.Sent.CONTENT_URI.
+   - getAllContacts(): Queries ContactsContract.CommonDataKinds.Phone.CONTENT_URI to get real phone contacts.
+   - requestDefaultSmsApp() & requestPermissions(): Triggers system permission & role dialogs.
+   - playSystemNotificationSound() & triggerSystemVibration(): Plays device's default ringtone and native vibration.
+
+3. Real-time Incoming SMS:
+   - When a SIM SMS arrives, SmsReceiver writes it to Telephony.Sms.Inbox.CONTENT_URI and executes window.onNativeSmsReceived() in the WebView, while triggering a high-priority heads-up system notification.
+
+4. React Frontend Integration:
+   - Group messages by sender/phone number into clean conversation threads.
+   - Fetch real device SMS and contacts on app load.
+   - Real-time listener for incoming messages so new SMS automatically appears without refresh.
+   - Send button that dispatches native SIM messages via window.AndroidSMSBridge.sendSms.
+
+5. White-Screen & Proguard Prevention:
+   - targetSdk 33 in build.gradle (to prevent Knox/Samsung security blocks).
+   - Proguard keep rule for @android.webkit.JavascriptInterface.
+   - Direct asset stream loader in MainActivity WebViewClient to ensure instant offline launch without white screens.

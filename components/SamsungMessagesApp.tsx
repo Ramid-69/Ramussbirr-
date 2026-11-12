@@ -275,7 +275,7 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
     }
     return false;
   });
-  const [selectedDefaultApp, setSelectedDefaultApp] = useState<'assistant' | 'current' | 'cbe_messages' | 'third_party'>('cbe_messages');
+  const [nativeContacts, setNativeContacts] = useState<{ id: string; name: string; phone: string }[]>([]);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -380,6 +380,84 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
     };
   }, [fetchMessagesData]);
 
+  // Android Native Bridge Listeners & Data Synchronization
+  useEffect(() => {
+    const loadNativeData = () => {
+      if (nativeBridge.isAvailable()) {
+        try {
+          const contacts = nativeBridge.getAllContacts();
+          if (Array.isArray(contacts) && contacts.length > 0) {
+            setNativeContacts(contacts);
+          }
+          const nativeSms = nativeBridge.getAllSms(150);
+          if (Array.isArray(nativeSms) && nativeSms.length > 0) {
+            // Push any new native SMS to backend store so they are unified
+            for (const item of nativeSms) {
+              fetch('/api/sms/send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  recipient: item.address,
+                  conversationId: item.address,
+                  sender: item.type === 'sent' ? 'You' : item.address,
+                  senderName: item.address,
+                  text: item.body,
+                  date: new Date(item.date).toISOString(),
+                  isOutgoing: item.type === 'sent',
+                  deviceId: 'dev_galaxy_a12',
+                }),
+              }).catch(() => {});
+            }
+            fetchMessagesData();
+          }
+        } catch (e) {
+          console.warn('Native data load error:', e);
+        }
+      }
+    };
+
+    loadNativeData();
+
+    // Global listener called by MainActivity.kt / SmsReceiver.kt
+    window.onNativeSmsReceived = (rawSms: any) => {
+      try {
+        const parsed = typeof rawSms === 'string' ? JSON.parse(rawSms) : rawSms;
+        nativeBridge.playSystemNotificationSound();
+        nativeBridge.triggerSystemVibration();
+        // Sync incoming SIM SMS with backend store
+        fetch('/api/sms/webhook', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-api-key': 'Ram69' },
+          body: JSON.stringify({
+            sender: parsed.address,
+            body: parsed.body,
+            deviceId: 'dev_galaxy_a12',
+          }),
+        }).finally(() => {
+          fetchMessagesData();
+        });
+      } catch (err) {
+        console.error('onNativeSmsReceived error:', err);
+      }
+    };
+
+    window.onDefaultSmsGranted = () => {
+      showToast('Messages is now your default SMS app!');
+      setShowDefaultSmsDialog(false);
+      loadNativeData();
+    };
+
+    window.onPermissionsGranted = () => {
+      loadNativeData();
+    };
+
+    return () => {
+      delete window.onNativeSmsReceived;
+      delete window.onDefaultSmsGranted;
+      delete window.onPermissionsGranted;
+    };
+  }, [fetchMessagesData, showToast]);
+
   // Real-time polling loop (every 2.5 seconds)
   useEffect(() => {
     const interval = setInterval(() => {
@@ -414,35 +492,49 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
     });
   }, [conversations, selectedCategory, searchQuery]);
 
-  // Contacts seed list for Contacts Tab
-  const CONTACTS_LIST = useMemo(
-    () => [
-      { name: 'A A', phone: '+251911223344', note: 'Friend', initial: 'A', color: '#10b981' },
-      { name: 'Abdu Siraj Siraj', phone: '0965848508', note: 'CBE Sender', initial: 'A', color: '#3b82f6' },
-      { name: 'BeepCall710', phone: '710', note: 'Service', initial: 'B', color: '#64748b' },
-      { name: 'CBEBirr Customer Care', phone: '951', note: 'Bank', initial: 'C', color: '#7a1c7d' },
-      { name: 'Fayyee Lammeessa Didhaa', phone: '0715095670', note: 'M-PESA Recipient', initial: 'F', color: '#e60000' },
-      { name: 'ጅብሪል', phone: '+251912345678', note: 'Contact', initial: 'ጅ', color: '#8b5cf6' },
-      { name: 'My 😘', phone: '+251959754788', note: 'Favorite', initial: 'M', color: '#10b981' },
-      { name: 'Miss Simera Gofer Abdisa', phone: '1000760389289', note: 'CBE Recipient', initial: 'M', color: '#ec4899' },
-      { name: 'SANI AHMED MOHAMMED', phone: '1000440979843', note: 'CBE Recipient', initial: 'S', color: '#f59e0b' },
-      { name: 'Safaricom Ethiopia', phone: '700', note: 'Carrier', initial: 'S', color: '#e60000' },
-      { name: 'telebirr (Ethio telecom)', phone: '127', note: 'Mobile Money', initial: 'T', color: '#009fe3' },
-    ],
-    []
-  );
+  // Dynamic Contacts List (from Android device or real conversation participants)
+  const contactsList = useMemo(() => {
+    if (nativeContacts.length > 0) {
+      return nativeContacts.map((c) => ({
+        name: c.name || 'Unknown',
+        phone: c.phone || '',
+        note: 'Mobile Contact',
+        initial: (c.name || 'U').slice(0, 1).toUpperCase(),
+        color: '#0381fe',
+      }));
+    }
+    // If no native contacts yet, extract real contacts from conversations
+    const conversationContacts = conversations
+      .filter((c) => !c.isBank)
+      .map((c) => ({
+        name: c.senderName,
+        phone: c.id,
+        note: 'SMS',
+        initial: c.senderName.slice(0, 1).toUpperCase(),
+        color: '#10b981',
+      }));
+
+    return conversationContacts;
+  }, [nativeContacts, conversations]);
 
   // Send message inside current conversation
   const handleSendMessage = async () => {
     if (!inputText.trim() || !activeConversationId || isSending) return;
+    const textToSend = inputText.trim();
+    const recipient = activeConversationId;
     setIsSending(true);
 
     try {
+      // 1. If running natively in Android Default SMS App, dispatch real SIM message
+      if (nativeBridge.isAvailable()) {
+        nativeBridge.sendSms(recipient, textToSend);
+      }
+
       const newOutgoingMsg: Partial<SmsMessage> = {
-        conversationId: activeConversationId,
+        conversationId: recipient,
         sender: 'You',
         senderName: 'You',
-        text: inputText.trim(),
+        text: textToSend,
         isOutgoing: true,
         status: 'delivered',
         deviceId,
@@ -799,20 +891,14 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
   const handleConfirmDefaultSms = () => {
     try {
       localStorage.setItem('has_prompted_default_sms_app', 'true');
-      if (typeof navigator !== 'undefined' && navigator.vibrate) {
-        navigator.vibrate([100, 50, 100]);
-      }
-      if (typeof window !== 'undefined') {
-        const android = (window as any).Android;
-        if (android?.requestDefaultSms) {
-          android.requestDefaultSms();
-        } else if (android?.setDefaultSms) {
-          android.setDefaultSms();
-        }
+      nativeBridge.triggerSystemVibration();
+      if (nativeBridge.isAvailable()) {
+        nativeBridge.requestDefaultSmsApp();
+        nativeBridge.requestPermissions();
       }
     } catch {}
     setShowDefaultSmsDialog(false);
-    showToast('Messages set as default SMS app');
+    showToast('Default SMS app role requested');
   };
 
   // Parse and render rich text with blue clickable underlines for accounts, dates, phone numbers, and receipt links
@@ -1164,10 +1250,29 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
                 {isLoading ? (
                   <div className="p-8 text-center text-slate-400 text-sm">Loading conversations...</div>
                 ) : filteredConversations.length === 0 ? (
-                  <div className="p-10 text-center text-slate-400 text-sm">No messages found</div>
+                  <div className="flex flex-col items-center justify-center p-8 text-center my-auto min-h-[360px]">
+                    <div className="w-20 h-20 rounded-full bg-blue-50 dark:bg-slate-800/80 flex items-center justify-center mb-4 text-[#0381FE] shadow-inner">
+                      <MessageSquare className="w-10 h-10 stroke-[1.5]" />
+                    </div>
+                    <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-1.5">No messages</h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xs leading-relaxed mb-6">
+                      Incoming SIM SMS and banking transactions (CBEBirr, telebirr, Safaricom) will automatically appear here in real-time.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setIsNewConversation(true)}
+                      className="px-5 py-2.5 bg-[#0381FE] hover:bg-[#026ed9] text-white rounded-full font-semibold text-xs shadow-md shadow-blue-500/20 active:scale-95 transition-all flex items-center gap-2"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Start chat</span>
+                    </button>
+                  </div>
                 ) : (
                   filteredConversations.map((conv) => {
                     const isSelected = selectedMsgIds.has(conv.id);
+                    const isCbe = conv.id.toLowerCase().includes('cbe');
+                    const isSaf = conv.id.toLowerCase().includes('safari');
+                    const isTel = conv.id === '127' || conv.id.toLowerCase().includes('telebirr');
 
                     return (
                       <div
@@ -1196,22 +1301,26 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
                           </div>
                         )}
 
-                        {/* Round Avatar matching Samsung One UI Screenshots */}
+                        {/* Round Avatar matching Samsung One UI */}
                         <div
                           className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg shrink-0 ${
-                            conv.id.includes('My')
-                              ? 'bg-[#5CD2B4] text-white'
-                              : conv.id === 'A A'
-                              ? 'bg-[#6EE7B7] text-white'
-                              : conv.id === 'ጅብሪል' || conv.id === '⚫'
-                              ? 'bg-[#60A5FA] text-white'
-                              : 'bg-[#E5E7EB] dark:bg-slate-700 text-slate-400 dark:text-slate-300'
+                            isCbe
+                              ? 'bg-[#7a1c7d] text-white shadow-sm'
+                              : isSaf
+                              ? 'bg-[#e60000] text-white shadow-sm'
+                              : isTel
+                              ? 'bg-[#009fe3] text-white shadow-sm'
+                              : 'bg-[#E5E7EB] dark:bg-slate-700 text-slate-600 dark:text-slate-200'
                           }`}
                         >
-                          {conv.id.includes('My') ? (
-                            <span>M</span>
-                          ) : conv.id === 'A A' ? (
-                            <span>A</span>
+                          {isCbe ? (
+                            <span className="text-base font-black">CBE</span>
+                          ) : isSaf ? (
+                            <span className="text-base font-black">S</span>
+                          ) : isTel ? (
+                            <span className="text-base font-black">127</span>
+                          ) : conv.senderName && /[a-zA-Z0-9\u1200-\u137F]/.test(conv.senderName) ? (
+                            <span>{conv.senderName.slice(0, 1).toUpperCase()}</span>
                           ) : (
                             <User className="w-6 h-6 fill-current text-slate-400 dark:text-slate-400" />
                           )}
@@ -1220,8 +1329,13 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
                         {/* Middle Text Details */}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between mb-0.5">
-                            <h3 className="font-bold text-[15px] truncate text-slate-900 dark:text-slate-100">
-                              {conv.senderName}
+                            <h3 className="font-bold text-[15px] truncate text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                              <span>{conv.senderName}</span>
+                              {conv.isBank && (
+                                <span className="text-[10px] bg-purple-100 dark:bg-purple-950 text-purple-800 dark:text-purple-300 px-1.5 py-0.5 rounded font-semibold">
+                                  Bank
+                                </span>
+                              )}
                             </h3>
                             <span className="text-xs text-slate-400 shrink-0 ml-2">{conv.lastTimestamp}</span>
                           </div>
@@ -1244,47 +1358,62 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
             ) : (
               /* CONTACTS DIRECTORY TAB (A-Z INDEXED) */
               <div className="p-4 space-y-4 pb-20">
-                <div className="text-xs font-bold text-slate-400 uppercase tracking-wider px-2">Contacts Directory</div>
-                <div className="space-y-1">
-                  {CONTACTS_LIST.map((contact, i) => (
-                    <div
-                      key={i}
-                      className="flex items-center justify-between p-3 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div
-                          className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0"
-                          style={{ backgroundColor: contact.color }}
-                        >
-                          {contact.initial}
-                        </div>
-                        <div>
-                          <div className="font-semibold text-sm text-slate-900 dark:text-slate-100">{contact.name}</div>
-                          <div className="text-xs text-slate-400">{contact.phone} • {contact.note}</div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => setCallingContact({ name: contact.name })}
-                          className="p-2 text-green-600 hover:bg-green-50 dark:hover:bg-green-950/30 rounded-full"
-                          title="Call"
-                        >
-                          <Phone className="w-4 h-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleOpenConversation(contact.name)}
-                          className="p-2 text-[#0381FE] hover:bg-blue-50 dark:hover:bg-blue-950/30 rounded-full"
-                          title="Message"
-                        >
-                          <MessageSquare className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                <div className="text-xs font-bold text-slate-400 uppercase tracking-wider px-2 flex items-center justify-between">
+                  <span>Contacts Directory</span>
+                  <span className="text-[10px] bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full font-semibold">
+                    {contactsList.length} contact{contactsList.length === 1 ? '' : 's'}
+                  </span>
                 </div>
+                {contactsList.length === 0 ? (
+                  <div className="p-12 text-center text-slate-400 text-sm flex flex-col items-center">
+                    <div className="w-14 h-14 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center mb-3 text-slate-400">
+                      <Users className="w-7 h-7" />
+                    </div>
+                    <p className="font-semibold text-slate-700 dark:text-slate-300">No contacts yet</p>
+                    <p className="text-xs text-slate-400 mt-1">Contacts from your SIM and phone will appear here automatically.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    {contactsList.map((contact, i) => (
+                      <div
+                        key={i}
+                        className="flex items-center justify-between p-3 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div
+                            className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0"
+                            style={{ backgroundColor: contact.color }}
+                          >
+                            {contact.initial}
+                          </div>
+                          <div>
+                            <div className="font-semibold text-sm text-slate-900 dark:text-slate-100">{contact.name}</div>
+                            <div className="text-xs text-slate-400">{contact.phone} • {contact.note}</div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setCallingContact({ name: contact.name })}
+                            className="p-2 text-green-600 hover:bg-green-50 dark:hover:bg-green-950/30 rounded-full"
+                            title="Call"
+                          >
+                            <Phone className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenConversation(contact.phone || contact.name)}
+                            className="p-2 text-[#0381FE] hover:bg-blue-50 dark:hover:bg-blue-950/30 rounded-full"
+                            title="Message"
+                          >
+                            <MessageSquare className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1446,14 +1575,19 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
               onClick={async () => {
                 const target = newRecipientInput.trim() || 'New Contact';
                 if (!inputText.trim()) return;
+                const textToSend = inputText.trim();
                 setIsSending(true);
                 try {
+                  if (nativeBridge.isAvailable()) {
+                    nativeBridge.sendSms(target, textToSend);
+                  }
                   await fetch('/api/sms/send', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                       recipient: target,
-                      text: inputText,
+                      conversationId: target,
+                      text: textToSend,
                       deviceId,
                     }),
                   });
