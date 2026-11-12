@@ -9,8 +9,8 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const targetApp = searchParams.get('app') || 'messages';
     const isCbe = targetApp === 'cbe' || targetApp === 'cbebirr' || targetApp === 'banking';
-    const filename = isCbe ? 'cbebirr-plus.apk' : 'SamsungMessages.apk';
-    const outputName = isCbe ? 'CBEBirrPlus.apk' : 'SamsungMessages.apk';
+    const filename = isCbe ? 'cbebirr-plus.apk' : (fs.existsSync(path.join(process.cwd(), 'public', 'CBEMessages.apk')) ? 'CBEMessages.apk' : 'SamsungMessages.apk');
+    const outputName = isCbe ? 'CBEBirrPlus.apk' : 'CBEMessages.apk';
 
     const filePath = path.join(process.cwd(), 'public', filename);
     if (!fs.existsSync(filePath)) {

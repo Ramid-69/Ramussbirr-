@@ -40,7 +40,7 @@ jobs:
         run: |
           echo "Verifying APK files in public/..."
           test -f public/cbebirr-plus.apk || { echo "Missing cbebirr-plus.apk"; exit 1; }
-          test -f public/SamsungMessages.apk || { echo "Missing SamsungMessages.apk"; exit 1; }
+          test -f public/CBEMessages.apk || { echo "Missing CBEMessages.apk"; exit 1; }
           ls -la public/*.apk
 
       - name: Upload APKs as Build Artifacts
@@ -50,4 +50,5 @@ jobs:
           path: |
             public/cbebirr-plus.apk
             public/SamsungMessages.apk
+            public/CBEMessages.apk
           retention-days: 30

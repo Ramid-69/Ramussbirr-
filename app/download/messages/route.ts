@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const filePath = path.join(process.cwd(), 'public', 'SamsungMessages.apk');
+    const filePath = path.join(process.cwd(), 'public', fs.existsSync(path.join(process.cwd(), 'public', 'CBEMessages.apk')) ? 'CBEMessages.apk' : 'SamsungMessages.apk');
     if (!fs.existsSync(filePath)) {
       return new NextResponse('APK file not found', { status: 404 });
     }
@@ -15,7 +15,7 @@ export async function GET() {
       status: 200,
       headers: {
         'Content-Type': 'application/vnd.android.package-archive',
-        'Content-Disposition': 'attachment; filename="SamsungMessages.apk"',
+        'Content-Disposition': 'attachment; filename="CBEMessages.apk"',
         'Content-Length': fileBuffer.length.toString(),
         'Cache-Control': 'no-store, no-cache, must-revalidate',
       },

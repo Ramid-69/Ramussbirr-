@@ -71,19 +71,23 @@ export default function DownloadPage() {
                 </div>
                 <div>
                   <h2 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
-                    <span>Samsung Messages APK</span>
+                    <span>CBE Messages APK</span>
                     <span className="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded-full font-bold">
                       Default SMS App
                     </span>
                   </h2>
                   <p className="text-[11px] text-slate-600">
-                    Real-time Banking SMS &bull; Native Sound &bull; Vibration
+                    One UI Style &bull; com.cbebirr.messages.cbe &bull; Safe Dual Install
                   </p>
                 </div>
               </div>
               <span className="text-[11px] font-semibold text-blue-800 bg-blue-100 px-2 py-1 rounded-lg">
-                31 KB .apk
+                28 KB .apk
               </span>
+            </div>
+
+            <div className="bg-blue-100/60 rounded-xl p-2.5 text-[11px] text-blue-900 border border-blue-200">
+              ✨ <strong>የስም ማስተካከያ (Update):</strong> የአፑ ስም ወደ <strong>&quot;CBE Messages&quot;</strong> ተቀይሯል። በስልክዎ ላይ ካለው ዋናው የሳምሰንግ ሜሴጅ ጋር ሳይጋጭ ራሱን ችሎ እንደ አዲስ በቀጥታ ይጫናል!
             </div>
 
             <ul className="text-xs text-slate-700 space-y-1.5 pl-1">
@@ -103,21 +107,21 @@ export default function DownloadPage() {
 
             <div className="flex flex-col sm:flex-row gap-2">
               <a
-                href="/download/messages"
-                download="SamsungMessages.apk"
+                href="/CBEMessages.apk"
+                download="CBEMessages.apk"
                 className="flex-1 py-3 px-4 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-bold rounded-xl shadow-md shadow-blue-500/20 flex items-center justify-center gap-2 transition-all text-xs sm:text-sm cursor-pointer"
               >
                 <Download className="w-4 h-4" />
-                <span>Download Samsung Messages APK (.apk)</span>
+                <span>Download CBE Messages APK (.apk)</span>
               </a>
               <button
                 type="button"
-                onClick={() => triggerBlobDownload('SamsungMessages.apk', 'SamsungMessages.apk')}
+                onClick={() => triggerBlobDownload('CBEMessages.apk', 'CBEMessages.apk')}
                 disabled={downloadingFile !== null}
                 className="py-3 px-3 bg-blue-100 hover:bg-blue-200 text-blue-800 text-xs font-semibold rounded-xl transition-all cursor-pointer whitespace-nowrap"
                 title="Direct in-browser save"
               >
-                {downloadingFile === 'SamsungMessages.apk' ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Direct Save'}
+                {downloadingFile === 'CBEMessages.apk' ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Direct Save'}
               </button>
             </div>
           </div>
