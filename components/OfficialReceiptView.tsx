@@ -97,13 +97,18 @@ export function OfficialReceiptCore({
 
   const [fetchedData, setFetchedData] = useState<Partial<OfficialReceiptData> | null>(null);
 
-  // If query parameters or props are missing fields, automatically fetch real saved transaction details from server
+  // Read from localStorage cache first (instant offline support), then fall back to server if online
   useEffect(() => {
-    if (ref && (!data.amt || !data.rec || !data.name)) {
-      fetch(`/api/receipt/get?ref=${encodeURIComponent(ref)}`)
-        .then((res) => (res.ok ? res.json() : null))
-        .then((stored) => {
-          if (stored && stored.ref) {
+    if (!ref || (data.amt && data.rec && data.name)) return;
+    let active = true;
+
+    try {
+      const localRaw = localStorage.getItem(`cbe_receipt_${ref}`);
+      if (localRaw) {
+        const stored = JSON.parse(localRaw);
+        if (stored && stored.ref) {
+          Promise.resolve().then(() => {
+            if (!active) return;
             setFetchedData({
               amt: stored.amt,
               rec: stored.rec,
@@ -115,12 +120,43 @@ export function OfficialReceiptCore({
               bank: stored.bank,
               serviceCharge: stored.serviceCharge,
               vat: stored.vat,
-              totalPaid: stored.totalPaidAmount,
+              totalPaid: stored.totalPaidAmount || stored.totalPaid,
             });
-          }
-        })
-        .catch(() => {});
-    }
+          });
+          return () => {
+            active = false;
+          };
+        }
+      }
+    } catch {}
+
+    const isOffline = typeof navigator !== 'undefined' && navigator.onLine === false;
+    const isLocalApk =
+      typeof window !== 'undefined' &&
+      (window.location?.origin?.includes('appassets.androidplatform.net') ||
+        window.location?.protocol === 'file:');
+    if (isOffline || isLocalApk) return;
+
+    fetch(`/api/receipt/get?ref=${encodeURIComponent(ref)}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((stored) => {
+        if (stored && stored.ref) {
+          setFetchedData({
+            amt: stored.amt,
+            rec: stored.rec,
+            name: stored.name,
+            user: stored.user,
+            acc: stored.acc,
+            date: stored.date,
+            reason: stored.reason,
+            bank: stored.bank,
+            serviceCharge: stored.serviceCharge,
+            vat: stored.vat,
+            totalPaid: stored.totalPaidAmount,
+          });
+        }
+      })
+      .catch(() => {});
   }, [ref, data.amt, data.rec, data.name]);
 
   // Keep standalone browser tab firmly on official receipt page (never exit to banking app)

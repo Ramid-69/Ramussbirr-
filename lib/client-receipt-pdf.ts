@@ -284,38 +284,46 @@ export async function downloadReceiptPdfUniversally(
   let pdfBlob: Blob | null = null;
   let pdfBase64: string | null = null;
 
-  // 1. Try server-side sharp composite first (highest fidelity)
-  try {
-    const query = new URLSearchParams({
-      format: 'pdf',
-      ref: data.ref || '',
-      amt: data.amt || '',
-      date: data.date || '',
-      rec: data.rec || '',
-      name: data.name || '',
-      user: data.user || '',
-      acc: data.acc || '',
-      reason: data.reason || '',
-      bank: data.bank || '',
-      fee: data.serviceCharge || '',
-      vat: data.vat || '',
-      totalPaid: data.totalPaid || '',
-    });
+  // 1. Try server-side sharp composite first when online and not inside static APK bundle
+  const isOfflineOrStaticApk =
+    (typeof navigator !== 'undefined' && navigator.onLine === false) ||
+    (typeof window !== 'undefined' &&
+      (window.location?.origin?.includes('appassets.androidplatform.net') ||
+        window.location?.protocol === 'file:'));
 
-    const res = await fetch(`/api/receipt/download?${query.toString()}`);
-    if (res.ok && res.headers.get('content-type')?.includes('application/pdf')) {
-      pdfBlob = await res.blob();
-      const reader = new FileReader();
-      pdfBase64 = await new Promise<string>((resolve) => {
-        reader.onloadend = () => {
-          const resStr = reader.result as string;
-          resolve(resStr.split(',')[1] || '');
-        };
-        reader.readAsDataURL(pdfBlob!);
+  if (!isOfflineOrStaticApk) {
+    try {
+      const query = new URLSearchParams({
+        format: 'pdf',
+        ref: data.ref || '',
+        amt: data.amt || '',
+        date: data.date || '',
+        rec: data.rec || '',
+        name: data.name || '',
+        user: data.user || '',
+        acc: data.acc || '',
+        reason: data.reason || '',
+        bank: data.bank || '',
+        fee: data.serviceCharge || '',
+        vat: data.vat || '',
+        totalPaid: data.totalPaid || '',
       });
+
+      const res = await fetch(`/api/receipt/download?${query.toString()}`);
+      if (res.ok && res.headers.get('content-type')?.includes('application/pdf')) {
+        pdfBlob = await res.blob();
+        const reader = new FileReader();
+        pdfBase64 = await new Promise<string>((resolve) => {
+          reader.onloadend = () => {
+            const resStr = reader.result as string;
+            resolve(resStr.split(',')[1] || '');
+          };
+          reader.readAsDataURL(pdfBlob!);
+        });
+      }
+    } catch (err) {
+      console.warn('Server route unavailable or offline, generating authentic receipt locally:', err);
     }
-  } catch (err) {
-    console.warn('Server route unavailable or offline, generating authentic receipt locally:', err);
   }
 
   // 2. Client-side authentic composite fallback

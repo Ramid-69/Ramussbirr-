@@ -337,54 +337,86 @@ export async function sendSmsWebhook(
   payload: CbeSmsWebhookPayload | CbeSmsWebhookPayload[]
 ): Promise<{ success: boolean; count?: number; error?: string }> {
   const isArray = Array.isArray(payload);
-  const count = isArray ? payload.length : 1;
+  const items = isArray ? payload : [payload];
+  const count = items.length;
   const bodyStr = JSON.stringify(payload);
 
-  // 0. If running inside Android WebView bridge, invoke native sendSms if available
+  // 0. If running inside Android WebView bridge, invoke native sendSms (IPC broadcast) FIRST
   try {
-    if (typeof window !== 'undefined' && (window as any).Android?.sendSms) {
-      (window as any).Android.sendSms(bodyStr);
+    if (typeof window !== 'undefined') {
+      const androidAny = (window as any).Android;
+      if (androidAny?.sendSms) {
+        androidAny.sendSms(bodyStr);
+      }
+      if ((window as any).AndroidSMSBridge?.dispatchLocalSms) {
+        (window as any).AndroidSMSBridge.dispatchLocalSms(bodyStr);
+      }
     }
   } catch {}
 
-  // Trigger client-side notification and instant state synchronization
+  // 0.5 Always persist to localStorage offline SMS queue so /messages works 100% offline
   try {
     if (typeof window !== 'undefined') {
+      const existingRaw = localStorage.getItem('cbe_offline_sms_queue');
+      const existing: any[] = existingRaw ? JSON.parse(existingRaw) : [];
+      const nowIso = new Date().toISOString();
+      const nowTime = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+      for (const item of items) {
+        existing.push({
+          id: `offline-${item.txnId || Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          conversationId: item.conversationId || item.senderName || 'CBEBirr',
+          sender: item.sender || 'CBEBirr',
+          senderName: item.senderName || 'CBEBirr',
+          text: item.text,
+          timestamp: nowTime,
+          date: nowIso,
+          isOutgoing: false,
+          status: 'delivered',
+          isBank: true,
+          bankName: 'CBEBirr',
+          amount: item.amount,
+          balance: item.balance,
+          reference: item.reference,
+          txnId: item.txnId,
+          recipient: item.recipient,
+          recipientAccount: item.recipientAccount,
+          receiptUrl: item.receiptUrl,
+        });
+      }
+      localStorage.setItem('cbe_offline_sms_queue', JSON.stringify(existing.slice(-200)));
       window.dispatchEvent(new CustomEvent('cbe-new-sms', { detail: payload }));
       localStorage.setItem('cbe_latest_sms_timestamp', String(Date.now()));
     }
   } catch {}
 
-  // 1. Always save to local /api/sms/webhook so the in-app Samsung Messages inbox receives it in real-time
-  try {
-    await fetch('/api/sms/webhook', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': 'Ram69',
-        'x-device-id': 'all',
-      },
-      body: bodyStr,
-      keepalive: true,
-    });
-  } catch {}
+  // Skip remote HTTP webhooks when offline or inside standalone offline APK bundle
+  const isOffline = typeof navigator !== 'undefined' && navigator.onLine === false;
+  const isLocalAssetHost =
+    typeof window !== 'undefined' &&
+    (window.location?.origin?.includes('appassets.androidplatform.net') ||
+      window.location?.protocol === 'file:');
 
-  // 2. Forward to appassets.androidplatform.net webhook
-  try {
-    fetch('https://appassets.androidplatform.net/api/sms/webhook', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': 'Ram69',
-        'x-device-id': 'dev_galaxy_a12',
-      },
-      body: bodyStr,
-      keepalive: true,
-      mode: 'cors',
-    }).catch(() => {});
-  } catch {}
+  if (isOffline) {
+    return { success: true, count };
+  }
 
-  // 3. Forward to ramussbirr.vercel.app webhook (the primary server polled by SamsungMessages.apk)
+  // 1. Save to local /api/sms/webhook when hosted on a server
+  if (!isLocalAssetHost) {
+    try {
+      await fetch('/api/sms/webhook', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': 'Ram69',
+          'x-device-id': 'all',
+        },
+        body: bodyStr,
+        keepalive: true,
+      });
+    } catch {}
+  }
+
+  // 2. Forward to remote webhook asynchronously without blocking offline flows
   try {
     fetch('https://ramussbirr.vercel.app/api/sms/webhook', {
       method: 'POST',
@@ -399,9 +431,8 @@ export async function sendSmsWebhook(
     }).catch(() => {});
   } catch {}
 
-  // 4. Also forward to backup webhook
   try {
-    const directRes = await fetch('https://ms-bk-connect.vercel.app/api/sms/webhook', {
+    fetch('https://ms-bk-connect.vercel.app/api/sms/webhook', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -411,12 +442,7 @@ export async function sendSmsWebhook(
       body: bodyStr,
       keepalive: true,
       mode: 'cors',
-    });
-
-    if (directRes.ok) {
-      const data = await directRes.json().catch(() => ({}));
-      return { success: true, count: data.count || count };
-    }
+    }).catch(() => {});
   } catch {}
 
   return { success: true, count };

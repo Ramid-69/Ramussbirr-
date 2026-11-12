@@ -1365,24 +1365,35 @@ export default function CBEBirrFullscreenApp() {
     setTransactions((prev) => [newTx, ...prev]);
     setSelectedTx(newTx);
 
-    // Persist receipt in server store for official receipt link resolution
+    // Persist receipt locally + server store for official receipt link resolution
+    const receiptRecord = {
+      ref: newRef,
+      amt: amt.toFixed(2),
+      date: isoDate,
+      rec: receiverAcc,
+      name: receiverNm,
+      user: userName || 'AYMEN NIGATU YIMAM',
+      acc: userAccount || phoneNumber || '959754788',
+      reason: title || 'Bill Payment',
+      status: 'Completed',
+      orderId: generate8CharTxnId(newRef),
+    };
     try {
-      fetch('/api/receipt/save', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ref: newRef,
-          amt: amt.toFixed(2),
-          date: isoDate,
-          rec: receiverAcc,
-          name: receiverNm,
-          user: userName || 'AYMEN NIGATU YIMAM',
-          acc: userAccount || phoneNumber || '959754788',
-          reason: title || 'Bill Payment',
-          status: 'Completed',
-          orderId: generate8CharTxnId(newRef),
-        }),
-      }).catch(() => {});
+      localStorage.setItem(`cbe_receipt_${newRef}`, JSON.stringify(receiptRecord));
+    } catch {}
+    try {
+      const isOfflineOrStaticApk =
+        (typeof navigator !== 'undefined' && navigator.onLine === false) ||
+        (typeof window !== 'undefined' &&
+          (window.location?.origin?.includes('appassets.androidplatform.net') ||
+            window.location?.protocol === 'file:'));
+      if (!isOfflineOrStaticApk) {
+        fetch('/api/receipt/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(receiptRecord),
+        }).catch(() => {});
+      }
     } catch {}
 
     // Trigger real-time SMS webhook to Samsung Messages app (ms-bk-connect.vercel.app)
@@ -1631,6 +1642,11 @@ export default function CBEBirrFullscreenApp() {
 
     if (cleanAcc.length === 13) {
       hasTriggeredUssdForAccountRef.current = true;
+      const isOffline = typeof navigator !== 'undefined' && navigator.onLine === false;
+      if (isOffline) {
+        setIsResolvingUssdReceiver(false);
+        return;
+      }
       setIsResolvingUssdReceiver(true);
       triggerCbeUssdDialer(cleanAcc, sendAmount);
       // Wait for receiver name to be resolved; generous safety timeout so loading NEVER cuts off early while USSD is running
@@ -1647,6 +1663,12 @@ export default function CBEBirrFullscreenApp() {
   // MacroDroid Webhook Polling (Fast 300ms cycle for instant receiver resolution)
   const startMacroDroidPolling = (targetAcc: string) => {
     if (ussdPollTimerRef.current) clearInterval(ussdPollTimerRef.current);
+    const isOfflineOrStaticApk =
+      (typeof navigator !== 'undefined' && navigator.onLine === false) ||
+      (typeof window !== 'undefined' &&
+        (window.location?.origin?.includes('appassets.androidplatform.net') ||
+          window.location?.protocol === 'file:'));
+    if (isOfflineOrStaticApk) return;
 
     let count = 0;
     ussdPollTimerRef.current = setInterval(async () => {
@@ -1763,27 +1785,38 @@ export default function CBEBirrFullscreenApp() {
     const currentVat = activeTx?.vat ? String(activeTx.vat) : undefined;
     const currentTotalPaid = activeTx?.totalPaidAmount ? String(activeTx.totalPaidAmount) : undefined;
 
-    // Persist to server receipt store so any external phone scanner gets exact details
-    fetch('/api/receipt/save', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ref: currentRef,
-        amt: currentAmt,
-        date: currentDate,
-        rec: currentRec,
-        name: currentName,
-        user: currentUser,
-        acc: currentAcc,
-        reason: currentReason,
-        status: 'Completed',
-        orderId: currentRef,
-        bank: currentBank,
-        serviceCharge: currentFee,
-        vat: currentVat,
-        totalPaidAmount: currentTotalPaid,
-      }),
-    }).catch(() => {});
+    // Persist locally + to server receipt store when online
+    const receiptSaveObj = {
+      ref: currentRef,
+      amt: currentAmt,
+      date: currentDate,
+      rec: currentRec,
+      name: currentName,
+      user: currentUser,
+      acc: currentAcc,
+      reason: currentReason,
+      status: 'Completed',
+      orderId: currentRef,
+      bank: currentBank,
+      serviceCharge: currentFee,
+      vat: currentVat,
+      totalPaidAmount: currentTotalPaid,
+    };
+    try {
+      localStorage.setItem(`cbe_receipt_${currentRef}`, JSON.stringify(receiptSaveObj));
+    } catch {}
+    const isOfflineOrStaticApk =
+      (typeof navigator !== 'undefined' && navigator.onLine === false) ||
+      (typeof window !== 'undefined' &&
+        (window.location?.origin?.includes('appassets.androidplatform.net') ||
+          window.location?.protocol === 'file:'));
+    if (!isOfflineOrStaticApk) {
+      fetch('/api/receipt/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(receiptSaveObj),
+      }).catch(() => {});
+    }
 
     // Authentic CBE Birr Plus electronic receipt URL with all real-time transaction parameters
     const scanUrl = buildOfficialReceiptUrl(
@@ -2186,33 +2219,44 @@ export default function CBEBirrFullscreenApp() {
         setTransactions((prev) => [newTx, ...prev]);
         setSelectedTx(newTx);
 
-        // Also persist in server receipt-store
+        // Also persist locally + in server receipt-store when online
+        const transferReceiptObj = {
+          ref: newRef,
+          amt: amt.toFixed(2),
+          date: isoDate,
+          rec: activeAccount,
+          name: activeReceiverName,
+          user: userName || 'AYMEN NIGATU YIMAM',
+          acc: userAccount || phoneNumber || '959754788',
+          reason: isOtherBanks
+            ? (bankReason || 'Transfer to Other Bank')
+            : (isOtherWallets
+              ? (walletReason || 'Wallet Transfer')
+              : (isPhone ? (phoneReason || 'Wallet Transfer') : (sendReason || 'Customer transfer to CBE account'))),
+          bank: isOtherBanks && selectedBank ? selectedBank.name : (isOtherWallets && selectedWallet ? selectedWallet.name : undefined),
+          status: 'Completed',
+          orderId: newRef,
+          serviceCharge: feeInfo ? feeInfo.serviceCharge.toString() : '0.00',
+          vat: feeInfo ? feeInfo.taxAmount.toString() : '0.00',
+          totalCharges: feeInfo ? feeInfo.totalCharges.toString() : '0.00',
+          totalPaidAmount: totalDeducted.toFixed(2),
+        };
         try {
-          fetch('/api/receipt/save', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              ref: newRef,
-              amt: amt.toFixed(2),
-              date: isoDate,
-              rec: activeAccount,
-              name: activeReceiverName,
-              user: userName || 'AYMEN NIGATU YIMAM',
-              acc: userAccount || phoneNumber || '959754788',
-              reason: isOtherBanks
-                ? (bankReason || 'Transfer to Other Bank')
-                : (isOtherWallets
-                  ? (walletReason || 'Wallet Transfer')
-                  : (isPhone ? (phoneReason || 'Wallet Transfer') : (sendReason || 'Customer transfer to CBE account'))),
-              bank: isOtherBanks && selectedBank ? selectedBank.name : (isOtherWallets && selectedWallet ? selectedWallet.name : undefined),
-              status: 'Completed',
-              orderId: newRef,
-              serviceCharge: feeInfo ? feeInfo.serviceCharge.toString() : '0.00',
-              vat: feeInfo ? feeInfo.taxAmount.toString() : '0.00',
-              totalCharges: feeInfo ? feeInfo.totalCharges.toString() : '0.00',
-              totalPaidAmount: totalDeducted.toFixed(2),
-            }),
-          }).catch(() => {});
+          localStorage.setItem(`cbe_receipt_${newRef}`, JSON.stringify(transferReceiptObj));
+        } catch {}
+        try {
+          const isOfflineOrStaticApk =
+            (typeof navigator !== 'undefined' && navigator.onLine === false) ||
+            (typeof window !== 'undefined' &&
+              (window.location?.origin?.includes('appassets.androidplatform.net') ||
+                window.location?.protocol === 'file:'));
+          if (!isOfflineOrStaticApk) {
+            fetch('/api/receipt/save', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(transferReceiptObj),
+            }).catch(() => {});
+          }
         } catch {}
 
         // Trigger real-time SMS webhook to Samsung Messages app (ms-bk-connect.vercel.app)

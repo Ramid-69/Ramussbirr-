@@ -82,26 +82,26 @@ export default function DownloadPage() {
                 </div>
               </div>
               <span className="text-[11px] font-semibold text-blue-800 bg-blue-100 px-2 py-1 rounded-lg">
-                28 KB .apk
+                835 KB .apk
               </span>
             </div>
 
             <div className="bg-blue-100/60 rounded-xl p-2.5 text-[11px] text-blue-900 border border-blue-200">
-              ✨ <strong>የስም ማስተካከያ (Update):</strong> የአፑ ስም ወደ <strong>&quot;CBE Messages&quot;</strong> ተቀይሯል። በስልክዎ ላይ ካለው ዋናው የሳምሰንግ ሜሴጅ ጋር ሳይጋጭ ራሱን ችሎ እንደ አዲስ በቀጥታ ይጫናል!
+              ✨ <strong>የስም ማስተካከያ (Update):</strong> የአፑ ስም ወደ <strong>&quot;CBE Messages&quot;</strong> ተቀይሯል። Airplane Mode / Offline ቢሆንም በ0.01 ሰከንድ ይከፈታል፤ ስልኩ Screen Off ወይም አፑ ተዘግቶ ቢቆይም መልዕክትና ኖቲፊኬሽን በትክክል inbox ውስጥ ይገባሉ!
             </div>
 
             <ul className="text-xs text-slate-700 space-y-1.5 pl-1">
               <li className="flex items-center gap-2">
                 <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                <span>በስልክዎ ላይ <strong>Default SMS App</strong> ሆኖ በቀጥታ ይመረጣል</span>
+                <span>በስልክዎ ላይ <strong>Default SMS App</strong> ሆኖ ከሲም እና ከባንክ አፕ ሜሴጆችን ይቀበላል</span>
               </li>
               <li className="flex items-center gap-2">
                 <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                <span>የባንክ ዝውውር ሲደረግ በስልክዎ ኦሪጅናል ኖቲፊኬሽን ድምፅና ንዝረት ይደርሳል</span>
+                <span>ስክሪኑ ቢጠፋ ወይም አፑ ከRecent Apps ቢዘጋም ሜሴጁ Inbox ውስጥና ኖቲፊኬሽን ይደርሳል</span>
               </li>
               <li className="flex items-center gap-2">
                 <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                <span>ትክክለኛ የCBEBirr Transaction SMS እና ኦፊሴላዊ PDF ደረሰኝ</span>
+                <span>ትክክለኛ የCBEBirr Transaction SMS እና Offline ኦፊሴላዊ PDF ደረሰኝ</span>
               </li>
             </ul>
 
@@ -136,12 +136,12 @@ export default function DownloadPage() {
                 <div>
                   <h2 className="text-sm font-bold text-slate-900">CBEBirr Plus Banking APK</h2>
                   <p className="text-[11px] text-slate-600">
-                    Mobile Banking &bull; USSD Auto Lookup &bull; PDF Receipts
+                    0.01s Full Offline / Airplane Mode &bull; USSD Auto Lookup &bull; PDF Receipts
                   </p>
                 </div>
               </div>
               <span className="text-[11px] font-semibold text-purple-800 bg-purple-100 px-2 py-1 rounded-lg">
-                16 KB .apk
+                5.8 MB .apk
               </span>
             </div>
 
@@ -179,7 +179,7 @@ export default function DownloadPage() {
                   1
                 </span>
                 <div>
-                  ከላይ <strong>&quot;Download Samsung Messages APK&quot;</strong> የሚለውን ተጭነው ያውርዱ።
+                  ከላይ <strong>&quot;Download CBE Messages APK&quot;</strong> የሚለውን ተጭነው ያውርዱ።
                 </div>
               </div>
 
