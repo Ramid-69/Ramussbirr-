@@ -2957,7 +2957,7 @@ export default function CBEBirrFullscreenApp() {
                 className={`cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity z-20 ${isLoggingIn ? 'pointer-events-none' : ''}`}
               />
 
-              {/* Replaced 'Don't have an account ? Create Account' with 'Do you have any question? Chatbot' per user request */}
+              {/* Login page chatbot banner - inert visual only as requested (clicking does nothing) */}
               <div
                 style={{
                   position: 'absolute',
@@ -2967,16 +2967,8 @@ export default function CBEBirrFullscreenApp() {
                   height: '2.5%',
                   zIndex: 15,
                 }}
-                className="overflow-hidden flex items-center justify-center select-none cursor-pointer active:opacity-80"
-                onClick={() => {
-                  try {
-                    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-                      navigator.vibrate(40);
-                    }
-                  } catch {}
-                  setShowSamsungMessages(true);
-                }}
-                title="CBE Chatbot"
+                className="overflow-hidden flex items-center justify-center select-none pointer-events-none"
+                aria-hidden="true"
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getReceipt } from '@/lib/receipt-store';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
   const ref =
     req.nextUrl.searchParams.get('ref') ||

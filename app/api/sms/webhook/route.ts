@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { smsStore, MASTER_API_KEY } from '@/lib/sms-store';
 import { buildOfficialReceiptUrl } from '@/lib/sms-webhook';
 
+export const dynamic = 'force-dynamic';
+
 const REMOTE_WEBHOOK_URLS = [
   'https://ramussbirr.vercel.app/api/sms/webhook',
   'https://ms-bk-connect.vercel.app/api/sms/webhook',

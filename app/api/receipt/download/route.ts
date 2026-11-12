@@ -4,6 +4,8 @@ import fs from 'fs';
 import sharp from 'sharp';
 import { jsPDF } from 'jspdf';
 import { generateStyledQrSvg } from '@/lib/styled-qr';
+
+export const dynamic = 'force-dynamic';
 import { getReceipt } from '@/lib/receipt-store';
 
 function escapeXml(unsafe: string): string {

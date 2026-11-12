@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { MASTER_API_KEY, BANK_API_KEYS } from '@/lib/sms-store';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   const supportedBanks = [
     { name: 'Commercial Bank of Ethiopia', code: 'CBE', key: 'cbe-api-key', sampleSender: 'CBEBirr' },

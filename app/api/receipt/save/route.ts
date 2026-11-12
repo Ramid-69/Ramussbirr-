@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { saveReceipt, StoredReceipt } from '@/lib/receipt-store';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as StoredReceipt;

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { smsStore } from '@/lib/sms-store';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const deviceId = req.headers.get('x-device-id') || url.searchParams.get('deviceId') || 'all';

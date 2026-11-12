@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getReceipt } from '@/lib/receipt-store';
 
+export const dynamic = 'force-dynamic';
+
 function getSafeBaseUrl(req: NextRequest): string {
   const forwardedHost = req.headers.get('x-forwarded-host');
   const forwardedProto = req.headers.get('x-forwarded-proto') || 'https';
