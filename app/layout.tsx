@@ -5,6 +5,10 @@ export const metadata: Metadata = {
   title: 'CBEBirr Demo',
   description: 'CBEBirr demo mobile application clone featuring Splash, Login, PIN, and Home screens.',
   manifest: '/manifest.json',
+  icons: {
+    icon: '/assets/cbe_birr_logo.png',
+    apple: '/assets/cbe_birr_logo.png',
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',

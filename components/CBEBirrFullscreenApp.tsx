@@ -332,7 +332,7 @@ const ALL_APP_ASSETS: string[] = [
   '/screens/pay_fixed_bottom.png',
   '/assets/banks/screen_bank_transfer_base.png',
   '/assets/banks/sheet_header.png',
-  '/assets/wallets/screen_wallet_transfer_base.png',
+  '/assets/wallets/screen_wallet_transfer_base_clean.png',
   '/assets/wallets/sheet_header.png',
 ];
 
@@ -8322,10 +8322,10 @@ export default function CBEBirrFullscreenApp() {
               transition={{ duration: 0.06, ease: 'easeOut' }}
               className="absolute inset-0 w-full h-full bg-[#f2f2f2] flex flex-col overflow-hidden select-none"
             >
-              {/* Entire Wallet Transfer Base Screen PNG (screen_wallet_transfer_base.png) */}
+              {/* Entire Wallet Transfer Base Screen PNG (screen_wallet_transfer_base_clean.png) */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src="/assets/wallets/screen_wallet_transfer_base.png"
+                src="/assets/wallets/screen_wallet_transfer_base_clean.png"
                 alt="CBEBirr Transfer To Other Wallet & Micro Finance"
                 className="w-full h-full object-fill pointer-events-none select-none block"
                 draggable={false}

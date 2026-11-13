@@ -42,12 +42,12 @@ export default function DownloadPage() {
         {/* Header with Dual App Branding */}
         <div className="bg-gradient-to-br from-[#7a1c7d] via-[#8b278e] to-[#1c65e3] px-6 py-7 text-white text-center flex flex-col items-center relative">
           <div className="flex items-center gap-3 mb-3">
-            <div className="w-14 h-14 rounded-2xl bg-white p-1.5 shadow-md flex items-center justify-center">
+            <div className="w-14 h-14 rounded-2xl overflow-hidden bg-white shadow-md flex items-center justify-center">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src="/assets/cbe_qr_center_badge_crisp.png"
+                src="/assets/cbe_birr_logo.png"
                 alt="CBEBirr"
-                className="w-full h-full object-contain"
+                className="w-full h-full object-cover"
               />
             </div>
             <div className="w-14 h-14 rounded-2xl bg-[#1e65e3] p-2 shadow-md flex items-center justify-center text-white">
@@ -130,8 +130,13 @@ export default function DownloadPage() {
           <div className="rounded-2xl border border-purple-200 bg-purple-50/40 p-4 space-y-3">
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-xl bg-[#7a1c7d] text-white flex items-center justify-center shadow">
-                  <Smartphone className="w-5 h-5" />
+                <div className="w-10 h-10 rounded-xl overflow-hidden bg-[#7a1c7d] flex items-center justify-center shadow">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="/assets/cbe_birr_logo.png"
+                    alt="CBEBirr Plus"
+                    className="w-full h-full object-cover"
+                  />
                 </div>
                 <div>
                   <h2 className="text-sm font-bold text-slate-900">CBEBirr Plus Banking APK</h2>
