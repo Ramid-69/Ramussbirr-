@@ -11,6 +11,9 @@ on:
       - master
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build-and-verify:
     name: Build Next.js & Verify APKs
@@ -42,6 +45,19 @@ jobs:
           test -f public/cbebirr-plus.apk || { echo "Missing cbebirr-plus.apk"; exit 1; }
           test -f public/CBEMessages.apk || { echo "Missing CBEMessages.apk"; exit 1; }
           ls -la public/*.apk
+
+      - name: Commit & Push Updated APKs to Repo
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add public/cbebirr-plus.apk public/CBEMessages.apk public/SamsungMessages.apk
+          if ! git diff --cached --quiet; then
+            git commit -m "Update built APKs [skip ci]"
+            git push
+          else
+            echo "No APK changes to commit."
+          fi
 
       - name: Upload APKs as Build Artifacts
         uses: actions/upload-artifact@v4
