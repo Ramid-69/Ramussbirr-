@@ -1,5 +1,5 @@
 // CBEBirr Service Worker for 0.01s Instant Offline PWA Support
-const CACHE_NAME = 'cbebirr-cache-v3';
+const CACHE_NAME = 'cbebirr-cache-v4';
 
 const STATIC_ASSETS = [
   '/',

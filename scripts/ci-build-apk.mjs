@@ -103,22 +103,28 @@ const logoPng512 = path.join(rootDir, 'public', 'assets', 'cbe_birr_logo.png');
 const logoPng192 = path.join(rootDir, 'public', 'assets', 'cbe_birr_logo_192.png');
 const cleanWalletPng = path.join(rootDir, 'public', 'assets', 'wallets', 'screen_wallet_transfer_base_clean.png');
 
+const swJsPath = path.join(rootDir, 'public', 'sw.js');
+
 if (fs.existsSync(cbeApkPath) && fs.existsSync(logoPng512) && fs.existsSync(cleanWalletPng)) {
   const sha256 = (p) => crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex');
-  const expectedIconHash = sha256(logoPng512);
   const expectedWalletHash = sha256(cleanWalletPng);
+  const expectedSwHash = fs.existsSync(swJsPath) ? sha256(swJsPath) : '';
 
   let alreadyPatched = false;
   try {
-    const existingIconHash = execSync(
-      `unzip -p "${cbeApkPath}" res/mipmap-xxxhdpi/ic_launcher.png | sha256sum | awk '{print $1}'`,
+    const hasIcon = execSync(
+      `unzip -l "${cbeApkPath}" | grep -c "res/mipmap-xxxhdpi/ic_launcher.png"`,
       { encoding: 'utf8' }
     ).trim();
     const existingWalletHash = execSync(
       `unzip -p "${cbeApkPath}" assets/web/assets/wallets/screen_wallet_transfer_base.png | sha256sum | awk '{print $1}'`,
       { encoding: 'utf8' }
     ).trim();
-    if (existingIconHash === expectedIconHash && existingWalletHash === expectedWalletHash) {
+    const existingSwHash = execSync(
+      `unzip -p "${cbeApkPath}" assets/web/sw.js | sha256sum | awk '{print $1}'`,
+      { encoding: 'utf8' }
+    ).trim();
+    if (parseInt(hasIcon, 10) > 0 && existingWalletHash === expectedWalletHash && (!expectedSwHash || existingSwHash === expectedSwHash)) {
       alreadyPatched = true;
     }
   } catch {
@@ -126,9 +132,9 @@ if (fs.existsSync(cbeApkPath) && fs.existsSync(logoPng512) && fs.existsSync(clea
   }
 
   if (alreadyPatched) {
-    console.log('cbebirr-plus.apk already has the updated CBE Birr logo and clean wallet PNG. Skipping re-pack.');
+    console.log('cbebirr-plus.apk already has the updated CBE Birr logo, clean wallet PNG, and sw.js v4. Skipping re-pack.');
   } else {
-    console.log('Updating cbebirr-plus.apk with CBE Birr launcher icon and clean wallet PNG (keeping classes.dex intact)...');
+    console.log('Updating cbebirr-plus.apk with CBE Birr launcher icon, clean wallet PNG, and sw.js v4 (keeping classes.dex intact)...');
     const apktoolJar = '/tmp/apktool.jar';
     if (!fs.existsSync(apktoolJar)) {
       execSync(
@@ -161,9 +167,10 @@ if (fs.existsSync(cbeApkPath) && fs.existsSync(logoPng512) && fs.existsSync(clea
     if (fs.existsSync(path.dirname(apkWalletBase))) {
       fs.copyFileSync(cleanWalletPng, apkWalletBase);
       fs.copyFileSync(cleanWalletPng, path.join(decDir, 'assets', 'web', 'assets', 'wallets', 'screen_wallet_transfer_base_clean.png'));
+      fs.copyFileSync(cleanWalletPng, path.join(decDir, 'assets', 'web', 'assets', 'wallets', 'screen_wallet_transfer_base_orig.png'));
     }
 
-    // Update bundled web manifest & logo assets
+    // Update bundled web manifest, sw.js & logo assets
     const apkAssetsDir = path.join(decDir, 'assets', 'web', 'assets');
     if (fs.existsSync(apkAssetsDir)) {
       fs.copyFileSync(logoPng512, path.join(apkAssetsDir, 'cbe_birr_logo.png'));
@@ -174,6 +181,10 @@ if (fs.existsSync(cbeApkPath) && fs.existsSync(logoPng512) && fs.existsSync(clea
     const apkManifestJson = path.join(decDir, 'assets', 'web', 'manifest.json');
     if (fs.existsSync(apkManifestJson)) {
       fs.copyFileSync(path.join(rootDir, 'public', 'manifest.json'), apkManifestJson);
+    }
+    const apkSwJs = path.join(decDir, 'assets', 'web', 'sw.js');
+    if (fs.existsSync(swJsPath) && fs.existsSync(path.dirname(apkSwJs))) {
+      fs.copyFileSync(swJsPath, apkSwJs);
     }
 
     const rebuiltCbe = '/tmp/cbe_rebuilt.apk';
