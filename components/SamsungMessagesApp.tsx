@@ -141,6 +141,39 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
   const [currentMessages, setCurrentMessages] = useState<SmsMessage[]>([]);
   const [allMessagesCount, setAllMessagesCount] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [showUnreadOnly, setShowUnreadOnly] = useState(false);
+
+  const getReadState = useCallback((): { ids: Set<string>; convTs: Record<string, number> } => {
+    try {
+      const idsRaw = localStorage.getItem('cbe_web_read_msg_ids');
+      const tsRaw = localStorage.getItem('cbe_web_read_conv_ts');
+      const ids = new Set<string>(idsRaw ? JSON.parse(idsRaw) : []);
+      const convTs: Record<string, number> = tsRaw ? JSON.parse(tsRaw) : {};
+      return { ids, convTs };
+    } catch {
+      return { ids: new Set(), convTs: {} };
+    }
+  }, []);
+
+  const markConvReadPersisted = useCallback((convId: string, convMsgs?: SmsMessage[], lastDateStr?: string) => {
+    try {
+      const { ids, convTs } = getReadState();
+      const k = convId.trim().toLowerCase();
+      let maxTs = convTs[k] || 0;
+      if (lastDateStr) {
+        const d = new Date(lastDateStr).getTime();
+        if (!isNaN(d) && d > maxTs) maxTs = d;
+      }
+      (convMsgs || []).forEach((m) => {
+        if (m.id) ids.add(m.id);
+        const d = new Date(m.date).getTime();
+        if (!isNaN(d) && d > maxTs) maxTs = d;
+      });
+      convTs[k] = maxTs || Date.now();
+      localStorage.setItem('cbe_web_read_msg_ids', JSON.stringify(Array.from(ids).slice(-800)));
+      localStorage.setItem('cbe_web_read_conv_ts', JSON.stringify(convTs));
+    } catch {}
+  }, [getReadState]);
 
   // Selection / Multi-delete mode
   const [isSelectionMode, setIsSelectionMode] = useState(false);
@@ -304,10 +337,36 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
       if (!res.ok) return;
       const data = await res.json();
       if (data && data.success) {
+        const { ids: readIds, convTs } = getReadState();
+        const serverMsgs: SmsMessage[] = data.messages || [];
         setConversations((prev) => {
           const merged = new Map<string, ConversationSummary>();
           prev.forEach((c) => merged.set(c.id, c));
-          (data.conversations || []).forEach((c: ConversationSummary) => merged.set(c.id, c));
+          (data.conversations || []).forEach((c: ConversationSummary) => {
+            const cKey = c.id.trim().toLowerCase();
+            if (activeConversationId && activeConversationId.trim().toLowerCase() === cKey) {
+              merged.set(c.id, { ...c, unreadCount: 0 });
+              return;
+            }
+            const cMsgs = serverMsgs.filter(
+              (m) => m.conversationId.trim().toLowerCase() === cKey
+            );
+            let unread = c.unreadCount || 0;
+            if (cMsgs.length > 0) {
+              const cutoff = convTs[cKey] || 0;
+              unread = cMsgs.filter((m) => {
+                if (m.isOutgoing || m.status === 'read') return false;
+                if (m.id && readIds.has(m.id)) return false;
+                const mt = new Date(m.date).getTime();
+                if (!isNaN(mt) && cutoff > 0 && mt <= cutoff) return false;
+                return true;
+              }).length;
+            } else {
+              const lt = new Date(c.lastDate).getTime();
+              if (!isNaN(lt) && (convTs[cKey] || 0) >= lt) unread = 0;
+            }
+            merged.set(c.id, { ...c, unreadCount: unread });
+          });
           return Array.from(merged.values()).sort(
             (a, b) => new Date(b.lastDate).getTime() - new Date(a.lastDate).getTime()
           );
@@ -333,7 +392,7 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
     } finally {
       setIsLoading(false);
     }
-  }, [activeConversationId]);
+  }, [activeConversationId, getReadState]);
 
   // Native Android SIM SMS + SharedPreferences + Offline Queue loader (runs in 0.001s offline)
   const loadNativeAndroidData = useCallback(() => {
@@ -453,17 +512,30 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
       map.get(convKey)!.push(msg);
     });
 
+    const { ids: readIds, convTs } = getReadState();
     const summaries: ConversationSummary[] = [];
     for (const [key, msgs] of map.entries()) {
       msgs.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
       const last = msgs[msgs.length - 1];
+      const cKey = key.trim().toLowerCase();
+      const cutoff = convTs[cKey] || 0;
+      const isViewing = !!(activeConversationId && activeConversationId.trim().toLowerCase() === cKey);
+      const unreadCount = isViewing
+        ? 0
+        : msgs.filter((m) => {
+            if (m.isOutgoing || m.status === 'read') return false;
+            if (m.id && readIds.has(m.id)) return false;
+            const mt = new Date(m.date).getTime();
+            if (!isNaN(mt) && cutoff > 0 && mt <= cutoff) return false;
+            return true;
+          }).length;
       summaries.push({
         id: key,
         senderName: key,
         lastMessage: last.text,
         lastTimestamp: last.timestamp,
         lastDate: last.date,
-        unreadCount: msgs.filter((m) => !m.isOutgoing && m.status !== 'read').length,
+        unreadCount,
         avatarColor: key === 'CBEBirr' ? '#7a1c7d' : '#2563eb',
         avatarLetter: key.slice(0, 1).toUpperCase(),
         isBank: key === 'CBEBirr' || !!last.isBank,
@@ -488,7 +560,7 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
         setCurrentMessages(matchedEntry[1]);
       }
     }
-  }, [activeConversationId]);
+  }, [activeConversationId, getReadState]);
 
   // Initial load (offline data loaded immediately in 0.01s)
   useEffect(() => {
@@ -565,16 +637,28 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
     return () => clearInterval(interval);
   }, [fetchMessagesData, loadNativeAndroidData]);
 
-  // Scroll to bottom when new messages arrive in active conversation
+  // Scroll to bottom and mark active thread read when messages load/arrive
   useEffect(() => {
-    if (activeConversationId && messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    if (activeConversationId) {
+      if (currentMessages.length > 0) {
+        markConvReadPersisted(activeConversationId, currentMessages);
+      }
+      if (messagesEndRef.current) {
+        messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+      }
     }
-  }, [currentMessages, activeConversationId]);
+  }, [currentMessages, activeConversationId, markConvReadPersisted]);
 
-  // Filter conversations according to category and search query
+  const totalUnreadCount = useMemo(
+    () => conversations.reduce((sum, c) => sum + (c.unreadCount || 0), 0),
+    [conversations]
+  );
+
+  // Filter conversations according to category, unread filter, and search query
   const filteredConversations = useMemo(() => {
     return conversations.filter((c) => {
+      if (showUnreadOnly && totalUnreadCount > 0 && (c.unreadCount || 0) <= 0) return false;
+
       // Category filter
       if (selectedCategory === 'Personal' && c.isBank) return false;
       if (selectedCategory === 'Banking' && !c.isBank) return false;
@@ -589,7 +673,7 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
       }
       return true;
     });
-  }, [conversations, selectedCategory, searchQuery]);
+  }, [conversations, selectedCategory, searchQuery, showUnreadOnly, totalUnreadCount]);
 
   // Contacts seed list for Contacts Tab
   const CONTACTS_LIST = useMemo(
@@ -661,11 +745,11 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
     setActiveConversationId(id);
     setIsSelectionMode(false);
     setSelectedMsgIds(new Set());
-    const convMsgs = conversations.find((c) => c.id === id);
-    if (convMsgs) {
-      // Mark read locally
-      convMsgs.unreadCount = 0;
-    }
+    const targetConv = conversations.find((c) => c.id === id);
+    markConvReadPersisted(id, currentMessages, targetConv?.lastDate);
+    setConversations((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, unreadCount: 0 } : c))
+    );
   };
 
   // Toggle selection
@@ -1257,10 +1341,29 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
               </div>
             </div>
 
-            {/* Large One UI Header Title */}
-            <div className="pt-2 pb-1">
-              <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight">Messages</h1>
-            </div>
+            {/* Large One UI Header Title or Unread Hero matching PNG */}
+            {totalUnreadCount > 0 ? (
+              <div className="pt-5 pb-3 flex flex-col items-center text-center">
+                <h1 className="text-3xl font-bold tracking-tight text-[#111111] dark:text-white mb-2.5">
+                  {totalUnreadCount === 1 ? '1 unread message' : `${totalUnreadCount} unread messages`}
+                </h1>
+                <button
+                  type="button"
+                  onClick={() => setShowUnreadOnly((prev) => !prev)}
+                  className={`px-6 py-1.5 rounded-full text-sm font-semibold transition-colors active:scale-95 ${
+                    showUnreadOnly
+                      ? 'bg-[#dceafe] text-[#0381fe]'
+                      : 'bg-[#e9ecf0] dark:bg-slate-800 text-[#111111] dark:text-slate-100'
+                  }`}
+                >
+                  {showUnreadOnly ? 'Show all' : 'View'}
+                </button>
+              </div>
+            ) : (
+              <div className="pt-2 pb-1">
+                <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight">Messages</h1>
+              </div>
+            )}
 
             {/* Search Input (conditionally visible) */}
             {isSearching && (
@@ -1404,7 +1507,7 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
                           )}
                         </div>
 
-                        {/* Middle Text Details */}
+                        {/* Middle Text Details + Unread Badge aligned with snippet */}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between mb-0.5">
                             <h3 className="font-bold text-[15px] truncate text-slate-900 dark:text-slate-100">
@@ -1412,17 +1515,23 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
                             </h3>
                             <span className="text-xs text-slate-400 shrink-0 ml-2">{conv.lastTimestamp}</span>
                           </div>
-                          <p className="text-[13px] text-slate-500 dark:text-slate-400 truncate leading-snug">
-                            {conv.lastMessage}
-                          </p>
-                        </div>
-
-                        {/* Unread Orange Count Badge matching Screenshot */}
-                        {conv.unreadCount > 0 && !isSelectionMode && (
-                          <div className="w-5 h-5 rounded-full bg-[#f97316] text-white text-[11px] font-bold flex items-center justify-center shrink-0">
-                            {conv.unreadCount}
+                          <div className="flex items-center justify-between gap-2">
+                            <p
+                              className={`text-[13px] truncate leading-snug ${
+                                conv.unreadCount > 0
+                                  ? 'text-slate-700 dark:text-slate-200 font-medium'
+                                  : 'text-slate-500 dark:text-slate-400'
+                              }`}
+                            >
+                              {conv.lastMessage}
+                            </p>
+                            {conv.unreadCount > 0 && !isSelectionMode && (
+                              <div className="min-w-5 h-5 px-1.5 rounded-full bg-[#ea5a28] text-white text-[11px] font-bold flex items-center justify-center shrink-0">
+                                {conv.unreadCount}
+                              </div>
+                            )}
                           </div>
-                        )}
+                        </div>
                       </div>
                     );
                   })
@@ -1514,9 +1623,11 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
                 className="relative flex items-center gap-1.5 py-1 text-sm font-bold text-black dark:text-white"
               >
                 <span>Conversations</span>
-                <span className="w-4 h-4 rounded-full bg-[#f97316] text-white text-[10px] font-bold flex items-center justify-center">
-                  25
-                </span>
+                {totalUnreadCount > 0 && (
+                  <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-[#ea5a28] text-white text-[10px] font-bold flex items-center justify-center">
+                    {totalUnreadCount}
+                  </span>
+                )}
                 {activeTab === 'conversations' && (
                   <motion.div
                     layoutId="activeBottomTabIndicator"
