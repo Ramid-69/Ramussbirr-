@@ -634,7 +634,9 @@ export default function CBEBirrFullscreenApp() {
   const [isResolvingUssdReceiver, setIsResolvingUssdReceiver] = useState<boolean>(false);
   const hasTriggeredUssdForAccountRef = useRef<boolean>(false);
   const ussdPollTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const ussdSafetyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const ussdDismissTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const ussdDialDelayTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const hasResolvedUssdNameRef = useRef<boolean>(false);
 
   // Transfer Source State ('cbe_account' | 'phone_number' | 'other_banks' | 'other_wallets')
   const [transferSource, setTransferSource] = useState<'cbe_account' | 'phone_number' | 'other_banks' | 'other_wallets'>('cbe_account');
@@ -1680,6 +1682,39 @@ export default function CBEBirrFullscreenApp() {
   const activeReceiverName = customVerifiedReceiverName || (matchedSavedReceiver ? matchedSavedReceiver.accountName : '');
   const displayReceiverName = customVerifiedReceiverName || (matchedSavedReceiver ? matchedSavedReceiver.accountName : '');
 
+  // Complete USSD resolution ONLY after receiver name is placed AND carrier USSD runner has cancelled & vanished
+  const completeUssdResolution = useCallback((resolvedName: string, cancelSettleMs = 1500) => {
+    const cleanName = (resolvedName || '').trim();
+    if (!cleanName) return;
+
+    if (ussdPollTimerRef.current) {
+      clearInterval(ussdPollTimerRef.current);
+      ussdPollTimerRef.current = null;
+    }
+
+    // 1. Place receiver name into the field
+    hasResolvedUssdNameRef.current = true;
+    setCustomVerifiedReceiverName(cleanName);
+
+    // 2. Keep full-screen loading page visible until USSD cancel finishes and real USSD runner disappears
+    if (ussdDismissTimerRef.current) {
+      clearTimeout(ussdDismissTimerRef.current);
+    }
+    ussdDismissTimerRef.current = setTimeout(() => {
+      if (typeof window !== 'undefined' && (window as any).Android?.hideLoadingOverlay) {
+        try {
+          (window as any).Android.hideLoadingOverlay();
+        } catch {}
+      }
+      setIsResolvingUssdReceiver(false);
+      ussdDismissTimerRef.current = null;
+    }, cancelSettleMs);
+
+    if (typeof window !== 'undefined' && 'vibrate' in navigator && typeof navigator.vibrate === 'function') {
+      navigator.vibrate([40, 60]);
+    }
+  }, []);
+
   // CBEBirr USSD *847# Dialer Execution
   const triggerCbeUssdDialer = (targetAccount: string, targetAmount: string) => {
     const cleanAcc = targetAccount.replace(/\D/g, '');
@@ -1698,14 +1733,14 @@ export default function CBEBirrFullscreenApp() {
       navigator.vibrate([40, 60, 40]);
     }
 
-    // Android WebView bridge (Runs silently in background - "ussd run yemiadergew metayet yelebetm")
+    // Android WebView bridge (Runs silently behind full-screen loading overlay)
     if (typeof window !== 'undefined' && (window as any).Android?.dialUSSD) {
       (window as any).Android.dialUSSD(ussdUri);
     } else if (typeof window !== 'undefined' && (window as any).Android?.callUSSD) {
       (window as any).Android.callUSSD(ussdUri);
     }
 
-    // Start MacroDroid Webhook polling
+    // Start MacroDroid Webhook polling (no fixed timeout)
     startMacroDroidPolling(cleanAcc);
     return true;
   };
@@ -1727,26 +1762,42 @@ export default function CBEBirrFullscreenApp() {
     }
 
     if (cleanAcc.length === 13) {
-      hasTriggeredUssdForAccountRef.current = true;
+      const hasAndroidUssdBridge =
+        typeof window !== 'undefined' &&
+        Boolean((window as any).Android?.dialUSSD || (window as any).Android?.callUSSD);
       const isOffline = typeof navigator !== 'undefined' && navigator.onLine === false;
-      if (isOffline) {
+
+      if (!hasAndroidUssdBridge && isOffline) {
         setIsResolvingUssdReceiver(false);
         return;
       }
+
+      hasTriggeredUssdForAccountRef.current = true;
+      hasResolvedUssdNameRef.current = false;
+
+      // Drop soft keyboard & immediately cover 100% of screen BEFORE dialing USSD
+      if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur();
+      }
+      if (typeof window !== 'undefined' && (window as any).Android?.showLoadingOverlay) {
+        try {
+          (window as any).Android.showLoadingOverlay();
+        } catch {}
+      }
       setIsResolvingUssdReceiver(true);
-      triggerCbeUssdDialer(cleanAcc, sendAmount);
-      // Wait for receiver name to be resolved; generous safety timeout so loading NEVER cuts off early while USSD is running
-      if (ussdSafetyTimeoutRef.current) clearTimeout(ussdSafetyTimeoutRef.current);
-      ussdSafetyTimeoutRef.current = setTimeout(() => {
-        setCustomVerifiedReceiverName((prev) => prev || '');
-        setIsResolvingUssdReceiver(false);
-      }, 12000);
+
+      // Paint full-screen loading overlay first so USSD runner is never seen even for a frame
+      if (ussdDialDelayTimerRef.current) clearTimeout(ussdDialDelayTimerRef.current);
+      ussdDialDelayTimerRef.current = setTimeout(() => {
+        triggerCbeUssdDialer(cleanAcc, sendAmount);
+        ussdDialDelayTimerRef.current = null;
+      }, 60);
     } else {
       setTransferError('Please enter the complete 13-digit CBE account number first.');
     }
   };
 
-  // MacroDroid Webhook Polling (Fast 300ms cycle for instant receiver resolution)
+  // MacroDroid Webhook Polling (Continuous 300ms cycle with NO fixed timeout until receiver name resolves)
   const startMacroDroidPolling = (targetAcc: string) => {
     if (ussdPollTimerRef.current) clearInterval(ussdPollTimerRef.current);
     const isOfflineOrStaticApk =
@@ -1756,96 +1807,101 @@ export default function CBEBirrFullscreenApp() {
           window.location?.protocol === 'file:'));
     if (isOfflineOrStaticApk) return;
 
-    let count = 0;
     ussdPollTimerRef.current = setInterval(async () => {
-      count++;
       try {
         const res = await fetch(`/api/ussd/receiver-webhook?account=${encodeURIComponent(targetAcc)}&clear=true`);
         if (res.ok) {
           const json = await res.json();
-          if (json?.hasReceiver && json?.event) {
-            if (ussdPollTimerRef.current) clearInterval(ussdPollTimerRef.current);
-            if (ussdSafetyTimeoutRef.current) clearTimeout(ussdSafetyTimeoutRef.current);
-            const rName = json.event.name || 'SIMERA GOFER ABDISA';
-            // 1. Immediately set receiver name into field
-            setCustomVerifiedReceiverName(rName);
-            // 2. Wait until carrier USSD runner has completely cancelled and vanished before hiding loading
-            setTimeout(() => {
-              setIsResolvingUssdReceiver(false);
-            }, 1000);
-            if (typeof window !== 'undefined' && 'vibrate' in navigator && typeof navigator.vibrate === 'function') {
-              navigator.vibrate([100, 50, 150]);
+          if (json?.hasReceiver && json?.event && json.event.name) {
+            const rName = String(json.event.name).trim();
+            if (rName) {
+              completeUssdResolution(rName, 1500);
             }
           }
         }
       } catch (err) {
         console.warn('MacroDroid polling error:', err);
       }
-
-      if (count > 40) {
-        if (ussdPollTimerRef.current) clearInterval(ussdPollTimerRef.current);
-      }
     }, 300);
   };
+
+  // Clear USSD polling/timers if user navigates away from Step 6
+  useEffect(() => {
+    if (currentStep !== 6) {
+      if (ussdPollTimerRef.current) {
+        clearInterval(ussdPollTimerRef.current);
+        ussdPollTimerRef.current = null;
+      }
+      if (ussdDismissTimerRef.current) {
+        clearTimeout(ussdDismissTimerRef.current);
+        ussdDismissTimerRef.current = null;
+      }
+      if (ussdDialDelayTimerRef.current) {
+        clearTimeout(ussdDialDelayTimerRef.current);
+        ussdDialDelayTimerRef.current = null;
+      }
+      const resetTimer = setTimeout(() => {
+        setIsResolvingUssdReceiver(false);
+      }, 0);
+      return () => clearTimeout(resetTimer);
+    }
+  }, [currentStep]);
 
   // Direct injection listener for Android WebView evaluateJavascript
   useEffect(() => {
     if (typeof window !== 'undefined') {
       (window as any).onReceiverNameReceived = (data: any) => {
         let name = '';
-        let acc = receiverAccount;
-        let amt = sendAmount;
 
         if (typeof data === 'string') {
           name = data;
         } else if (data && typeof data === 'object') {
           name = data.name || data.receiverName || '';
-          if (data.account) acc = data.account;
-          if (data.amount) amt = data.amount;
         }
 
-        if (name) {
-          if (ussdSafetyTimeoutRef.current) clearTimeout(ussdSafetyTimeoutRef.current);
-          if (ussdPollTimerRef.current) clearInterval(ussdPollTimerRef.current);
-          // 1. Immediately set receiver name into field
-          setCustomVerifiedReceiverName(name);
-          // 2. Wait until carrier USSD runner has completely cancelled and disappeared before hiding loading
-          setTimeout(() => {
-            setIsResolvingUssdReceiver(false);
-          }, 1100);
-          if ('vibrate' in navigator && typeof navigator.vibrate === 'function') {
-            navigator.vibrate([40, 60]);
-          }
+        if (name && name.trim()) {
+          completeUssdResolution(name, 1500);
         }
       };
 
       (window as any).setReceiverNameDirectly = (nameStr: string) => {
-        if (nameStr) {
-          if (ussdSafetyTimeoutRef.current) clearTimeout(ussdSafetyTimeoutRef.current);
-          if (ussdPollTimerRef.current) clearInterval(ussdPollTimerRef.current);
-          setCustomVerifiedReceiverName(nameStr);
-          setTimeout(() => {
-            setIsResolvingUssdReceiver(false);
-          }, 1100);
+        if (nameStr && nameStr.trim()) {
+          completeUssdResolution(nameStr, 1500);
         }
       };
 
       (window as any).onUssdCompleted = (nameStr?: string) => {
-        if (nameStr) {
-          setCustomVerifiedReceiverName(nameStr);
+        if (nameStr && nameStr.trim()) {
+          completeUssdResolution(nameStr, 800);
+          return;
         }
-        if (ussdSafetyTimeoutRef.current) clearTimeout(ussdSafetyTimeoutRef.current);
-        if (ussdPollTimerRef.current) clearInterval(ussdPollTimerRef.current);
-        setTimeout(() => {
-          setIsResolvingUssdReceiver(false);
-        }, 500);
+        // Only dismiss if a receiver name has already been placed into the field
+        if (hasResolvedUssdNameRef.current) {
+          if (ussdPollTimerRef.current) {
+            clearInterval(ussdPollTimerRef.current);
+            ussdPollTimerRef.current = null;
+          }
+          if (ussdDismissTimerRef.current) {
+            clearTimeout(ussdDismissTimerRef.current);
+          }
+          ussdDismissTimerRef.current = setTimeout(() => {
+            if (typeof window !== 'undefined' && (window as any).Android?.hideLoadingOverlay) {
+              try {
+                (window as any).Android.hideLoadingOverlay();
+              } catch {}
+            }
+            setIsResolvingUssdReceiver(false);
+            ussdDismissTimerRef.current = null;
+          }, 600);
+        }
       };
     }
     return () => {
       if (ussdPollTimerRef.current) clearInterval(ussdPollTimerRef.current);
-      if (ussdSafetyTimeoutRef.current) clearTimeout(ussdSafetyTimeoutRef.current);
+      if (ussdDismissTimerRef.current) clearTimeout(ussdDismissTimerRef.current);
+      if (ussdDialDelayTimerRef.current) clearTimeout(ussdDialDelayTimerRef.current);
     };
-  }, [receiverAccount, sendAmount]);
+  }, [completeUssdResolution]);
 
   // Dynamic styled QR code generation matching authentic CBEBirr PNG designs:
   // - Receipt (Step 8): WITH authentic CBE Birr Plus center logo
@@ -5044,10 +5100,12 @@ export default function CBEBirrFullscreenApp() {
                     setCustomVerifiedReceiverName(matched.accountName);
                     // Mark USSD as handled so it never triggers for saved accounts!
                     hasTriggeredUssdForAccountRef.current = true;
+                    hasResolvedUssdNameRef.current = true;
                   } else {
                     // Unsaved accounts strictly remain empty (bado) per user instruction
                     setCustomVerifiedReceiverName('');
                     hasTriggeredUssdForAccountRef.current = false;
+                    hasResolvedUssdNameRef.current = false;
                   }
                 }}
                 placeholder="Receivers Account Number"
@@ -5099,7 +5157,7 @@ export default function CBEBirrFullscreenApp() {
               {/* Interactive Input: Amount (Tapping triggers USSD *847# execution when 13-digit account is entered) */}
               <input
                 type="number"
-                disabled={isTransferring}
+                disabled={isTransferring || isResolvingUssdReceiver}
                 inputMode="decimal"
                 value={sendAmount}
                 onChange={(e) => {
@@ -5231,23 +5289,19 @@ export default function CBEBirrFullscreenApp() {
               </AnimatePresence>
 
               {/* AUTHENTIC CBE FULL-SCREEN LOADING SYSTEM FOR USSD RECEIVER RESOLUTION */}
-              {/* Covers the screen completely with a dimmed backdrop & centered authentic CBE loading card so NOTHING of USSD is visible */}
+              {/* 100% opaque full-screen cover so NOTHING of USSD or background is visible until name is set & USSD cancels */}
               <AnimatePresence>
                 {isResolvingUssdReceiver && (
                   <motion.div
                     key="ussd-full-loading-overlay"
-                    initial={{ opacity: 0 }}
+                    initial={{ opacity: 1 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    transition={{ duration: 0.18 }}
-                    className="absolute inset-0 z-50 bg-black/45 backdrop-blur-[2px] flex items-center justify-center pointer-events-auto select-none"
+                    transition={{ duration: 0.12 }}
+                    className="fixed inset-0 z-[9999] w-screen h-screen bg-[#7a1c7d] flex items-center justify-center pointer-events-auto select-none"
                   >
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.92 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.92 }}
-                      transition={{ duration: 0.16 }}
-                      className="bg-white rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.25)] border border-black/[0.05] flex items-center justify-center p-4"
+                    <div
+                      className="bg-white rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.28)] border border-black/[0.05] flex items-center justify-center p-4"
                       style={{
                         width: '92px',
                         height: '92px',
@@ -5257,7 +5311,7 @@ export default function CBEBirrFullscreenApp() {
                         {/* Authentic CBE dots turning on & off sequentially in turn (chaser animation, matching non-USSD loading speed) */}
                         <CBEAuthenticSpinner size={40} color="#8b278e" speed={0.95} />
                       </div>
-                    </motion.div>
+                    </div>
                   </motion.div>
                 )}
               </AnimatePresence>

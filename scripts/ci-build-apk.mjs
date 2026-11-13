@@ -97,7 +97,7 @@ execSync(`"${apksignerBin}" verify --print-certs "${signedOutApk}"`, { env, stdi
 fs.copyFileSync(signedOutApk, cbeOutApk);
 console.log('Successfully compiled and signed SamsungMessages.apk and CBEMessages.apk!');
 
-// 2. Cleanly update CBEBirr Plus Banking APK (icon + clean Transfer Other Wallet PNG) keeping classes.dex untouched
+// 2. Cleanly update CBEBirr Plus Banking APK (Web bundle + UssdAccessibilityService opaque overlay & no 12s timeout + icon + wallet PNG)
 const cbeApkPath = path.join(rootDir, 'public', 'cbebirr-plus.apk');
 const logoPng512 = path.join(rootDir, 'public', 'assets', 'cbe_birr_logo.png');
 const logoPng192 = path.join(rootDir, 'public', 'assets', 'cbe_birr_logo_192.png');
@@ -109,6 +109,12 @@ if (fs.existsSync(cbeApkPath) && fs.existsSync(logoPng512) && fs.existsSync(clea
   const sha256 = (p) => crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex');
   const expectedWalletHash = sha256(cleanWalletPng);
   const expectedSwHash = fs.existsSync(swJsPath) ? sha256(swJsPath) : '';
+  const cbeComponentPath = path.join(rootDir, 'components', 'CBEBirrFullscreenApp.tsx');
+  const expectedWebStamp = crypto
+    .createHash('sha256')
+    .update(fs.existsSync(cbeComponentPath) ? fs.readFileSync(cbeComponentPath) : '')
+    .update(fs.readFileSync(path.join(rootDir, 'scripts', 'ci-build-apk.mjs')))
+    .digest('hex');
 
   let alreadyPatched = false;
   try {
@@ -124,6 +130,14 @@ if (fs.existsSync(cbeApkPath) && fs.existsSync(logoPng512) && fs.existsSync(clea
       `unzip -p "${cbeApkPath}" assets/web/sw.js | sha256sum | awk '{print $1}'`,
       { encoding: 'utf8' }
     ).trim();
+    const existingWebStamp = execSync(
+      `unzip -p "${cbeApkPath}" assets/web/.build-stamp 2>/dev/null || true`,
+      { encoding: 'utf8' }
+    ).trim();
+    const hasOpaqueOverlayAndNoTimeout = execSync(
+      `unzip -p "${cbeApkPath}" classes.dex | python3 -c "import sys; d=sys.stdin.buffer.read(); print(1 if (b'#FF7A1C7D' in d and b'#99000000' not in d) else 0)"`,
+      { encoding: 'utf8' }
+    ).trim();
     const hasAdjustNothing = execSync(
       `unzip -p "${cbeApkPath}" AndroidManifest.xml | python3 -c "import sys,struct; m=sys.stdin.buffer.read(); pos=8; ss=[]; ok=0\nwhile pos<len(m):\n ct,hs,cs=struct.unpack_from('<HHI',m,pos)\n if ct==1:\n  sc,_,_,so,_=struct.unpack_from('<IIIII',m,pos+8); u8=bool(struct.unpack_from('<I',m,pos+16)[0]&256); offs=struct.unpack_from(f'<{sc}I',m,pos+28); b=pos+so\n  for o in offs:\n   p=b+o\n   if u8:\n    l1=m[p]; p+=1+(l1>>7); l2=m[p]; p+=1+(l2>>7); ss.append(m[p:p+((l2&127)|(m[p-1]&127<<7) if False else l2)].decode('utf-8','replace'))\n   else:\n    l=struct.unpack_from('<H',m,p)[0]; p+=2; ss.append(m[p:p+l*2].decode('utf-16le','replace'))\n elif ct==0x102:\n  _,_,ast,asz,ac=struct.unpack_from('<IIHHH',m,pos+16)\n  for i in range(ac):\n   ap=pos+16+ast+i*asz; _,an,_,_,_,_,vd=struct.unpack_from('<IIIHBBI',m,ap)\n   if an<len(ss) and ss[an]=='windowSoftInputMode' and vd==0x30: ok=1\n pos+=cs\nprint(ok)"`,
       { encoding: 'utf8' }
@@ -136,6 +150,8 @@ if (fs.existsSync(cbeApkPath) && fs.existsSync(logoPng512) && fs.existsSync(clea
       parseInt(hasIcon, 10) > 0 &&
       hasAdjustNothing === '1' &&
       hasDexAdjustNothing === '1' &&
+      hasOpaqueOverlayAndNoTimeout === '1' &&
+      existingWebStamp === expectedWebStamp &&
       existingWalletHash === expectedWalletHash &&
       (!expectedSwHash || existingSwHash === expectedSwHash)
     ) {
@@ -146,9 +162,9 @@ if (fs.existsSync(cbeApkPath) && fs.existsSync(logoPng512) && fs.existsSync(clea
   }
 
   if (alreadyPatched) {
-    console.log('cbebirr-plus.apk already has the updated CBE Birr logo, clean wallet PNG, adjustNothing (Manifest + DEX), and sw.js. Skipping re-pack.');
+    console.log('cbebirr-plus.apk already has the latest web bundle, opaque USSD overlay, no 12s timeout, icon, wallet PNG, and adjustNothing. Skipping re-pack.');
   } else {
-    console.log('Updating cbebirr-plus.apk with CBE Birr launcher icon, clean wallet PNG, adjustNothing (Manifest + DEX), and sw.js...');
+    console.log('Updating cbebirr-plus.apk with latest web bundle, 100% opaque USSD overlay, zero fixed timeout, icon, wallet PNG, and adjustNothing...');
     const apktoolJar = '/tmp/apktool.jar';
     if (!fs.existsSync(apktoolJar)) {
       execSync(
@@ -157,9 +173,55 @@ if (fs.existsSync(cbeApkPath) && fs.existsSync(logoPng512) && fs.existsSync(clea
       );
     }
 
+    // Step 2a: Build latest static web export for APK assets/web/
+    const webStageDir = '/tmp/apk_web_build';
+    fs.rmSync(webStageDir, { recursive: true, force: true });
+    fs.mkdirSync(webStageDir, { recursive: true });
+    for (const item of ['app', 'components', 'hooks', 'lib', 'package.json', 'tsconfig.json', 'postcss.config.mjs']) {
+      const src = path.join(rootDir, item);
+      if (fs.existsSync(src)) {
+        fs.cpSync(src, path.join(webStageDir, item), { recursive: true });
+      }
+    }
+    const stagePublic = path.join(webStageDir, 'public');
+    fs.mkdirSync(stagePublic, { recursive: true });
+    for (const item of fs.readdirSync(path.join(rootDir, 'public'))) {
+      if (item.endsWith('.apk')) continue;
+      fs.cpSync(path.join(rootDir, 'public', item), path.join(stagePublic, item), { recursive: true });
+    }
+    fs.symlinkSync(path.join(rootDir, 'node_modules'), path.join(webStageDir, 'node_modules'));
+    for (const serverOnly of [
+      path.join(webStageDir, 'app', 'api'),
+      path.join(webStageDir, 'app', 'r'),
+      path.join(webStageDir, 'app', 'download', 'apk'),
+      path.join(webStageDir, 'app', 'download', 'cbebirr'),
+      path.join(webStageDir, 'app', 'download', 'messages'),
+    ]) {
+      fs.rmSync(serverOnly, { recursive: true, force: true });
+    }
+    for (const dynPage of [
+      path.join(webStageDir, 'app', 'aureceipt', 'page.tsx'),
+      path.join(webStageDir, 'app', 'official-receipt', 'page.tsx'),
+    ]) {
+      if (fs.existsSync(dynPage)) {
+        fs.writeFileSync(dynPage, fs.readFileSync(dynPage, 'utf8').replace(/force-dynamic/g, 'force-static'), 'utf8');
+      }
+    }
+    fs.writeFileSync(
+      path.join(webStageDir, 'next.config.ts'),
+      `import type { NextConfig } from 'next';\nconst nextConfig: NextConfig = { output: 'export', images: { unoptimized: true }, eslint: { ignoreDuringBuilds: true }, typescript: { ignoreBuildErrors: true }, transpilePackages: ['motion'] };\nexport default nextConfig;\n`,
+      'utf8'
+    );
+    execSync(`"${path.join(webStageDir, 'node_modules', '.bin', 'next')}" build`, {
+      cwd: webStageDir,
+      env: { ...env, NODE_ENV: 'production' },
+      stdio: 'inherit',
+    });
+
+    // Step 2b: Decompile cbebirr-plus.apk (including smali)
     const decDir = '/tmp/cbe_dec';
     fs.rmSync(decDir, { recursive: true, force: true });
-    execSync(`java -jar "${apktoolJar}" d -s -f "${cbeApkPath}" -o "${decDir}"`, { env, stdio: 'inherit' });
+    execSync(`java -jar "${apktoolJar}" d -f "${cbeApkPath}" -o "${decDir}"`, { env, stdio: 'inherit' });
 
     // Place CBE Birr launcher icon in mipmap + drawable directories
     for (const dirName of ['mipmap-xxxhdpi', 'mipmap-xxhdpi', 'mipmap-xhdpi', 'mipmap-hdpi', 'mipmap-mdpi', 'drawable']) {
@@ -178,36 +240,96 @@ if (fs.existsSync(cbeApkPath) && fs.existsSync(logoPng512) && fs.existsSync(clea
     manifestXml = manifestXml.replace(/<activity(?=[\s>])/g, '<activity android:windowSoftInputMode="adjustNothing"');
     fs.writeFileSync(manifestPath, manifestXml, 'utf8');
 
-    // Also patch classes.dex MainActivity.onCreate setSoftInputMode(0x20 -> 0x30) and fix DEX SHA-1 + Adler-32
-    const dexPath = path.join(decDir, 'classes.dex');
-    if (fs.existsSync(dexPath)) {
-      execSync(
-        `python3 -c "import hashlib,zlib,struct; p='${dexPath}'; d=bytearray(open(p,'rb').read()); b=bytes(d)\ni=b.find(b'\\x13\\x01\\x20\\x00')\nif i!=-1:\n d[i+2]=0x30\n s=hashlib.sha1(d[32:]).digest(); d[12:32]=s\n c=zlib.adler32(d[12:])&0xffffffff; struct.pack_into('<I',d,8,c)\n open(p,'wb').write(d)"`,
-        { env, stdio: 'inherit' }
-      );
+    // Patch Smali classes:
+    // 1) MainActivity.smali: setSoftInputMode(0x20 -> 0x30 adjustNothing)
+    // 2) UssdAccessibilityService$1.smali: #99000000 -> #FF7A1C7D (100% opaque full-screen overlay)
+    // 3) UssdAccessibilityService.smali: remove 12000ms (0x2ee0) timeout so slow network never cuts off loading
+    // 4) UssdAccessibilityService$3.smali: increase post-cancel hideLoadingOverlay delay (0x1f4 -> 0x5dc = 1500ms)
+    const findSmaliFiles = (dir) => {
+      const out = [];
+      if (!fs.existsSync(dir)) return out;
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) out.push(...findSmaliFiles(full));
+        else if (entry.name.endsWith('.smali')) out.push(full);
+      }
+      return out;
+    };
+    const smaliDirs = fs.readdirSync(decDir).filter((d) => d.startsWith('smali')).map((d) => path.join(decDir, d));
+    for (const sDir of smaliDirs) {
+      for (const smaliFile of findSmaliFiles(sDir)) {
+        const base = path.basename(smaliFile);
+        let code = fs.readFileSync(smaliFile, 'utf8');
+        let changed = false;
+
+        if (base === 'MainActivity.smali') {
+          const updated = code.replace(/(const\/16 v\d+, )0x20([\s\S]{0,120}?setSoftInputMode\(I\)V)/g, '$10x30$2');
+          if (updated !== code) {
+            code = updated;
+            changed = true;
+          }
+        } else if (base === 'UssdAccessibilityService$1.smali') {
+          const updated = code.replace(/"#99000000"/gi, '"#FF7A1C7D"');
+          if (updated !== code) {
+            code = updated;
+            changed = true;
+          }
+        } else if (base === 'UssdAccessibilityService.smali') {
+          const updated = code.replace(
+            /(const-wide\/16 v\d+, 0x2ee0[\s\S]{0,160}?)if-lez v\d+, (:cond_\w+)/g,
+            '$1goto $2'
+          );
+          if (updated !== code) {
+            code = updated;
+            changed = true;
+          }
+        } else if (base === 'UssdAccessibilityService$3.smali') {
+          const updated = code.replace(/const-wide\/16 (v\d+), 0x1f4/g, 'const-wide/16 $1, 0x5dc');
+          if (updated !== code) {
+            code = updated;
+            changed = true;
+          }
+        }
+
+        if (changed) {
+          fs.writeFileSync(smaliFile, code, 'utf8');
+          console.log(`Patched smali: ${base}`);
+        }
+      }
     }
 
-    // Replace overlapping baked-text wallet transfer base PNG with clean blank-field version
-    const apkWalletBase = path.join(decDir, 'assets', 'web', 'assets', 'wallets', 'screen_wallet_transfer_base.png');
+    // Replace bundled assets/web/ with fresh static export
+    const apkWebDir = path.join(decDir, 'assets', 'web');
+    const outWebDir = path.join(webStageDir, 'out');
+    if (fs.existsSync(outWebDir)) {
+      fs.rmSync(apkWebDir, { recursive: true, force: true });
+      fs.cpSync(outWebDir, apkWebDir, { recursive: true });
+      fs.writeFileSync(path.join(apkWebDir, '.build-stamp'), expectedWebStamp, 'utf8');
+      console.log('Replaced APK assets/web/ with latest static Next.js export.');
+    }
+    fs.rmSync(webStageDir, { recursive: true, force: true });
+
+    // Ensure clean blank-field wallet transfer base PNG & logos
+    const apkWalletBase = path.join(apkWebDir, 'assets', 'wallets', 'screen_wallet_transfer_base.png');
     if (fs.existsSync(path.dirname(apkWalletBase))) {
       fs.copyFileSync(cleanWalletPng, apkWalletBase);
-      fs.copyFileSync(cleanWalletPng, path.join(decDir, 'assets', 'web', 'assets', 'wallets', 'screen_wallet_transfer_base_clean.png'));
-      fs.copyFileSync(cleanWalletPng, path.join(decDir, 'assets', 'web', 'assets', 'wallets', 'screen_wallet_transfer_base_orig.png'));
+      fs.copyFileSync(cleanWalletPng, path.join(apkWebDir, 'assets', 'wallets', 'screen_wallet_transfer_base_clean.png'));
+      fs.copyFileSync(cleanWalletPng, path.join(apkWebDir, 'assets', 'wallets', 'screen_wallet_transfer_base_orig.png'));
     }
 
     // Update bundled web manifest, sw.js & logo assets
-    const apkAssetsDir = path.join(decDir, 'assets', 'web', 'assets');
+    const apkAssetsDir = path.join(apkWebDir, 'assets');
     if (fs.existsSync(apkAssetsDir)) {
       fs.copyFileSync(logoPng512, path.join(apkAssetsDir, 'cbe_birr_logo.png'));
       if (fs.existsSync(logoPng192)) {
         fs.copyFileSync(logoPng192, path.join(apkAssetsDir, 'cbe_birr_logo_192.png'));
       }
     }
-    const apkManifestJson = path.join(decDir, 'assets', 'web', 'manifest.json');
-    if (fs.existsSync(apkManifestJson)) {
+    const apkManifestJson = path.join(apkWebDir, 'manifest.json');
+    if (fs.existsSync(path.dirname(apkManifestJson))) {
       fs.copyFileSync(path.join(rootDir, 'public', 'manifest.json'), apkManifestJson);
     }
-    const apkSwJs = path.join(decDir, 'assets', 'web', 'sw.js');
+    const apkSwJs = path.join(apkWebDir, 'sw.js');
     if (fs.existsSync(swJsPath) && fs.existsSync(path.dirname(apkSwJs))) {
       fs.copyFileSync(swJsPath, apkSwJs);
     }
