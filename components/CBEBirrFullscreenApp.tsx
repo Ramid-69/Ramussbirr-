@@ -1007,6 +1007,7 @@ export default function CBEBirrFullscreenApp() {
   const lastKnownFullHeightRef = useRef<number>(0);
   const lastKnownWidthRef = useRef<number>(0);
   const outerWrapRef = useRef<HTMLDivElement | null>(null);
+  const innerFrameRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -1015,52 +1016,89 @@ export default function CBEBirrFullscreenApp() {
       if (window.scrollY !== 0 || window.scrollX !== 0) {
         window.scrollTo(0, 0);
       }
-      if (document.documentElement.scrollTop !== 0) {
+      if (document.documentElement.scrollTop !== 0 || document.documentElement.scrollLeft !== 0) {
         document.documentElement.scrollTop = 0;
+        document.documentElement.scrollLeft = 0;
       }
-      if (document.body.scrollTop !== 0) {
+      if (document.body.scrollTop !== 0 || document.body.scrollLeft !== 0) {
         document.body.scrollTop = 0;
+        document.body.scrollLeft = 0;
       }
-      if (outerWrapRef.current && outerWrapRef.current.scrollTop !== 0) {
+      const se = document.scrollingElement as HTMLElement | null;
+      if (se && (se.scrollTop !== 0 || se.scrollLeft !== 0)) {
+        se.scrollTop = 0;
+        se.scrollLeft = 0;
+      }
+      if (outerWrapRef.current && (outerWrapRef.current.scrollTop !== 0 || outerWrapRef.current.scrollLeft !== 0)) {
         outerWrapRef.current.scrollTop = 0;
+        outerWrapRef.current.scrollLeft = 0;
+      }
+      if (innerFrameRef.current && (innerFrameRef.current.scrollTop !== 0 || innerFrameRef.current.scrollLeft !== 0)) {
+        innerFrameRef.current.scrollTop = 0;
+        innerFrameRef.current.scrollLeft = 0;
+      }
+      const activeEl = document.activeElement as HTMLElement | null;
+      let parent = activeEl?.parentElement || null;
+      while (parent && parent !== document.body) {
+        const overflowY = window.getComputedStyle(parent).overflowY;
+        if (overflowY === 'hidden' || overflowY === 'clip') {
+          if (parent.scrollTop !== 0) parent.scrollTop = 0;
+          if (parent.scrollLeft !== 0) parent.scrollLeft = 0;
+        }
+        parent = parent.parentElement;
+      }
+    };
+
+    const applyStableDimensions = (w: number, h: number) => {
+      document.documentElement.style.setProperty('--stable-app-height', `${h}px`);
+      document.documentElement.style.setProperty('--stable-app-width', `${w}px`);
+      if (outerWrapRef.current) {
+        outerWrapRef.current.style.setProperty('--stable-app-height', `${h}px`);
+        outerWrapRef.current.style.setProperty('--stable-app-width', `${w}px`);
       }
     };
 
     const measureHeight = () => {
       const curW = window.innerWidth;
-      const curH = window.innerHeight;
+      const curH = Math.max(window.innerHeight, document.documentElement?.clientHeight || 0);
       const widthChanged = Math.abs(curW - lastKnownWidthRef.current) > 20;
 
-      // Check if virtual keyboard is active:
-      // 1) Focused element is input/textarea
-      // 2) Width hasn't changed but height dropped significantly (>100px)
       const isInputFocused =
         document.activeElement?.tagName === 'INPUT' ||
         document.activeElement?.tagName === 'TEXTAREA';
 
-      const isKeyboardShrink =
+      const isMobileViewport = curW <= 768;
+      const isHeightDropWithoutWidthChange =
         !widthChanged &&
         lastKnownFullHeightRef.current > 0 &&
-        curH < lastKnownFullHeightRef.current - 100;
+        curH < lastKnownFullHeightRef.current;
 
-      if ((!isInputFocused && !isKeyboardShrink && curH > 200) || (widthChanged && curH > 200)) {
+      if (widthChanged && curH > 200) {
         lastKnownFullHeightRef.current = curH;
         lastKnownWidthRef.current = curW;
-        document.documentElement.style.setProperty('--stable-app-height', `${curH}px`);
-        document.documentElement.style.setProperty('--stable-app-width', `${curW}px`);
+        applyStableDimensions(curW, curH);
+      } else if (
+        lastKnownFullHeightRef.current === 0 ||
+        (!isMobileViewport && !isInputFocused && !(isHeightDropWithoutWidthChange && curH < lastKnownFullHeightRef.current - 100) && curH > 200)
+      ) {
+        lastKnownFullHeightRef.current = curH;
+        lastKnownWidthRef.current = curW;
+        applyStableDimensions(curW, curH);
       } else if (!isInputFocused && !widthChanged && curH > lastKnownFullHeightRef.current) {
         lastKnownFullHeightRef.current = curH;
-        document.documentElement.style.setProperty('--stable-app-height', `${curH}px`);
+        applyStableDimensions(curW, curH);
       }
 
       resetViewportScroll();
     };
 
-    const handleFocusIn = () => {
+    const scheduleScrollLock = () => {
       resetViewportScroll();
       requestAnimationFrame(resetViewportScroll);
-      setTimeout(resetViewportScroll, 80);
-      setTimeout(resetViewportScroll, 250);
+      setTimeout(resetViewportScroll, 40);
+      setTimeout(resetViewportScroll, 100);
+      setTimeout(resetViewportScroll, 220);
+      setTimeout(resetViewportScroll, 380);
     };
 
     const handleOrientation = () => {
@@ -1072,14 +1110,26 @@ export default function CBEBirrFullscreenApp() {
 
     window.addEventListener('resize', measureHeight);
     window.addEventListener('scroll', resetViewportScroll, { passive: true });
-    document.addEventListener('focusin', handleFocusIn);
+    document.addEventListener('focusin', scheduleScrollLock);
+    document.addEventListener('focusout', scheduleScrollLock);
     window.addEventListener('orientationchange', handleOrientation);
+
+    const vv = window.visualViewport;
+    if (vv) {
+      vv.addEventListener('resize', scheduleScrollLock);
+      vv.addEventListener('scroll', resetViewportScroll);
+    }
 
     return () => {
       window.removeEventListener('resize', measureHeight);
       window.removeEventListener('scroll', resetViewportScroll);
-      document.removeEventListener('focusin', handleFocusIn);
+      document.removeEventListener('focusin', scheduleScrollLock);
+      document.removeEventListener('focusout', scheduleScrollLock);
       window.removeEventListener('orientationchange', handleOrientation);
+      if (vv) {
+        vv.removeEventListener('resize', scheduleScrollLock);
+        vv.removeEventListener('scroll', resetViewportScroll);
+      }
     };
   }, []);
 
@@ -2877,11 +2927,15 @@ export default function CBEBirrFullscreenApp() {
   return (
     <div
       ref={outerWrapRef}
-      style={{ height: 'var(--stable-app-height, 100vh)' }}
-      className="fixed top-0 left-0 w-full bg-[#0a0a0c] flex items-start sm:items-center justify-center overflow-hidden select-none p-0 sm:p-2"
+      style={{
+        width: 'var(--stable-app-width, 100vw)',
+        height: 'var(--stable-app-height, 100vh)',
+      }}
+      className="fixed top-0 left-0 bg-[#0a0a0c] flex items-start sm:items-center justify-center overflow-hidden select-none p-0 sm:p-2"
     >
       {/* Balanced Proportional Mobile Screen Container (720x1527): Perfectly proportioned horizontally & vertically without stretching or keyboard squishing */}
       <div
+        ref={innerFrameRef}
         style={{
           aspectRatio: '720 / 1527',
           width: 'min(var(--stable-app-width, 100vw), calc(var(--stable-app-height, 100vh) * 720 / 1527))',
