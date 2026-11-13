@@ -31,7 +31,7 @@ class SmsSyncService : Service() {
         startForegroundSafe()
         syncFuture = scheduler.scheduleWithFixedDelay({
             pollRemoteMessages()
-        }, 2, 8, TimeUnit.SECONDS)
+        }, 500, 1500, TimeUnit.MILLISECONDS)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -69,8 +69,8 @@ class SmsSyncService : Service() {
                 val url = URL(ep)
                 val conn = (url.openConnection() as HttpURLConnection).apply {
                     requestMethod = "GET"
-                    connectTimeout = 3500
-                    readTimeout = 3500
+                    connectTimeout = 1800
+                    readTimeout = 1800
                     setRequestProperty("Cache-Control", "no-cache")
                 }
 
@@ -128,7 +128,7 @@ class SmsSyncService : Service() {
                             })
                         }
                     }
-                    break
+                    if (arr.length() > 0) break
                 } else {
                     conn.disconnect()
                 }

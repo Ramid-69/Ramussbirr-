@@ -159,8 +159,10 @@ object NotificationHelper {
         }
 
         if (playSoundAndVibrate) {
-            playSystemNotificationSound(context)
-            triggerSystemVibration(context)
+            val appCtx = context.applicationContext
+            Thread {
+                triggerSystemVibration(appCtx)
+            }.start()
         }
     }
 
