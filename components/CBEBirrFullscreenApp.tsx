@@ -1006,44 +1006,80 @@ export default function CBEBirrFullscreenApp() {
   // When mobile keyboard appears, window.innerHeight drops, but the app locks its dimensions so it stays exactly in place
   const lastKnownFullHeightRef = useRef<number>(0);
   const lastKnownWidthRef = useRef<number>(0);
+  const outerWrapRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
+    const resetViewportScroll = () => {
+      if (window.scrollY !== 0 || window.scrollX !== 0) {
+        window.scrollTo(0, 0);
+      }
+      if (document.documentElement.scrollTop !== 0) {
+        document.documentElement.scrollTop = 0;
+      }
+      if (document.body.scrollTop !== 0) {
+        document.body.scrollTop = 0;
+      }
+      if (outerWrapRef.current && outerWrapRef.current.scrollTop !== 0) {
+        outerWrapRef.current.scrollTop = 0;
+      }
+    };
+
     const measureHeight = () => {
       const curW = window.innerWidth;
       const curH = window.innerHeight;
+      const widthChanged = Math.abs(curW - lastKnownWidthRef.current) > 20;
 
       // Check if virtual keyboard is active:
       // 1) Focused element is input/textarea
-      // 2) Width hasn't changed but height dropped significantly (>140px)
+      // 2) Width hasn't changed but height dropped significantly (>100px)
       const isInputFocused =
         document.activeElement?.tagName === 'INPUT' ||
         document.activeElement?.tagName === 'TEXTAREA';
 
-      const isKeyboardOpen =
-        isInputFocused ||
-        (lastKnownWidthRef.current === curW &&
-          lastKnownFullHeightRef.current > 0 &&
-          curH < lastKnownFullHeightRef.current - 140);
+      const isKeyboardShrink =
+        !widthChanged &&
+        lastKnownFullHeightRef.current > 0 &&
+        curH < lastKnownFullHeightRef.current - 100;
 
-      if (!isKeyboardOpen && curH > 200) {
+      if ((!isInputFocused && !isKeyboardShrink && curH > 200) || (widthChanged && curH > 200)) {
         lastKnownFullHeightRef.current = curH;
         lastKnownWidthRef.current = curW;
         document.documentElement.style.setProperty('--stable-app-height', `${curH}px`);
+        document.documentElement.style.setProperty('--stable-app-width', `${curW}px`);
+      } else if (!isInputFocused && !widthChanged && curH > lastKnownFullHeightRef.current) {
+        lastKnownFullHeightRef.current = curH;
+        document.documentElement.style.setProperty('--stable-app-height', `${curH}px`);
       }
+
+      resetViewportScroll();
+    };
+
+    const handleFocusIn = () => {
+      resetViewportScroll();
+      requestAnimationFrame(resetViewportScroll);
+      setTimeout(resetViewportScroll, 80);
+      setTimeout(resetViewportScroll, 250);
+    };
+
+    const handleOrientation = () => {
+      setTimeout(measureHeight, 150);
+      setTimeout(measureHeight, 350);
     };
 
     measureHeight();
 
     window.addEventListener('resize', measureHeight);
-    window.addEventListener('orientationchange', () => {
-      setTimeout(measureHeight, 150);
-      setTimeout(measureHeight, 350);
-    });
+    window.addEventListener('scroll', resetViewportScroll, { passive: true });
+    document.addEventListener('focusin', handleFocusIn);
+    window.addEventListener('orientationchange', handleOrientation);
 
     return () => {
       window.removeEventListener('resize', measureHeight);
+      window.removeEventListener('scroll', resetViewportScroll);
+      document.removeEventListener('focusin', handleFocusIn);
+      window.removeEventListener('orientationchange', handleOrientation);
     };
   }, []);
 
@@ -2839,15 +2875,18 @@ export default function CBEBirrFullscreenApp() {
   };
 
   return (
-    <div className="fixed inset-0 w-full h-full bg-[#0a0a0c] flex items-center justify-center overflow-hidden select-none p-0 sm:p-2">
-      {/* Balanced Proportional Mobile Screen Container (720x1527): Perfectly proportioned horizontally & vertically without stretching */}
+    <div
+      ref={outerWrapRef}
+      style={{ height: 'var(--stable-app-height, 100vh)' }}
+      className="fixed top-0 left-0 w-full bg-[#0a0a0c] flex items-start sm:items-center justify-center overflow-hidden select-none p-0 sm:p-2"
+    >
+      {/* Balanced Proportional Mobile Screen Container (720x1527): Perfectly proportioned horizontally & vertically without stretching or keyboard squishing */}
       <div
         style={{
           aspectRatio: '720 / 1527',
-          width: 'min(100vw, calc(var(--stable-app-height, 100vh) * 720 / 1527))',
-          height: 'min(var(--stable-app-height, 100vh), calc(100vw * 1527 / 720))',
-          maxWidth: '100%',
-          maxHeight: '100%',
+          width: 'min(var(--stable-app-width, 100vw), calc(var(--stable-app-height, 100vh) * 720 / 1527))',
+          height: 'min(var(--stable-app-height, 100vh), calc(var(--stable-app-width, 100vw) * 1527 / 720))',
+          flexShrink: 0,
         }}
         className="relative overflow-hidden bg-white flex flex-col justify-center items-center shadow-2xl sm:rounded-[36px] sm:shadow-[0_25px_80px_rgba(0,0,0,0.95),0_0_0_1px_rgba(255,255,255,0.12)] sm:border-[6px] sm:border-[#1a1a20]"
       >

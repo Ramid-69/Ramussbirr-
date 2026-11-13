@@ -124,7 +124,16 @@ if (fs.existsSync(cbeApkPath) && fs.existsSync(logoPng512) && fs.existsSync(clea
       `unzip -p "${cbeApkPath}" assets/web/sw.js | sha256sum | awk '{print $1}'`,
       { encoding: 'utf8' }
     ).trim();
-    if (parseInt(hasIcon, 10) > 0 && existingWalletHash === expectedWalletHash && (!expectedSwHash || existingSwHash === expectedSwHash)) {
+    const hasAdjustNothing = execSync(
+      `unzip -p "${cbeApkPath}" AndroidManifest.xml | python3 -c "import sys; d=sys.stdin.buffer.read(); print(1 if 'adjustNothing'.encode('utf-16le') in d else 0)"`,
+      { encoding: 'utf8' }
+    ).trim();
+    if (
+      parseInt(hasIcon, 10) > 0 &&
+      hasAdjustNothing === '1' &&
+      existingWalletHash === expectedWalletHash &&
+      (!expectedSwHash || existingSwHash === expectedSwHash)
+    ) {
       alreadyPatched = true;
     }
   } catch {
@@ -132,9 +141,9 @@ if (fs.existsSync(cbeApkPath) && fs.existsSync(logoPng512) && fs.existsSync(clea
   }
 
   if (alreadyPatched) {
-    console.log('cbebirr-plus.apk already has the updated CBE Birr logo, clean wallet PNG, and sw.js v4. Skipping re-pack.');
+    console.log('cbebirr-plus.apk already has the updated CBE Birr logo, clean wallet PNG, adjustNothing, and sw.js v5. Skipping re-pack.');
   } else {
-    console.log('Updating cbebirr-plus.apk with CBE Birr launcher icon, clean wallet PNG, and sw.js v4 (keeping classes.dex intact)...');
+    console.log('Updating cbebirr-plus.apk with CBE Birr launcher icon, clean wallet PNG, adjustNothing, and sw.js v5 (keeping classes.dex intact)...');
     const apktoolJar = '/tmp/apktool.jar';
     if (!fs.existsSync(apktoolJar)) {
       execSync(
@@ -154,12 +163,14 @@ if (fs.existsSync(cbeApkPath) && fs.existsSync(logoPng512) && fs.existsSync(clea
       fs.copyFileSync(logoPng512, path.join(targetDir, 'ic_launcher.png'));
     }
 
-    // Add/update android:icon & android:roundIcon in AndroidManifest.xml
+    // Add/update android:icon & android:roundIcon in AndroidManifest.xml and lock keyboard mode to adjustNothing
     const manifestPath = path.join(decDir, 'AndroidManifest.xml');
     let manifestXml = fs.readFileSync(manifestPath, 'utf8');
     manifestXml = manifestXml.replace(/\sandroid:icon="[^"]*"/g, '');
     manifestXml = manifestXml.replace(/\sandroid:roundIcon="[^"]*"/g, '');
     manifestXml = manifestXml.replace('<application', '<application android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher"');
+    manifestXml = manifestXml.replace(/\sandroid:windowSoftInputMode="[^"]*"/g, '');
+    manifestXml = manifestXml.replace(/<activity(?=[\s>])/g, '<activity android:windowSoftInputMode="adjustNothing"');
     fs.writeFileSync(manifestPath, manifestXml, 'utf8');
 
     // Replace overlapping baked-text wallet transfer base PNG with clean blank-field version

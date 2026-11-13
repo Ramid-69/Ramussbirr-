@@ -12,6 +12,7 @@
 
   :root {
     --stable-app-height: 100vh;
+    --stable-app-width: 100vw;
   }
 
   html,
@@ -23,6 +24,7 @@
     width: 100%;
     height: 100%;
     overflow: hidden;
+    overscroll-behavior: none;
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
   }
