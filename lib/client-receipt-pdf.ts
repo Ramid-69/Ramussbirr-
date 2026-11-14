@@ -83,46 +83,7 @@ export async function generateClientReceiptPdf(data: ReceiptData): Promise<{ blo
   const total = data.totalPaid && parseFloat(data.totalPaid) > 0 ? parseFloat(data.totalPaid).toFixed(2) : formattedAmt;
   const words = amountToWords(parseFloat(total) || amtNum);
 
-  // 1. If DOM already has #official-vat-receipt-svg, rasterize it directly
-  const svgEl = typeof document !== 'undefined' ? (document.getElementById('official-vat-receipt-svg') as SVGSVGElement | null) : null;
-  if (svgEl) {
-    try {
-      const xml = new XMLSerializer().serializeToString(svgEl);
-      const svg64 = btoa(unescape(encodeURIComponent(xml)));
-      const image64 = `data:image/svg+xml;base64,${svg64}`;
-
-      const img = new Image();
-      const loaded = new Promise<HTMLImageElement>((resolve, reject) => {
-        img.onload = () => resolve(img);
-        img.onerror = reject;
-        img.src = image64;
-      });
-
-      const loadedImg = await loaded;
-      const canvas = document.createElement('canvas');
-      canvas.width = 1330;
-      canvas.height = 1824;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(loadedImg, 0, 0, canvas.width, canvas.height);
-        const pngDataUrl = canvas.toDataURL('image/png', 0.95);
-
-        const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-        doc.addImage(pngDataUrl, 'PNG', 0, 0, 210, 288, undefined, 'FAST');
-
-        const arrayBuffer = doc.output('arraybuffer');
-        const blob = new Blob([arrayBuffer], { type: 'application/pdf' });
-        const base64 = doc.output('datauristring').split(',')[1] || '';
-        return { blob, base64 };
-      }
-    } catch (e) {
-      console.warn('DOM SVG rasterization fallback:', e);
-    }
-  }
-
-  // 2. Offscreen Canvas composite using /screens/official_receipt_hq.png
+  // Offscreen Canvas composite using /screens/official_receipt_hq.png + crisp 33x33 Version 4 live QR
   return new Promise<{ blob: Blob; base64: string }>((resolve, reject) => {
     const bgImg = new Image();
     bgImg.crossOrigin = 'anonymous';

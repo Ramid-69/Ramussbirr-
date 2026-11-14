@@ -1025,7 +1025,14 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
     let origin = 'https://ramussbirr.vercel.app';
     if (typeof window !== 'undefined' && window.location?.origin) {
       const locOrigin = window.location.origin;
-      if (!locOrigin.includes('0.0.0.0') && !locOrigin.includes('localhost') && !locOrigin.includes('127.0.0.1')) {
+      if (
+        locOrigin.startsWith('http') &&
+        !locOrigin.includes('0.0.0.0') &&
+        !locOrigin.includes('localhost') &&
+        !locOrigin.includes('127.0.0.1') &&
+        !locOrigin.includes('appassets.androidplatform.net') &&
+        !locOrigin.includes('file:')
+      ) {
         origin = locOrigin;
       }
     }

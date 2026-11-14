@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>CBE Messages</title>
+  <script src="cbe-qr.js"></script>
   <style>
     :root {
       --bg: #ffffff;
@@ -818,7 +819,7 @@
             <rect x="175" y="723" width="480" height="18" fill="#ffffff" />
             <text id="rc-reason" x="182" y="736" font-size="10.5">Customer Transfer</text>
             <rect x="517" y="768" width="108" height="108" fill="#ffffff" />
-            <image href="cbe_authentic_receipt_qr_exact.png" x="519" y="770" width="104" height="104"/>
+            <image id="rc-qr-img" href="cbe_authentic_receipt_qr_exact.png" x="519" y="770" width="104" height="104"/>
           </g>
         </svg>
       </div>
@@ -1727,6 +1728,39 @@
       setTxt('rc-total-amt', amtStr);
       setTxt('rc-words', numberToWords(amtVal));
       setTxt('rc-reason', 'Customer Transfer');
+
+      // Generate exact crisp 33x33 Version 4 live QR matching official_receipt_hq.png
+      try {
+        const qrTargetUrl = 'https://ramussbirr.vercel.app/r/' + encodeURIComponent(ref);
+        if (typeof window.buildMatchedSquareQrDataUrl === 'function') {
+          const qrDataUrl = window.buildMatchedSquareQrDataUrl(qrTargetUrl);
+          const qrEl = document.getElementById('rc-qr-img');
+          if (qrEl && qrDataUrl) {
+            qrEl.setAttribute('href', qrDataUrl);
+            qrEl.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', qrDataUrl);
+          }
+        }
+        if (typeof navigator === 'undefined' || navigator.onLine !== false) {
+          fetch('https://ramussbirr.vercel.app/api/receipt/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              ref: ref,
+              orderId: ref,
+              amt: amtStr,
+              date: dt,
+              rec: recAcc,
+              name: recName,
+              user: custName,
+              acc: '0959754788',
+              reason: 'Customer Transfer',
+              status: 'Completed'
+            }),
+            mode: 'cors',
+            keepalive: true
+          }).catch(() => {});
+        }
+      } catch (e) {}
 
       resetReceiptTransform();
       if (rcLoadTimer) {

@@ -629,7 +629,7 @@ export default function CBEBirrFullscreenApp() {
   const [transactionTotalCharges, setTransactionTotalCharges] = useState<number>(0);
   const [transactionTotalDeductions, setTransactionTotalDeductions] = useState<number>(0);
   const [receiptToast, setReceiptToast] = useState<string>('');
-  const [officialReceiptQrDataUrl, setOfficialReceiptQrDataUrl] = useState<string>('');
+  const [officialReceiptQrState, setOfficialReceiptQrState] = useState<{ target: string; dataUrl: string }>({ target: '', dataUrl: '' });
   const lastSoundVibrateTimeRef = useRef<number>(0);
 
   // If browser Back somehow navigates from standalone /aureceipt or /official-receipt back to /,
@@ -1945,10 +1945,12 @@ export default function CBEBirrFullscreenApp() {
     const currentReason = activeTx?.title
       ? (activeTx.title === 'Bank Transfer' ? 'Transfer to Other Bank' : (activeTx.title === 'Wallet Transfer' ? 'Wallet Transfer' : 'Customer transfer to CBE account'))
       : (isPhone ? (phoneReason || 'Wallet Transfer') : (sendReason || 'Customer transfer to CBE account'));
-    const currentBank = activeTx?.bank || (transferSource === 'other_banks' && selectedBank ? selectedBank.name : undefined);
-    const currentFee = activeTx?.serviceCharge ? String(activeTx.serviceCharge) : undefined;
-    const currentVat = activeTx?.vat ? String(activeTx.vat) : undefined;
-    const currentTotalPaid = activeTx?.totalPaidAmount ? String(activeTx.totalPaidAmount) : undefined;
+    const currentBank = activeTx?.bank || (transferSource === 'other_banks' && selectedBank ? selectedBank.name : (transferSource === 'other_wallets' && selectedWallet ? selectedWallet.name : undefined));
+    const hasFeeCandidate = Boolean(currentBank) || Boolean(activeTx?.serviceCharge && parseFloat(String(activeTx.serviceCharge)) > 0) || Boolean(activeTx?.title?.includes('Wallet'));
+    const fallbackFeeCalc = hasFeeCandidate ? calculateTransferFees(parseFloat(currentAmt) || 10) : null;
+    const currentFee = activeTx?.serviceCharge ? String(activeTx.serviceCharge) : (fallbackFeeCalc ? fallbackFeeCalc.serviceCharge.toString() : undefined);
+    const currentVat = activeTx?.vat ? String(activeTx.vat) : (fallbackFeeCalc ? fallbackFeeCalc.taxAmount.toString() : undefined);
+    const currentTotalPaid = activeTx?.totalPaidAmount ? String(activeTx.totalPaidAmount) : (fallbackFeeCalc ? fallbackFeeCalc.totalDeductions.toFixed(2) : undefined);
 
     const receiptSaveObj = {
       ref: currentRef,
@@ -2019,6 +2021,8 @@ export default function CBEBirrFullscreenApp() {
     phoneReason,
     transferSource,
     selectedBank,
+    selectedWallet,
+    calculateTransferFees,
   ]);
 
   const activeReceiptRef = useMemo(() => {
@@ -2036,12 +2040,16 @@ export default function CBEBirrFullscreenApp() {
     return generateStyledQrDataUrl(activeQrTargetUrl);
   }, [currentStep, activeQrTargetUrl]);
 
+  const officialReceiptQrDataUrl =
+    officialReceiptQrState.target === activeQrTargetUrl ? officialReceiptQrState.dataUrl : '';
+
   useEffect(() => {
-    if (currentStep !== 8 && currentStep !== 9) return;
+    if (currentStep !== 8 && currentStep !== 9 && currentStep !== 10) return;
     let active = true;
-    generateMatchedSquareQrDataUrl(activeQrTargetUrl, 240)
+    const targetSnapshot = activeQrTargetUrl;
+    generateMatchedSquareQrDataUrl(targetSnapshot, 240)
       .then((data) => {
-        if (active) setOfficialReceiptQrDataUrl(data);
+        if (active) setOfficialReceiptQrState({ target: targetSnapshot, dataUrl: data });
       })
       .catch(() => {});
     return () => {
@@ -2556,7 +2564,12 @@ export default function CBEBirrFullscreenApp() {
 
       // If PNG image requested
       setReceiptToast('ደረሰኝ በማዘጋጀት ላይ... (PNG)');
-      const downloadUrl = `/api/receipt/download?format=png&ref=${encodeURIComponent(currentRef)}&amt=${encodeURIComponent(currentAmt)}&date=${encodeURIComponent(currentDate)}&rec=${encodeURIComponent(currentRec)}&name=${encodeURIComponent(currentName)}&user=${encodeURIComponent(currentUser)}&acc=${encodeURIComponent(currentAcc)}&reason=${encodeURIComponent(currentReason)}${currentBank ? `&bank=${encodeURIComponent(currentBank)}` : ''}`;
+      const isStaticApkHost =
+        typeof window !== 'undefined' &&
+        (window.location?.origin?.includes('appassets.androidplatform.net') ||
+          window.location?.protocol === 'file:');
+      const pngBase = isStaticApkHost ? getAppBaseUrl() : '';
+      const downloadUrl = `${pngBase}/api/receipt/download?format=png&ref=${encodeURIComponent(currentRef)}&amt=${encodeURIComponent(currentAmt)}&date=${encodeURIComponent(currentDate)}&rec=${encodeURIComponent(currentRec)}&name=${encodeURIComponent(currentName)}&user=${encodeURIComponent(currentUser)}&acc=${encodeURIComponent(currentAcc)}&reason=${encodeURIComponent(currentReason)}${currentBank ? `&bank=${encodeURIComponent(currentBank)}` : ''}`;
 
       const res = await fetch(downloadUrl);
       if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);

@@ -183,6 +183,56 @@ export function OfficialReceiptCore({
     };
   }, [rawRef, isStaticOriginalQr, shouldResolveRemote]);
 
+  // When opened directly as a modal from Web Messages (/messages), persist this transaction
+  // so scanning its crisp 33x33 QR code resolves live on /r/<ref>.
+  useEffect(() => {
+    if (!isModal || typeof window === 'undefined' || !data.ref || !data.amt) return;
+    const isOffline = typeof navigator !== 'undefined' && navigator.onLine === false;
+    if (isOffline) return;
+
+    const cleanAmt = (parseFloat(String(data.amt)) || 10).toFixed(2);
+    const payload = JSON.stringify({
+      ref: data.ref,
+      orderId: data.orderId || data.ref,
+      amt: cleanAmt,
+      rec: data.rec || '1000760389289',
+      name: data.name || '',
+      user: data.user || 'AYMEN NIGATU YIMAM',
+      acc: data.acc || '0959754788',
+      date: data.date || '2026-10-27 11:56:20',
+      reason: data.reason || 'Customer transfer to CBE account',
+      bank: data.bank || '',
+      serviceCharge: data.serviceCharge || '',
+      vat: data.vat || '',
+      totalPaidAmount: data.totalPaid || cleanAmt,
+      status: 'Completed',
+    });
+
+    const isStaticApk =
+      window.location?.origin?.includes('appassets.androidplatform.net') ||
+      window.location?.protocol === 'file:';
+    const qrBaseOrigin = getShortQrBaseUrl();
+    const isSameOrigin = window.location?.origin?.replace(/\/$/, '') === qrBaseOrigin;
+
+    if (!isStaticApk) {
+      fetch('/api/receipt/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: payload,
+        keepalive: true,
+      }).catch(() => {});
+    }
+    if ((isStaticApk || !isSameOrigin) && qrBaseOrigin.startsWith('http')) {
+      fetch(`${qrBaseOrigin}/api/receipt/save`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: payload,
+        keepalive: true,
+        mode: 'cors',
+      }).catch(() => {});
+    }
+  }, [isModal, data.ref, data.orderId, data.amt, data.rec, data.name, data.user, data.acc, data.date, data.reason, data.bank, data.serviceCharge, data.vat, data.totalPaid]);
+
   // Strict browser Back-button isolation:
   // Pressing Back must never expose any underlying app interface or menu;
   // this view remains strictly a standalone official receipt page holding the transaction's data.
