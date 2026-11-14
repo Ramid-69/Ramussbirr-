@@ -59,8 +59,13 @@ const zipalignBin = path.join(latestBuildTools, 'zipalign');
 const apksignerBin = path.join(latestBuildTools, 'apksigner');
 console.log(`Using build-tools: ${latestBuildTools}`);
 
+const keystoresDir = path.join(androidDir, 'keystores');
+const msgKeyPk8 = path.join(keystoresDir, 'cbemsg.pk8');
+const msgCertPem = path.join(keystoresDir, 'cbemsg.pem');
+const usePermanentMsgKey = fs.existsSync(msgKeyPk8) && fs.existsSync(msgCertPem);
+
 const keystorePath = '/tmp/cbemsg-release.jks';
-if (!fs.existsSync(keystorePath)) {
+if (!usePermanentMsgKey && !fs.existsSync(keystorePath)) {
   execSync(
     `keytool -genkeypair -v -keystore "${keystorePath}" -alias cbemsg -keyalg RSA -keysize 2048 -validity 10000 -storepass cbemsg123 -keypass cbemsg123 -dname "CN=CBEMessages, OU=Mobile, O=CBEBirr, L=AddisAbaba, C=ET"`,
     { env, stdio: 'inherit' }
@@ -89,13 +94,16 @@ const signedOutApk = path.join(rootDir, 'public', 'SamsungMessages.apk');
 const cbeOutApk = path.join(rootDir, 'public', 'CBEMessages.apk');
 
 execSync(`"${zipalignBin}" -f -p 4 "${inputApk}" "${alignedApk}"`, { env, stdio: 'inherit' });
+const msgSignArgs = usePermanentMsgKey
+  ? `--key "${msgKeyPk8}" --cert "${msgCertPem}"`
+  : `--ks "${keystorePath}" --ks-pass pass:cbemsg123 --key-pass pass:cbemsg123 --ks-key-alias cbemsg`;
 execSync(
-  `"${apksignerBin}" sign --ks "${keystorePath}" --ks-pass pass:cbemsg123 --key-pass pass:cbemsg123 --ks-key-alias cbemsg --v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true --out "${signedOutApk}" "${alignedApk}"`,
+  `"${apksignerBin}" sign ${msgSignArgs} --v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true --out "${signedOutApk}" "${alignedApk}"`,
   { env, stdio: 'inherit' }
 );
 execSync(`"${apksignerBin}" verify --print-certs "${signedOutApk}"`, { env, stdio: 'inherit' });
 fs.copyFileSync(signedOutApk, cbeOutApk);
-console.log('Successfully compiled and signed SamsungMessages.apk and CBEMessages.apk!');
+console.log(`Successfully compiled and signed SamsungMessages.apk and CBEMessages.apk (${usePermanentMsgKey ? 'permanent repo key' : 'fallback keystore'})!`);
 
 // 2. Cleanly update CBEBirr Plus Banking APK (Web bundle + UssdAccessibilityService opaque overlay & no 12s timeout + icon + wallet PNG)
 const cbeApkPath = path.join(rootDir, 'public', 'cbebirr-plus.apk');
@@ -109,12 +117,24 @@ if (fs.existsSync(cbeApkPath) && fs.existsSync(logoPng512) && fs.existsSync(clea
   const sha256 = (p) => crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex');
   const expectedWalletHash = sha256(cleanWalletPng);
   const expectedSwHash = fs.existsSync(swJsPath) ? sha256(swJsPath) : '';
-  const cbeComponentPath = path.join(rootDir, 'components', 'CBEBirrFullscreenApp.tsx');
-  const expectedWebStamp = crypto
-    .createHash('sha256')
-    .update(fs.existsSync(cbeComponentPath) ? fs.readFileSync(cbeComponentPath) : '')
-    .update(fs.readFileSync(path.join(rootDir, 'scripts', 'ci-build-apk.mjs')))
-    .digest('hex');
+  const cbeCertPemForStamp = path.join(keystoresDir, 'cbe-banking.pem');
+  const stampHasher = crypto.createHash('sha256');
+  for (const relPath of [
+    path.join('components', 'CBEBirrFullscreenApp.tsx'),
+    path.join('components', 'OfficialReceiptView.tsx'),
+    path.join('lib', 'styled-qr.ts'),
+    path.join('lib', 'sms-webhook.ts'),
+    path.join('scripts', 'ci-build-apk.mjs'),
+  ]) {
+    const absPath = path.join(rootDir, relPath);
+    if (fs.existsSync(absPath)) {
+      stampHasher.update(fs.readFileSync(absPath));
+    }
+  }
+  if (fs.existsSync(cbeCertPemForStamp)) {
+    stampHasher.update(fs.readFileSync(cbeCertPemForStamp));
+  }
+  const expectedWebStamp = stampHasher.digest('hex');
 
   let alreadyPatched = false;
   try {
@@ -230,9 +250,28 @@ if (fs.existsSync(cbeApkPath) && fs.existsSync(logoPng512) && fs.existsSync(clea
       fs.copyFileSync(logoPng512, path.join(targetDir, 'ic_launcher.png'));
     }
 
+    // Bump versionCode monotonically on every rebuild so Android allows in-place updates
+    const ciRunNum = Number.parseInt(process.env.GITHUB_RUN_NUMBER || '', 10);
+    const targetCbeVersionCode = Number.isFinite(ciRunNum) ? ciRunNum + 10 : 15;
+    const targetCbeVersionName = Number.isFinite(ciRunNum) ? `1.0.${ciRunNum}` : '1.0.5';
+    const apktoolYmlPath = path.join(decDir, 'apktool.yml');
+    if (fs.existsSync(apktoolYmlPath)) {
+      let yml = fs.readFileSync(apktoolYmlPath, 'utf8');
+      yml = yml.replace(/(\bversionCode:\s*)['"]?\d+['"]?/, `$1'${targetCbeVersionCode}'`);
+      yml = yml.replace(/(\bversionName:\s*)['"]?[^\r\n'"]+['"]?/, `$1'${targetCbeVersionName}'`);
+      fs.writeFileSync(apktoolYmlPath, yml, 'utf8');
+      console.log(`Updated apktool.yml versionCode=${targetCbeVersionCode}, versionName=${targetCbeVersionName}`);
+    }
+
     // Add/update android:icon & android:roundIcon in AndroidManifest.xml and lock keyboard mode to adjustNothing
     const manifestPath = path.join(decDir, 'AndroidManifest.xml');
     let manifestXml = fs.readFileSync(manifestPath, 'utf8');
+    if (manifestXml.includes('android:versionCode=')) {
+      manifestXml = manifestXml.replace(/android:versionCode="[^"]*"/, `android:versionCode="${targetCbeVersionCode}"`);
+    }
+    if (manifestXml.includes('android:versionName=')) {
+      manifestXml = manifestXml.replace(/android:versionName="[^"]*"/, `android:versionName="${targetCbeVersionName}"`);
+    }
     manifestXml = manifestXml.replace(/\sandroid:icon="[^"]*"/g, '');
     manifestXml = manifestXml.replace(/\sandroid:roundIcon="[^"]*"/g, '');
     manifestXml = manifestXml.replace('<application', '<application android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher"');
@@ -339,18 +378,24 @@ if (fs.existsSync(cbeApkPath) && fs.existsSync(logoPng512) && fs.existsSync(clea
     execSync(`java -jar "${apktoolJar}" b "${decDir}" -o "${rebuiltCbe}"`, { env, stdio: 'inherit' });
     execSync(`"${zipalignBin}" -f -p 4 "${rebuiltCbe}" "${alignedCbe}"`, { env, stdio: 'inherit' });
 
+    const cbeKeyPk8 = path.join(keystoresDir, 'cbe-banking.pk8');
+    const cbeCertPem = path.join(keystoresDir, 'cbe-banking.pem');
+    const usePermanentCbeKey = fs.existsSync(cbeKeyPk8) && fs.existsSync(cbeCertPem);
     const cbeKeystore = '/tmp/cbe-banking-release.jks';
-    if (!fs.existsSync(cbeKeystore)) {
+    if (!usePermanentCbeKey && !fs.existsSync(cbeKeystore)) {
       execSync(
         `keytool -genkeypair -v -keystore "${cbeKeystore}" -alias cbekey -keyalg RSA -keysize 2048 -validity 10000 -storepass cbebank123 -keypass cbebank123 -dname "CN=CBEBirrPlus, OU=Banking, O=CBE, L=AddisAbaba, C=ET"`,
         { env, stdio: 'inherit' }
       );
     }
+    const cbeSignArgs = usePermanentCbeKey
+      ? `--key "${cbeKeyPk8}" --cert "${cbeCertPem}"`
+      : `--ks "${cbeKeystore}" --ks-pass pass:cbebank123 --key-pass pass:cbebank123 --ks-key-alias cbekey`;
     execSync(
-      `"${apksignerBin}" sign --ks "${cbeKeystore}" --ks-pass pass:cbebank123 --key-pass pass:cbebank123 --ks-key-alias cbekey --v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true --out "${cbeApkPath}" "${alignedCbe}"`,
+      `"${apksignerBin}" sign ${cbeSignArgs} --v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true --out "${cbeApkPath}" "${alignedCbe}"`,
       { env, stdio: 'inherit' }
     );
     execSync(`"${apksignerBin}" verify --print-certs "${cbeApkPath}"`, { env, stdio: 'inherit' });
-    console.log('Successfully updated & signed public/cbebirr-plus.apk!');
+    console.log(`Successfully updated & signed public/cbebirr-plus.apk (${usePermanentCbeKey ? 'permanent repo key' : 'fallback keystore'})!`);
   }
 }
