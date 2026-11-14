@@ -276,19 +276,7 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
       });
     }
   };
-  const [deviceId, setDeviceId] = useState<string>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        let stored = localStorage.getItem('cbe_device_id');
-        if (!stored) {
-          stored = 'cbe-dev-' + Math.random().toString(36).substring(2, 10);
-          localStorage.setItem('cbe_device_id', stored);
-        }
-        return stored;
-      } catch {}
-    }
-    return 'cbe-samsung-galaxy-device-01';
-  });
+  const [deviceId, setDeviceId] = useState<string>('cbe-samsung-galaxy-device-01');
 
   const [devFullName, setDevFullName] = useState('AYMEN NIGATU YIMAM');
   const [devAmount, setDevAmount] = useState('300.00');
@@ -299,16 +287,30 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
   const [devDepositBalance, setDevDepositBalance] = useState('503.99');
 
   // Android Default SMS App Dialog matching user screenshot (image.png)
-  const [showDefaultSmsDialog, setShowDefaultSmsDialog] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
+  const [showDefaultSmsDialog, setShowDefaultSmsDialog] = useState<boolean>(false);
+  const [currentOrigin, setCurrentOrigin] = useState<string>('http://localhost:3000');
+
+  useEffect(() => {
+    let active = true;
+    Promise.resolve().then(() => {
+      if (!active) return;
       try {
-        return !localStorage.getItem('has_prompted_default_sms_app');
-      } catch {
-        return false;
-      }
-    }
-    return false;
-  });
+        setCurrentOrigin(window.location.origin);
+        let stored = localStorage.getItem('cbe_device_id');
+        if (!stored) {
+          stored = 'cbe-dev-' + Math.random().toString(36).substring(2, 10);
+          localStorage.setItem('cbe_device_id', stored);
+        }
+        setDeviceId(stored);
+        if (!localStorage.getItem('has_prompted_default_sms_app')) {
+          setShowDefaultSmsDialog(true);
+        }
+      } catch {}
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
   const [selectedDefaultApp, setSelectedDefaultApp] = useState<'assistant' | 'current' | 'cbe_messages' | 'third_party'>('cbe_messages');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -1203,7 +1205,6 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
     );
   };
 
-  const currentOrigin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
   const curlCommand = `curl -X POST "${currentOrigin}/api/sms/cbebirr" \\
   -H "Content-Type: application/json" \\
   -H "x-api-key: Ram69" \\
@@ -1983,7 +1984,7 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
                     {/* Plain Date Separator matching Screenshot 6 */}
                     {index === 0 || (index > 0 && currentMessages[index - 1].timestamp !== msg.timestamp) ? (
                       <div className="text-center my-3 text-xs font-semibold text-slate-700 dark:text-slate-300">
-                        {msg.date ? new Date(msg.date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }) : 'Thursday, October 29'}
+                        {msg.date ? new Date(msg.date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' }) : 'Thursday, October 29'}
                       </div>
                     ) : null}
 

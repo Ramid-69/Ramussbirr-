@@ -119,17 +119,28 @@ if (fs.existsSync(cbeApkPath) && fs.existsSync(logoPng512) && fs.existsSync(clea
   const expectedSwHash = fs.existsSync(swJsPath) ? sha256(swJsPath) : '';
   const cbeCertPemForStamp = path.join(keystoresDir, 'cbe-banking.pem');
   const stampHasher = crypto.createHash('sha256');
+  const hashRecursive = (targetPath) => {
+    if (!fs.existsSync(targetPath)) return;
+    const stat = fs.statSync(targetPath);
+    if (stat.isDirectory()) {
+      for (const entry of fs.readdirSync(targetPath).sort()) {
+        hashRecursive(path.join(targetPath, entry));
+      }
+    } else {
+      stampHasher.update(path.relative(rootDir, targetPath));
+      stampHasher.update(fs.readFileSync(targetPath));
+    }
+  };
   for (const relPath of [
-    path.join('components', 'CBEBirrFullscreenApp.tsx'),
-    path.join('components', 'OfficialReceiptView.tsx'),
-    path.join('lib', 'styled-qr.ts'),
-    path.join('lib', 'sms-webhook.ts'),
+    'app',
+    'components',
+    'lib',
+    'hooks',
+    path.join('public', 'sw.js'),
+    path.join('public', 'screens'),
     path.join('scripts', 'ci-build-apk.mjs'),
   ]) {
-    const absPath = path.join(rootDir, relPath);
-    if (fs.existsSync(absPath)) {
-      stampHasher.update(fs.readFileSync(absPath));
-    }
+    hashRecursive(path.join(rootDir, relPath));
   }
   if (fs.existsSync(cbeCertPemForStamp)) {
     stampHasher.update(fs.readFileSync(cbeCertPemForStamp));

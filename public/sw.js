@@ -1,5 +1,9 @@
-// CBEBirr Service Worker for 0.01s Instant Offline PWA Support
-const CACHE_NAME = 'cbebirr-cache-v9';
+// CBEBirr Service Worker for Instant Offline PWA Support & Live Updates
+const CACHE_NAME = 'cbebirr-cache-v11';
+const IS_DEV_HOST =
+  self.location.hostname.startsWith('ais-dev-') ||
+  self.location.hostname === 'localhost' ||
+  self.location.hostname === '127.0.0.1';
 
 const STATIC_ASSETS = [
   '/',
@@ -31,6 +35,10 @@ const STATIC_ASSETS = [
 ];
 
 self.addEventListener('install', (event) => {
+  if (IS_DEV_HOST) {
+    self.skipWaiting();
+    return;
+  }
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return Promise.allSettled(
@@ -48,7 +56,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((keys) => {
       return Promise.all(
         keys.map((key) => {
-          if (key !== CACHE_NAME) {
+          if (IS_DEV_HOST || key !== CACHE_NAME) {
             return caches.delete(key);
           }
         })
@@ -59,21 +67,44 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  const req = event.request;
-  const url = new URL(req.url);
-
-  // Skip non-GET requests or dynamic API endpoints
-  if (req.method !== 'GET' || url.pathname.startsWith('/api/') || url.pathname.startsWith('/download/')) {
+  if (IS_DEV_HOST) {
     return;
   }
 
-  // Instant Cache-First for static assets & Next.js chunks (0.01s offline launch)
-  const isImmutableAsset =
-    url.pathname.startsWith('/_next/static/') ||
-    url.pathname.startsWith('/assets/') ||
-    url.pathname.startsWith('/screens/');
+  const req = event.request;
+  const url = new URL(req.url);
 
-  if (isImmutableAsset) {
+  // Skip non-GET requests, dynamic API endpoints, or APK binaries
+  if (
+    req.method !== 'GET' ||
+    url.pathname.startsWith('/api/') ||
+    url.pathname.startsWith('/download/') ||
+    url.pathname.endsWith('.apk')
+  ) {
+    return;
+  }
+
+  // Immutable hashed Next.js JS/CSS chunks: Cache-First ONLY when content-hashed (never unhashed dev chunks)
+  if (url.pathname.startsWith('/_next/static/')) {
+    const isContentHashed =
+      /[.-][0-9a-f]{8,}\.(js|css|woff2?|png|svg|ico)$/i.test(url.pathname) ||
+      url.hostname.includes('appassets.androidplatform.net');
+
+    if (!isContentHashed || url.searchParams.has('v')) {
+      event.respondWith(
+        fetch(req)
+          .then((networkResponse) => {
+            if (networkResponse && networkResponse.status === 200) {
+              const copy = networkResponse.clone();
+              caches.open(CACHE_NAME).then((cache) => cache.put(req, copy));
+            }
+            return networkResponse;
+          })
+          .catch(() => caches.match(req))
+      );
+      return;
+    }
+
     event.respondWith(
       caches.match(req).then((cachedResponse) => {
         if (cachedResponse) {
@@ -91,20 +122,40 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Cache-First with background refresh for pages & navigation (instant offline launch)
+  // Static images/screens: Stale-While-Revalidate (instant display + automatic background update)
+  if (url.pathname.startsWith('/assets/') || url.pathname.startsWith('/screens/')) {
+    event.respondWith(
+      caches.match(req).then((cachedResponse) => {
+        const fetchPromise = fetch(req)
+          .then((networkResponse) => {
+            if (networkResponse && networkResponse.status === 200) {
+              const copy = networkResponse.clone();
+              caches.open(CACHE_NAME).then((cache) => cache.put(req, copy));
+            }
+            return networkResponse;
+          })
+          .catch(() => cachedResponse);
+        return cachedResponse || fetchPromise;
+      })
+    );
+    return;
+  }
+
+  // Network-First for HTML pages & navigation (ensures APK always gets newest UI when online, falls back to cache offline)
   event.respondWith(
-    caches.match(req, { ignoreSearch: true }).then((cachedResponse) => {
-      const fetchPromise = fetch(req)
-        .then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
-            const responseToCache = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(req, responseToCache);
-            });
-          }
-          return networkResponse;
-        })
-        .catch(() => {
+    fetch(req)
+      .then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+          const responseToCache = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(req, responseToCache);
+          });
+        }
+        return networkResponse;
+      })
+      .catch(() => {
+        return caches.match(req, { ignoreSearch: true }).then((cachedResponse) => {
+          if (cachedResponse) return cachedResponse;
           if (req.mode === 'navigate') {
             if (url.pathname.startsWith('/messages')) {
               return caches.match('/messages', { ignoreSearch: true }) || caches.match('/');
@@ -117,10 +168,8 @@ self.addEventListener('fetch', (event) => {
             }
             return caches.match('/');
           }
-          return cachedResponse;
+          return undefined;
         });
-
-      return cachedResponse || fetchPromise;
-    })
+      })
   );
 });

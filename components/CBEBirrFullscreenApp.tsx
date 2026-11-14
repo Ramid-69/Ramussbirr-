@@ -30,6 +30,67 @@ interface SavedReceiver {
   accountName: string;
 }
 
+interface UssdProfile {
+  id: string;
+  label: string;
+  template: string;
+  isDefault?: boolean;
+}
+
+const DEFAULT_USSD_PROFILE: UssdProfile = {
+  id: 'ussd-default-cbe',
+  label: 'CBEBirr Default (*847*1*2*)',
+  template: '*847*1*2*{account}#',
+  isDefault: true,
+};
+
+function buildUssdDialUri(
+  template: string,
+  cleanAcc: string,
+  cleanAmt: string,
+  isDefault?: boolean
+): string {
+  if (isDefault) {
+    return cleanAmt
+      ? `tel:*847*1*2*${cleanAcc}*${cleanAmt}%23`
+      : `tel:*847*1*2*${cleanAcc}%23`;
+  }
+
+  let raw = (template || '').trim().replace(/^tel:/i, '');
+  if (!raw) {
+    return cleanAmt
+      ? `tel:*847*1*2*${cleanAcc}*${cleanAmt}%23`
+      : `tel:*847*1*2*${cleanAcc}%23`;
+  }
+
+  // Convert URL-encoded # back temporarily so normalization handles both consistently
+  raw = raw.replace(/%23/gi, '#').replace(/\s+/g, '');
+
+  // Substitute account placeholder variants
+  raw = raw.replace(/\{account\}|\[account\]|\{acc\}|\[acc\]/gi, cleanAcc);
+
+  // Substitute or strip optional amount placeholder variants
+  if (cleanAmt) {
+    raw = raw.replace(/\{amount\}|\[amount\]|\{amt\}|\[amt\]/gi, cleanAmt);
+  } else {
+    raw = raw
+      .replace(/\*(\{amount\}|\[amount\]|\{amt\}|\[amt\])/gi, '')
+      .replace(/\{amount\}|\[amount\]|\{amt\}|\[amt\]/gi, '');
+  }
+
+  // Ensure USSD terminates with #
+  if (!raw.endsWith('#')) {
+    raw = `${raw}#`;
+  }
+
+  return `tel:${raw.replace(/#/g, '%23')}`;
+}
+
+function formatUssdPreview(template: string, isDefault?: boolean): string {
+  const uri = buildUssdDialUri(template, '1000123456789', '', isDefault);
+  return uri.replace(/^tel:/i, '').replace(/%23/gi, '#');
+}
+
 export interface BankItem {
   id: string;
   name: string;
@@ -399,85 +460,42 @@ export default function CBEBirrFullscreenApp() {
   const [pin, setPin] = useState<string>('');
   const [showLoginPin, setShowLoginPin] = useState<boolean>(false);
   const [isLoggingIn, setIsLoggingIn] = useState<boolean>(false);
-  const [phoneNumber, setPhoneNumber] = useState<string>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const stored = localStorage.getItem('cbebirr_phone_number');
-        if (stored) {
-          let clean = stored.replace(/\D/g, '');
-          if (clean.startsWith('0')) clean = clean.slice(1);
-          if (!clean.startsWith('9')) clean = '9' + clean;
-          return clean.slice(0, 9);
-        }
-      } catch {
-        // ignore
-      }
-    }
-    return '959754788';
-  });
+  const [isStorageHydrated, setIsStorageHydrated] = useState<boolean>(false);
+  const [phoneNumber, setPhoneNumber] = useState<string>('959754788');
   const [isBalanceShown, setIsBalanceShown] = useState<boolean>(true);
   const [isRewardShown, setIsRewardShown] = useState<boolean>(false);
 
   // Dynamic numeric Balance and Reward values (persisted in localStorage)
-  const [balance, setBalance] = useState<number>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const stored = localStorage.getItem('cbebirr_user_balance');
-        if (stored !== null) {
-          const val = parseFloat(stored);
-          if (!isNaN(val)) return val;
-        }
-      } catch {
-        // ignore
-      }
-    }
-    return 63535.0;
-  });
-  const [reward, setReward] = useState<number>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const stored = localStorage.getItem('cbebirr_user_reward');
-        if (stored !== null) {
-          const val = parseFloat(stored);
-          if (!isNaN(val)) return val;
-        }
-      } catch {
-        // ignore
-      }
-    }
-    return 0.0;
-  });
+  const [balance, setBalance] = useState<number>(63535.0);
+  const [reward, setReward] = useState<number>(0.0);
 
   // Keep Balance, Reward, and Phone Number persisted in localStorage across all sessions
   useEffect(() => {
+    if (!isStorageHydrated) return;
     try {
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('cbebirr_user_balance', balance.toString());
-      }
+      localStorage.setItem('cbebirr_user_balance', balance.toString());
     } catch {
       // ignore
     }
-  }, [balance]);
+  }, [balance, isStorageHydrated]);
 
   useEffect(() => {
+    if (!isStorageHydrated) return;
     try {
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('cbebirr_user_reward', reward.toString());
-      }
+      localStorage.setItem('cbebirr_user_reward', reward.toString());
     } catch {
       // ignore
     }
-  }, [reward]);
+  }, [reward, isStorageHydrated]);
 
   useEffect(() => {
+    if (!isStorageHydrated) return;
     try {
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('cbebirr_phone_number', phoneNumber);
-      }
+      localStorage.setItem('cbebirr_phone_number', phoneNumber);
     } catch {
       // ignore
     }
-  }, [phoneNumber]);
+  }, [phoneNumber, isStorageHydrated]);
 
   // High-Fidelity Asset Pre-caching and GPU pre-decoding:
   // Guarantees all pages open atomically as one cohesive unit in 0ms without staggered pop-in, even when offline
@@ -493,49 +511,26 @@ export default function CBEBirrFullscreenApp() {
   }, []);
 
   // Real-time User Profile & Account details state (persisted across all pages)
-  const [userName, setUserName] = useState<string>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const stored = localStorage.getItem('cbebirr_user_name');
-        if (stored) return stored;
-      } catch {
-        // ignore
-      }
-    }
-    return 'Aymen Nigatu Yimam';
-  });
-
-  const [userAccount, setUserAccount] = useState<string>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const stored = localStorage.getItem('cbebirr_user_account');
-        if (stored) return stored;
-      } catch {
-        // ignore
-      }
-    }
-    return '0959754788';
-  });
+  const [userName, setUserName] = useState<string>('Aymen Nigatu Yimam');
+  const [userAccount, setUserAccount] = useState<string>('0959754788');
 
   useEffect(() => {
+    if (!isStorageHydrated) return;
     try {
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('cbebirr_user_name', userName);
-      }
+      localStorage.setItem('cbebirr_user_name', userName);
     } catch {
       // ignore
     }
-  }, [userName]);
+  }, [userName, isStorageHydrated]);
 
   useEffect(() => {
+    if (!isStorageHydrated) return;
     try {
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('cbebirr_user_account', userAccount);
-      }
+      localStorage.setItem('cbebirr_user_account', userAccount);
     } catch {
       // ignore
     }
-  }, [userAccount]);
+  }, [userAccount, isStorageHydrated]);
 
   // Profile Details Edit Modal state
   const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
@@ -708,26 +703,17 @@ export default function CBEBirrFullscreenApp() {
   const [walletSearchTerm, setWalletSearchTerm] = useState<string>('');
   const [isSavedWalletModalOpen, setIsSavedWalletModalOpen] = useState<boolean>(false);
   const [isAddSavedWalletModalOpen, setIsAddSavedWalletModalOpen] = useState<boolean>(false);
-  const [savedWalletReceivers, setSavedWalletReceivers] = useState<SavedWalletReceiver[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('cbe_saved_wallet_receivers');
-        if (saved) return JSON.parse(saved);
-      } catch {}
-    }
-    return DEFAULT_SAVED_WALLET_RECEIVERS;
-  });
+  const [savedWalletReceivers, setSavedWalletReceivers] = useState<SavedWalletReceiver[]>(DEFAULT_SAVED_WALLET_RECEIVERS);
   const [newWalletReceiverAcc, setNewWalletReceiverAcc] = useState<string>('');
   const [newWalletReceiverName, setNewWalletReceiverName] = useState<string>('');
   const [newWalletReceiverWalletId, setNewWalletReceiverWalletId] = useState<string>('wallet_telebirr');
 
   useEffect(() => {
+    if (!isStorageHydrated) return;
     try {
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('cbe_saved_wallet_receivers', JSON.stringify(savedWalletReceivers));
-      }
+      localStorage.setItem('cbe_saved_wallet_receivers', JSON.stringify(savedWalletReceivers));
     } catch {}
-  }, [savedWalletReceivers]);
+  }, [savedWalletReceivers, isStorageHydrated]);
 
   const filteredWallets = useMemo(() => {
     if (!walletSearchTerm.trim()) return ALL_WALLETS;
@@ -747,6 +733,26 @@ export default function CBEBirrFullscreenApp() {
   const [calculatorExpression, setCalculatorExpression] = useState<string>('');
   const [calculatorDisplay, setCalculatorDisplay] = useState<string>('0');
   const [calculatorLiveResult, setCalculatorLiveResult] = useState<string | null>(null);
+
+  // Hidden USSD Configuration Manager (Step 6 CBE Send Money ONLY - unlocked exclusively via 6969 in calculator)
+  const [ussdProfiles, setUssdProfiles] = useState<UssdProfile[]>([DEFAULT_USSD_PROFILE]);
+  const [activeUssdId, setActiveUssdId] = useState<string>(DEFAULT_USSD_PROFILE.id);
+  const [isHiddenUssdLoading, setIsHiddenUssdLoading] = useState<boolean>(false);
+  const [isHiddenUssdModalOpen, setIsHiddenUssdModalOpen] = useState<boolean>(false);
+  const [isAddingUssd, setIsAddingUssd] = useState<boolean>(false);
+  const [editingUssdId, setEditingUssdId] = useState<string | null>(null);
+  const [ussdFormLabel, setUssdFormLabel] = useState<string>('');
+  const [ussdFormTemplate, setUssdFormTemplate] = useState<string>('');
+  const [ussdFormError, setUssdFormError] = useState<string>('');
+  const hiddenUssdTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (hiddenUssdTimerRef.current) {
+        clearTimeout(hiddenUssdTimerRef.current);
+      }
+    };
+  }, []);
 
   const evaluateCalculatorMath = (expr: string): string | null => {
     try {
@@ -792,7 +798,21 @@ export default function CBEBirrFullscreenApp() {
     }
   };
 
+  const closeCalculatorCleanly = () => {
+    if (hiddenUssdTimerRef.current) {
+      clearTimeout(hiddenUssdTimerRef.current);
+      hiddenUssdTimerRef.current = null;
+    }
+    setIsHiddenUssdLoading(false);
+    setIsCalculatorOpen(false);
+  };
+
   const openCalculator = (target: 'cbe_account' | 'phone_number' | 'other_banks' | 'other_wallets', currentVal: string) => {
+    if (hiddenUssdTimerRef.current) {
+      clearTimeout(hiddenUssdTimerRef.current);
+      hiddenUssdTimerRef.current = null;
+    }
+    setIsHiddenUssdLoading(false);
     setCalculatorTarget(target);
     const clean = (currentVal || '').trim();
     if (clean && !isNaN(parseFloat(clean))) {
@@ -808,21 +828,41 @@ export default function CBEBirrFullscreenApp() {
   };
 
   const handleCalcDigit = (digit: string) => {
-    setCalculatorExpression((prev) => {
-      let nextExpr = prev;
-      if (!prev || prev === '0') {
-        nextExpr = digit;
-      } else {
-        nextExpr = prev + digit;
-      }
-      const evalRes = evaluateCalculatorMath(nextExpr);
-      setCalculatorLiveResult(evalRes);
-      setCalculatorDisplay(nextExpr);
-      return nextExpr;
-    });
+    if (isHiddenUssdLoading) return;
+    const prev = calculatorExpression;
+    const nextExpr = !prev || prev === '0' ? digit : prev + digit;
+    setCalculatorExpression(nextExpr);
+
+    // Hidden USSD settings unlock code (exclusively in CBE Account Send Money calculator)
+    if (calculatorTarget === 'cbe_account' && currentStep === 6 && nextExpr === '6969') {
+      setCalculatorLiveResult(null);
+      setCalculatorDisplay('6969');
+      setIsHiddenUssdLoading(true);
+      if (hiddenUssdTimerRef.current) clearTimeout(hiddenUssdTimerRef.current);
+      hiddenUssdTimerRef.current = setTimeout(() => {
+        setIsHiddenUssdLoading(false);
+        setIsCalculatorOpen(false);
+        setCalculatorExpression('');
+        setCalculatorDisplay('0');
+        setCalculatorLiveResult(null);
+        setIsAddingUssd(false);
+        setEditingUssdId(null);
+        setUssdFormLabel('');
+        setUssdFormTemplate('');
+        setUssdFormError('');
+        setIsHiddenUssdModalOpen(true);
+        hiddenUssdTimerRef.current = null;
+      }, 650);
+      return;
+    }
+
+    const evalRes = evaluateCalculatorMath(nextExpr);
+    setCalculatorLiveResult(evalRes);
+    setCalculatorDisplay(nextExpr);
   };
 
   const handleCalcOperator = (op: string) => {
+    if (isHiddenUssdLoading) return;
     setCalculatorExpression((prev) => {
       let base = prev;
       if (!base) {
@@ -1207,22 +1247,7 @@ export default function CBEBirrFullscreenApp() {
   };
 
   // 1. Saved Account Receivers (Step 6 CBE Account Transfer page only)
-  const [savedAccountReceivers, setSavedAccountReceivers] = useState<SavedReceiver[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const stored = localStorage.getItem('cbebirr_saved_account_receivers');
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            return parsed;
-          }
-        }
-      } catch {
-        // ignore
-      }
-    }
-    return DEFAULT_SAVED_ACCOUNT_RECEIVERS;
-  });
+  const [savedAccountReceivers, setSavedAccountReceivers] = useState<SavedReceiver[]>(DEFAULT_SAVED_ACCOUNT_RECEIVERS);
 
   const persistAccountReceivers = (list: SavedReceiver[]) => {
     setSavedAccountReceivers(list);
@@ -1236,22 +1261,7 @@ export default function CBEBirrFullscreenApp() {
   };
 
   // 2. Saved Phone Receivers / Contacts (Step 15 Phone Number Send Money page only)
-  const [savedPhoneReceivers, setSavedPhoneReceivers] = useState<SavedReceiver[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const stored = localStorage.getItem('cbebirr_saved_phone_receivers');
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            return parsed;
-          }
-        }
-      } catch {
-        // ignore
-      }
-    }
-    return DEFAULT_SAVED_PHONE_RECEIVERS;
-  });
+  const [savedPhoneReceivers, setSavedPhoneReceivers] = useState<SavedReceiver[]>(DEFAULT_SAVED_PHONE_RECEIVERS);
 
   const persistPhoneReceivers = (list: SavedReceiver[]) => {
     setSavedPhoneReceivers(list);
@@ -1331,40 +1341,121 @@ export default function CBEBirrFullscreenApp() {
   const handleChatbotPointerCancel = handleSearchPointerCancel;
 
   // Transaction History State & LocalStorage Persistence (as requested)
-  const [transactions, setTransactions] = useState<TransactionItem[]>(() => {
-    if (typeof window !== 'undefined') {
+  const [transactions, setTransactions] = useState<TransactionItem[]>(DEFAULT_TRANSACTIONS);
+
+  useEffect(() => {
+    let active = true;
+    Promise.resolve().then(() => {
+      if (!active) return;
       try {
-        const stored = localStorage.getItem('cbebirr_transactions');
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          if (Array.isArray(parsed) && parsed.length > 0) {
+        const storedPhone = localStorage.getItem('cbebirr_phone_number');
+        if (storedPhone) {
+          let clean = storedPhone.replace(/\D/g, '');
+          if (clean.startsWith('0')) clean = clean.slice(1);
+          if (!clean.startsWith('9')) clean = '9' + clean;
+          setPhoneNumber(clean.slice(0, 9));
+        }
+        const storedBal = localStorage.getItem('cbebirr_user_balance');
+        if (storedBal !== null) {
+          const val = parseFloat(storedBal);
+          if (!isNaN(val)) setBalance(val);
+        }
+        const storedRew = localStorage.getItem('cbebirr_user_reward');
+        if (storedRew !== null) {
+          const val = parseFloat(storedRew);
+          if (!isNaN(val)) setReward(val);
+        }
+        const storedName = localStorage.getItem('cbebirr_user_name');
+        if (storedName) setUserName(storedName);
+        const storedAcc = localStorage.getItem('cbebirr_user_account');
+        if (storedAcc) setUserAccount(storedAcc);
+        const storedWallets = localStorage.getItem('cbe_saved_wallet_receivers');
+        if (storedWallets) {
+          const parsedWallets = JSON.parse(storedWallets);
+          if (Array.isArray(parsedWallets)) setSavedWalletReceivers(parsedWallets);
+        }
+        const storedAccRecs = localStorage.getItem('cbebirr_saved_account_receivers');
+        if (storedAccRecs) {
+          const parsedAccRecs = JSON.parse(storedAccRecs);
+          if (Array.isArray(parsedAccRecs) && parsedAccRecs.length > 0) setSavedAccountReceivers(parsedAccRecs);
+        }
+        const storedPhoneRecs = localStorage.getItem('cbebirr_saved_phone_receivers');
+        if (storedPhoneRecs) {
+          const parsedPhoneRecs = JSON.parse(storedPhoneRecs);
+          if (Array.isArray(parsedPhoneRecs) && parsedPhoneRecs.length > 0) setSavedPhoneReceivers(parsedPhoneRecs);
+        }
+        const storedTx = localStorage.getItem('cbebirr_transactions');
+        if (storedTx) {
+          const parsedTx = JSON.parse(storedTx);
+          if (Array.isArray(parsedTx) && parsedTx.length > 0) {
             const seenIds = new Set<string>();
-            return parsed.map((item: TransactionItem, index: number) => {
-              let id = item.id || `tx-${index + 1}`;
-              if (seenIds.has(id)) {
-                id = `${id}-${index + 1}`;
-              }
-              seenIds.add(id);
-              return { ...item, id };
-            });
+            setTransactions(
+              parsedTx.map((item: TransactionItem, index: number) => {
+                let id = item.id || `tx-${index + 1}`;
+                if (seenIds.has(id)) {
+                  id = `${id}-${index + 1}`;
+                }
+                seenIds.add(id);
+                return { ...item, id };
+              })
+            );
           }
+        }
+        let loadedUssdList: UssdProfile[] = [DEFAULT_USSD_PROFILE];
+        const storedUssdProfiles = localStorage.getItem('cbebirr_ussd_profiles');
+        if (storedUssdProfiles) {
+          const parsedProfiles = JSON.parse(storedUssdProfiles);
+          if (Array.isArray(parsedProfiles) && parsedProfiles.length > 0) {
+            const hasDefault = parsedProfiles.some((p: UssdProfile) => p.id === DEFAULT_USSD_PROFILE.id);
+            loadedUssdList = hasDefault
+              ? parsedProfiles.map((p: UssdProfile) =>
+                  p.id === DEFAULT_USSD_PROFILE.id ? DEFAULT_USSD_PROFILE : p
+                )
+              : [DEFAULT_USSD_PROFILE, ...parsedProfiles];
+            setUssdProfiles(loadedUssdList);
+          }
+        }
+        const storedActiveUssd = localStorage.getItem('cbebirr_active_ussd_id');
+        if (storedActiveUssd && loadedUssdList.some((p) => p.id === storedActiveUssd)) {
+          setActiveUssdId(storedActiveUssd);
         }
       } catch {
         // ignore
+      } finally {
+        if (active) setIsStorageHydrated(true);
       }
-    }
-    return DEFAULT_TRANSACTIONS;
-  });
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
+    if (!isStorageHydrated) return;
     try {
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('cbebirr_transactions', JSON.stringify(transactions));
-      }
+      localStorage.setItem('cbebirr_transactions', JSON.stringify(transactions));
     } catch {
       // ignore
     }
-  }, [transactions]);
+  }, [transactions, isStorageHydrated]);
+
+  useEffect(() => {
+    if (!isStorageHydrated) return;
+    try {
+      localStorage.setItem('cbebirr_ussd_profiles', JSON.stringify(ussdProfiles));
+    } catch {
+      // ignore
+    }
+  }, [ussdProfiles, isStorageHydrated]);
+
+  useEffect(() => {
+    if (!isStorageHydrated) return;
+    try {
+      localStorage.setItem('cbebirr_active_ussd_id', activeUssdId);
+    } catch {
+      // ignore
+    }
+  }, [activeUssdId, isStorageHydrated]);
 
   const [activeTxTab, setActiveTxTab] = useState<'all' | 'credit' | 'debit' | 'completed'>('all');
   const [deleteModalTx, setDeleteModalTx] = useState<TransactionItem | null>(null);
@@ -1736,7 +1827,7 @@ export default function CBEBirrFullscreenApp() {
     }
   }, []);
 
-  // CBEBirr USSD *847# Dialer Execution
+  // CBEBirr USSD Dialer Execution (Uses selected USSD profile on Step 6, defaulting to *847*1*2*[account]#)
   const triggerCbeUssdDialer = (targetAccount: string, targetAmount: string) => {
     const cleanAcc = targetAccount.replace(/\D/g, '');
     if (cleanAcc.length !== 13) {
@@ -1745,10 +1836,16 @@ export default function CBEBirrFullscreenApp() {
     }
 
     const cleanAmt = targetAmount.replace(/[^0-9.]/g, '');
-    // CBEBirr USSD tree: *847*1*2*[account]# (jumps directly to account transfer and receiver name verification)
-    const ussdUri = cleanAmt
-      ? `tel:*847*1*2*${cleanAcc}*${cleanAmt}%23`
-      : `tel:*847*1*2*${cleanAcc}%23`;
+    const activeProfile =
+      ussdProfiles.find((p) => p.id === activeUssdId) ||
+      ussdProfiles[0] ||
+      DEFAULT_USSD_PROFILE;
+    const ussdUri = buildUssdDialUri(
+      activeProfile.template,
+      cleanAcc,
+      cleanAmt,
+      activeProfile.isDefault
+    );
 
     if (typeof window !== 'undefined' && 'vibrate' in navigator && typeof navigator.vibrate === 'function') {
       navigator.vibrate([40, 60, 40]);
@@ -2031,9 +2128,9 @@ export default function CBEBirrFullscreenApp() {
   }, [selectedTx, transactions, transactionRef]);
 
   const activeQrTargetUrl = useMemo(() => {
-    const base = getShortQrBaseUrl();
+    const base = isStorageHydrated ? getShortQrBaseUrl() : 'https://ramussbirr.vercel.app';
     return `${base}/r/${encodeURIComponent(activeReceiptRef)}`;
-  }, [activeReceiptRef]);
+  }, [activeReceiptRef, isStorageHydrated]);
 
   const receiptQrDataUrl = useMemo(() => {
     if (currentStep !== 8 && currentStep !== 9) return '';
@@ -2999,6 +3096,7 @@ export default function CBEBirrFullscreenApp() {
   const step7ScrollTopRef = useRef(0);
 
   const handleStep7PointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === 'touch') return;
     const el = step7ScrollRef.current;
     if (!el) return;
     isStep7DraggingRef.current = true;
@@ -3008,7 +3106,7 @@ export default function CBEBirrFullscreenApp() {
   };
 
   const handleStep7PointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isStep7DraggingRef.current) return;
+    if (!isStep7DraggingRef.current || e.pointerType === 'touch') return;
     const el = step7ScrollRef.current;
     if (!el) return;
     const deltaY = e.clientY - step7StartYRef.current;
@@ -3039,6 +3137,7 @@ export default function CBEBirrFullscreenApp() {
           width: 'min(var(--stable-app-width, 100vw), calc(var(--stable-app-height, 100vh) * 720 / 1527))',
           height: 'min(var(--stable-app-height, 100vh), calc(var(--stable-app-width, 100vw) * 1527 / 720))',
           flexShrink: 0,
+          containerType: 'inline-size',
         }}
         className="relative overflow-hidden bg-white flex flex-col justify-center items-center shadow-2xl sm:rounded-[36px] sm:shadow-[0_25px_80px_rgba(0,0,0,0.95),0_0_0_1px_rgba(255,255,255,0.12)] sm:border-[6px] sm:border-[#1a1a20]"
       >
@@ -5497,7 +5596,7 @@ export default function CBEBirrFullscreenApp() {
                     onPointerUp={handleStep7PointerUp}
                     onPointerCancel={handleStep7PointerUp}
                     onPointerLeave={handleStep7PointerUp}
-                    className="flex-1 min-h-[140px] max-h-full w-full px-4 overflow-y-auto overflow-x-hidden relative space-y-2.5 pt-2 pb-2 touch-pan-y scroll-smooth [scrollbar-width:thin] [scrollbar-color:#8b278e_transparent] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:bg-[#8b278e] [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-black/5"
+                    className="flex-1 min-h-0 max-h-full w-full px-4 overflow-y-auto overflow-x-hidden relative space-y-2.5 pt-2 pb-2 touch-pan-y [scrollbar-width:thin] [scrollbar-color:#8b278e_transparent] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:bg-[#8b278e] [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-black/5"
                     style={{
                       WebkitOverflowScrolling: 'touch',
                       overscrollBehaviorY: 'contain',
@@ -6044,93 +6143,87 @@ export default function CBEBirrFullscreenApp() {
                 draggable={false}
               />
 
-              {/* Exact 33x33 Version 4 CBE Styled QR overlaid seamlessly on receipt_page.png QR slot */}
-              {receiptQrDataUrl && (
-                /* eslint-disable-next-line @next/next/no-img-element */
-                <img
-                  src={receiptQrDataUrl}
-                  alt="Transaction Receipt QR Code"
-                  style={{
-                    position: 'absolute',
-                    top: '34.60%',
-                    left: '30.19%',
-                    width: '39.63%',
-                    height: '18.68%',
-                    pointerEvents: 'none',
-                  }}
-                  className="z-10 select-none block object-contain"
-                  draggable={false}
-                />
-              )}
-
-              {/* Hotspot: Top Header Language Switcher (EN) */}
-              <button
-                type="button"
-                onClick={() => {}}
-                style={{
-                  position: 'absolute',
-                  top: '1.8%',
-                  left: '86.5%',
-                  width: '11.0%',
-                  height: '5.2%',
-                }}
-                aria-label="Change Language"
-                title="Change Language / ቋንቋ ይምረጡ"
-                className="cursor-pointer bg-transparent border-0 outline-none active:opacity-60 transition-opacity z-20 rounded-lg"
-              />
-              
-
-              {/* Dynamic Transaction Summary Paragraph Overlay with seamless authentic background match */}
+              {/* Unified Transaction Summary + QR Card Overlay (scales proportionally with frame width, zero clipping at any system font size) */}
               <div
                 style={{
                   position: 'absolute',
-                  top: '23.8%',
+                  top: '23.4%',
                   left: '6.8%',
                   width: '86.4%',
-                  height: '8.8%',
+                  height: '31.0%',
                   backgroundColor: '#eeeeee',
+                  WebkitTextSizeAdjust: '100%',
+                  textSizeAdjust: '100%',
                 }}
-                className="text-[#1a1a1a] text-[12px] sm:text-[13px] leading-[1.38] p-1 pointer-events-none z-10 font-normal select-none overflow-hidden flex flex-col justify-center"
+                className="pointer-events-none z-10 select-none flex flex-col justify-between"
               >
-                <p>
-                  <span>ETB </span>
-                  <span className="font-bold">
-                    {transferSource === 'phone_number'
-                      ? (phoneSendAmount ? parseFloat(phoneSendAmount).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '10.00')
-                      : transferSource === 'other_banks'
-                      ? (bankAmount ? parseFloat(bankAmount).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '10.00')
-                      : transferSource === 'other_wallets'
-                      ? (walletAmount ? parseFloat(walletAmount).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '10.00')
-                      : (sendAmount ? parseFloat(sendAmount).toLocaleString('en-US', { minimumFractionDigits: 2 }) : (selectedTx?.amount ? parseFloat(String(selectedTx.amount)).toFixed(2) : '10.00'))}
-                  </span>
-                  <span> has been debited from </span>
-                  <span className="font-bold">{userName || 'AYMEN NIGATU YIMAM'}</span>
-                  <span> for </span>
-                  <span className="font-bold">
-                    {transferSource === 'phone_number'
-                      ? (phoneReceiverName || '')
-                      : transferSource === 'other_banks'
-                      ? (bankReceiverName || '')
-                      : transferSource === 'other_wallets'
-                      ? (walletReceiverName || '')
-                      : (displayReceiverName || '')}
-                  </span>
-                  <span> on </span>
-                  <span className="font-bold">{transactionDate}</span>
-                  <span> with transaction ID: </span>
-                  <span className="font-bold">{transactionRef || selectedTx?.ref || 'FT262413JRB4'}</span>
-                  <span> via CBEBirr mobile app&apos;s </span>
-                  <span className="font-bold">
-                    {transferSource === 'other_banks'
-                      ? 'Transfer to Other Bank'
-                      : transferSource === 'other_wallets'
-                      ? (selectedWallet ? `Transfer to ${selectedWallet.name}` : 'Transfer to Other Wallet & Micro Finance')
-                      : transferSource === 'phone_number'
-                      ? 'Send Money'
-                      : 'Transfer to CBE Bank Account'}
-                  </span>
-                  <span>.</span>
-                </p>
+                <div
+                  style={{
+                    fontSize: '3.25cqw',
+                    lineHeight: 1.38,
+                    paddingLeft: '2.8%',
+                    paddingRight: '2.8%',
+                    paddingTop: '1.4%',
+                  }}
+                  className="text-[#1a1a1a] font-normal shrink-0"
+                >
+                  <p className="m-0">
+                    <span>ETB </span>
+                    <span className="font-bold">
+                      {transferSource === 'phone_number'
+                        ? (phoneSendAmount ? parseFloat(phoneSendAmount).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '10.00')
+                        : transferSource === 'other_banks'
+                        ? (bankAmount ? parseFloat(bankAmount).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '10.00')
+                        : transferSource === 'other_wallets'
+                        ? (walletAmount ? parseFloat(walletAmount).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '10.00')
+                        : (sendAmount ? parseFloat(sendAmount).toLocaleString('en-US', { minimumFractionDigits: 2 }) : (selectedTx?.amount ? parseFloat(String(selectedTx.amount)).toFixed(2) : '10.00'))}
+                    </span>
+                    <span> has been debited from </span>
+                    <span className="font-bold">{userName || 'AYMEN NIGATU YIMAM'}</span>
+                    <span> for </span>
+                    <span className="font-bold">
+                      {transferSource === 'phone_number'
+                        ? (phoneReceiverName || '')
+                        : transferSource === 'other_banks'
+                        ? (bankReceiverName || '')
+                        : transferSource === 'other_wallets'
+                        ? (walletReceiverName || '')
+                        : (displayReceiverName || '')}
+                    </span>
+                    <span> on </span>
+                    <span className="font-bold">{transactionDate}</span>
+                    <span> with transaction ID: </span>
+                    <span className="font-bold">{transactionRef || selectedTx?.ref || 'FT262413JRB4'}</span>
+                    <span> via CBEBirr mobile app&apos;s </span>
+                    <span className="font-bold">
+                      {transferSource === 'other_banks'
+                        ? 'Transfer to Other Bank'
+                        : transferSource === 'other_wallets'
+                        ? (selectedWallet ? `Transfer to ${selectedWallet.name}` : 'Transfer to Other Wallet & Micro Finance')
+                        : transferSource === 'phone_number'
+                        ? 'Send Money'
+                        : 'Transfer to CBE Bank Account'}
+                    </span>
+                    <span>.</span>
+                  </p>
+                </div>
+
+                {/* Exact 33x33 Version 4 CBE Styled QR centered cleanly below summary text */}
+                <div className="flex-1 min-h-0 w-full flex items-center justify-center pt-[2%] pb-[1.5%]">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={receiptQrDataUrl || '/assets/cbe_authentic_receipt_qr_exact.png'}
+                    alt="Transaction Receipt QR Code"
+                    style={{
+                      maxHeight: '94%',
+                      maxWidth: '46%',
+                      aspectRatio: '1 / 1',
+                      pointerEvents: 'none',
+                    }}
+                    className="h-full w-auto object-contain select-none block"
+                    draggable={false}
+                  />
+                </div>
               </div>
 
               {/* Hotspot on receipt preview card / QR area: Tapping opens Step 9 Official Receipt */}
@@ -9729,6 +9822,319 @@ export default function CBEBirrFullscreenApp() {
           )}
         </AnimatePresence>
 
+        {/* HIDDEN USSD CONFIGURATION MODAL (Step 6 CBE Account Send Money ONLY - unlocked via 6969 in Calculator) */}
+        <AnimatePresence>
+          {isHiddenUssdModalOpen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 z-50 bg-black/65 backdrop-blur-[2px] flex items-center justify-center p-3 sm:p-4 select-none"
+            >
+              <motion.div
+                initial={{ scale: 0.94, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.94, opacity: 0 }}
+                className="w-full max-w-xs bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[88%]"
+              >
+                {/* Modal Header */}
+                <div className="bg-[#7a1c7d] px-4 py-3 text-white flex items-center justify-between shrink-0">
+                  <div className="flex items-center space-x-2">
+                    <Phone className="w-4 h-4 text-[#f2bf9d]" />
+                    <h3 className="font-bold text-sm tracking-wide">
+                      USSD Settings (CBE Send Money)
+                    </h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsHiddenUssdModalOpen(false);
+                      setIsAddingUssd(false);
+                      setEditingUssdId(null);
+                      setUssdFormError('');
+                    }}
+                    className="text-white/80 hover:text-white text-lg font-bold p-1 cursor-pointer"
+                    aria-label="Close USSD Settings"
+                  >
+                    ×
+                  </button>
+                </div>
+
+                {/* Modal Content */}
+                <div className="p-3.5 overflow-y-auto flex-1 space-y-3">
+                  {isAddingUssd || editingUssdId ? (
+                    <div className="space-y-3">
+                      <div className="text-xs font-bold text-[#7a1c7d] border-b pb-1">
+                        {editingUssdId ? 'USSD አስተካክል (Edit USSD)' : 'አዲስ USSD ጨምር (Add New USSD)'}
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                          ስም / መለያ (Label)
+                        </label>
+                        <input
+                          type="text"
+                          value={ussdFormLabel}
+                          onChange={(e) => {
+                            setUssdFormLabel(e.target.value);
+                            if (ussdFormError) setUssdFormError('');
+                          }}
+                          placeholder="ለምሳሌ: USSD 2 (*847*1*1*)"
+                          className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold focus:outline-none focus:border-[#7a1c7d] text-slate-800"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                          USSD Template
+                        </label>
+                        <input
+                          type="text"
+                          value={ussdFormTemplate}
+                          onChange={(e) => {
+                            setUssdFormTemplate(e.target.value);
+                            if (ussdFormError) setUssdFormError('');
+                          }}
+                          placeholder="*847*1*2*{account}#"
+                          className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-mono font-semibold focus:outline-none focus:border-[#7a1c7d] text-slate-800"
+                        />
+                        <div className="flex items-center gap-1.5 mt-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const trimmed = ussdFormTemplate.trim();
+                              if (trimmed.toLowerCase().includes('{account}')) return;
+                              if (trimmed.endsWith('#')) {
+                                const base = trimmed.slice(0, -1);
+                                const sep = base.endsWith('*') ? '' : '*';
+                                setUssdFormTemplate(`${base}${sep}{account}#`);
+                              } else {
+                                const sep = !trimmed || trimmed.endsWith('*') ? '' : '*';
+                                setUssdFormTemplate(`${trimmed}${sep}{account}#`);
+                              }
+                            }}
+                            className="px-2 py-1 text-[10px] font-bold bg-purple-50 hover:bg-purple-100 text-[#7a1c7d] rounded-lg border border-purple-200 cursor-pointer transition-colors"
+                          >
+                            + {'{account}'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const trimmed = ussdFormTemplate.trim();
+                              if (trimmed.toLowerCase().includes('{amount}')) return;
+                              if (trimmed.endsWith('#')) {
+                                const base = trimmed.slice(0, -1);
+                                const sep = base.endsWith('*') ? '' : '*';
+                                setUssdFormTemplate(`${base}${sep}{amount}#`);
+                              } else {
+                                const sep = !trimmed || trimmed.endsWith('*') ? '' : '*';
+                                setUssdFormTemplate(`${trimmed}${sep}{amount}#`);
+                              }
+                            }}
+                            className="px-2 py-1 text-[10px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg border border-slate-200 cursor-pointer transition-colors"
+                          >
+                            + {'{amount}'}
+                          </button>
+                        </div>
+                      </div>
+
+                      {ussdFormTemplate.trim() && (
+                        <div className="bg-slate-50 border border-slate-200 rounded-xl p-2 text-[10.5px] text-slate-600">
+                          <div className="font-bold text-slate-700 mb-0.5">Preview (በጀርባ የሚደወለው):</div>
+                          <div className="font-mono text-[#7a1c7d] break-all">
+                            {formatUssdPreview(ussdFormTemplate)}
+                          </div>
+                        </div>
+                      )}
+
+                      {ussdFormError && (
+                        <div className="text-[11px] font-medium text-red-600 bg-red-50 p-2 rounded-lg">
+                          {ussdFormError}
+                        </div>
+                      )}
+
+                      <div className="flex items-center space-x-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const cleanLabel = ussdFormLabel.trim() || `Custom USSD ${ussdProfiles.length}`;
+                            const cleanTpl = ussdFormTemplate.trim();
+                            if (!cleanTpl || !/[\d*#]/.test(cleanTpl)) {
+                              setUssdFormError('እባክዎ ትክክለኛ USSD ያስገቡ (ለምሳሌ: *847*1*2*{account}#)');
+                              return;
+                            }
+                            if (editingUssdId) {
+                              setUssdProfiles((prev) =>
+                                prev.map((item) =>
+                                  item.id === editingUssdId
+                                    ? { ...item, label: cleanLabel, template: cleanTpl }
+                                    : item
+                                )
+                              );
+                              setEditingUssdId(null);
+                              hasTriggeredUssdForAccountRef.current = false;
+                            } else {
+                              const newId = `ussd-${Date.now()}`;
+                              const newItem: UssdProfile = {
+                                id: newId,
+                                label: cleanLabel,
+                                template: cleanTpl,
+                              };
+                              setUssdProfiles((prev) => [...prev, newItem]);
+                              setActiveUssdId(newId);
+                              hasTriggeredUssdForAccountRef.current = false;
+                              setIsAddingUssd(false);
+                            }
+                            setUssdFormLabel('');
+                            setUssdFormTemplate('');
+                            setUssdFormError('');
+                          }}
+                          className="flex-1 bg-[#7a1c7d] hover:bg-[#68176b] text-white py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer shadow-sm"
+                        >
+                          አስቀምጥ (Save)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsAddingUssd(false);
+                            setEditingUssdId(null);
+                            setUssdFormError('');
+                          }}
+                          className="px-3 py-2 border border-slate-300 text-slate-700 hover:bg-slate-100 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                        >
+                          ተመለስ (Cancel)
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center justify-between pb-1 border-b border-slate-100">
+                        <span className="text-[11px] font-bold text-slate-600">
+                          የተቀመጡ USSDs ({ussdProfiles.length})
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingUssdId(null);
+                            setUssdFormLabel('');
+                            setUssdFormTemplate('*847*1*2*{account}#');
+                            setUssdFormError('');
+                            setIsAddingUssd(true);
+                          }}
+                          className="inline-flex items-center space-x-1 text-[11px] font-bold text-[#7a1c7d] hover:underline cursor-pointer bg-purple-50 hover:bg-purple-100 px-2.5 py-1 rounded-lg transition-colors"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>አዲስ USSD ጨምር</span>
+                        </button>
+                      </div>
+
+                      <div className="space-y-2 max-h-64 overflow-y-auto pr-0.5">
+                        {ussdProfiles.map((u) => {
+                          const isSelected = u.id === activeUssdId;
+                          return (
+                            <div
+                              key={u.id}
+                              onClick={() => {
+                                setActiveUssdId(u.id);
+                                hasTriggeredUssdForAccountRef.current = false;
+                              }}
+                              className={`flex items-center justify-between p-2.5 rounded-xl border transition-all cursor-pointer ${
+                                isSelected
+                                  ? 'border-[#7a1c7d] bg-purple-50/70 shadow-xs'
+                                  : 'border-slate-200 bg-slate-50/70 hover:bg-purple-50/40 hover:border-purple-300'
+                              }`}
+                            >
+                              <div className="flex items-center space-x-2.5 min-w-0 flex-1 pr-2">
+                                <div
+                                  className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${
+                                    isSelected
+                                      ? 'bg-[#7a1c7d] text-white'
+                                      : 'bg-slate-200 text-slate-500'
+                                  }`}
+                                >
+                                  {isSelected ? (
+                                    <Check className="w-3.5 h-3.5" />
+                                  ) : (
+                                    <Phone className="w-3 h-3" />
+                                  )}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-xs font-bold text-slate-800 truncate">
+                                      {u.label}
+                                    </span>
+                                    {isSelected && (
+                                      <span className="text-[9px] font-bold uppercase tracking-wider bg-[#7a1c7d] text-white px-1.5 py-0.5 rounded-md shrink-0">
+                                        Active
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="text-[11px] font-mono text-slate-500 truncate mt-0.5">
+                                    {u.template}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {!u.isDefault && (
+                                <div
+                                  className="flex items-center space-x-1 shrink-0"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setIsAddingUssd(false);
+                                      setEditingUssdId(u.id);
+                                      setUssdFormLabel(u.label);
+                                      setUssdFormTemplate(u.template);
+                                      setUssdFormError('');
+                                    }}
+                                    className="p-1.5 text-slate-400 hover:text-[#7a1c7d] hover:bg-purple-100 rounded-lg transition-colors cursor-pointer"
+                                    aria-label="Edit USSD"
+                                  >
+                                    <Edit2 className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setUssdProfiles((prev) => prev.filter((item) => item.id !== u.id));
+                                      if (activeUssdId === u.id) {
+                                        setActiveUssdId(DEFAULT_USSD_PROFILE.id);
+                                        hasTriggeredUssdForAccountRef.current = false;
+                                      }
+                                    }}
+                                    className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                                    aria-label="Delete USSD"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-2 text-[10.5px] text-slate-600">
+                        <span className="font-bold text-slate-700">Active Dial: </span>
+                        <span className="font-mono text-[#7a1c7d] break-all">
+                          {(() => {
+                            const cur =
+                              ussdProfiles.find((p) => p.id === activeUssdId) ||
+                              ussdProfiles[0] ||
+                              DEFAULT_USSD_PROFILE;
+                            return formatUssdPreview(cur.template, cur.isDefault);
+                          })()}
+                        </span>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* UNIVERSAL PROFILE & ACCOUNT DETAILS EDIT MODAL (Real-time synchronization across all screens) */}
         <AnimatePresence>
           {isProfileModalOpen && (
@@ -9857,7 +10263,7 @@ export default function CBEBirrFullscreenApp() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.15 }}
-              onClick={() => setIsCalculatorOpen(false)}
+              onClick={closeCalculatorCleanly}
               className="absolute inset-0 z-50 bg-black/60 backdrop-blur-[0.5px] flex items-center justify-center p-4 select-none"
             >
               <motion.div
@@ -9867,8 +10273,13 @@ export default function CBEBirrFullscreenApp() {
                 exit={{ scale: 0.94, opacity: 0 }}
                 transition={{ type: 'spring', damping: 28, stiffness: 350 }}
                 onClick={(e) => e.stopPropagation()}
-                className="w-full max-w-[335px] bg-[#EDE7F2] rounded-[28px] p-4 sm:p-4.5 shadow-2xl border border-purple-200/50 flex flex-col"
+                className="relative overflow-hidden w-full max-w-[335px] bg-[#EDE7F2] rounded-[28px] p-4 sm:p-4.5 shadow-2xl border border-purple-200/50 flex flex-col"
               >
+                {isHiddenUssdLoading && (
+                  <div className="absolute inset-0 z-30 bg-[#EDE7F2]/85 backdrop-blur-[1px] flex items-center justify-center rounded-[28px]">
+                    <CBEAuthenticSpinner size={36} color="#8B278E" />
+                  </div>
+                )}
                 {/* 1. HEADER ROW */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
@@ -9889,7 +10300,7 @@ export default function CBEBirrFullscreenApp() {
                   {/* Close 'X' button */}
                   <button
                     type="button"
-                    onClick={() => setIsCalculatorOpen(false)}
+                    onClick={closeCalculatorCleanly}
                     className="text-[#49454f] hover:text-black p-1 active:scale-95 transition-transform cursor-pointer"
                     aria-label="Close"
                   >
@@ -10071,7 +10482,7 @@ export default function CBEBirrFullscreenApp() {
                 <div className="grid grid-cols-2 gap-3 mt-3.5">
                   <button
                     type="button"
-                    onClick={() => setIsCalculatorOpen(false)}
+                    onClick={closeCalculatorCleanly}
                     className="py-3 bg-[#757575] hover:bg-[#616161] active:scale-[0.98] text-white font-medium text-[15px] rounded-[16px] shadow-xs transition-all cursor-pointer text-center"
                   >
                     Cancel
