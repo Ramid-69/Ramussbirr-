@@ -3,10 +3,10 @@ import path from 'path';
 import fs from 'fs';
 import sharp from 'sharp';
 import { jsPDF } from 'jspdf';
-import { generateStyledQrSvg } from '@/lib/styled-qr';
 
 export const dynamic = 'force-dynamic';
 import { getReceipt } from '@/lib/receipt-store';
+import { generateMatchedSquareQrPngBuffer } from '@/lib/styled-qr';
 
 function escapeXml(unsafe: string): string {
   if (!unsafe) return '';
@@ -87,6 +87,7 @@ export async function GET(req: NextRequest) {
 
     const numericAmt = parseFloat(rawAmt) || 740.0;
     const formattedAmt = numericAmt.toFixed(2);
+    const resolvedRef = stored?.ref || ref;
     const feeParam = searchParams.get('fee') || searchParams.get('serviceCharge') || (stored && stored.serviceCharge);
     const vatParam = searchParams.get('vat') || (stored && stored.vat);
     const totalPaidParam = searchParams.get('totalPaid') || (stored && stored.totalPaidAmount);
@@ -117,24 +118,21 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Build the dynamic receipt URL that will be encoded inside the QR code
-    let host = req.headers.get('x-forwarded-host') || req.headers.get('host') || 'ramussbirr.vercel.app';
-    if (host.includes('0.0.0.0') || host.includes('localhost') || host.includes('127.0.0.1')) {
-      host = 'ramussbirr.vercel.app';
-    }
-    const proto = req.headers.get('x-forwarded-proto') || 'https';
-    const origin = `${proto}://${host}`;
-    const qrTargetUrl = `${origin}/official-receipt?TID=${encodeURIComponent(ref)}&PH=${encodeURIComponent(userAcc)}${bank ? `&bank=${encodeURIComponent(bank)}` : ''}${serviceCharge !== '0.00' ? `&fee=${encodeURIComponent(serviceCharge)}&vat=${encodeURIComponent(vatAmount)}&totalPaid=${encodeURIComponent(totalPaid)}` : ''}`;
-
-    // Official VAT receipt QR code has NO center logo, matching authentic CBE invoice design
-    const styledQrSvg = generateStyledQrSvg(qrTargetUrl, {
-      size: 215,
-      margin: 1,
-      withCenterLogo: false,
-      bgColor: '#ffffff',
-    });
-
-    const qrBuffer = await sharp(Buffer.from(styledQrSvg)).png().toBuffer();
+    const forwardedHost = req.headers.get('x-forwarded-host') || req.headers.get('host') || '';
+    const forwardedProto = req.headers.get('x-forwarded-proto') || 'https';
+    const reqOrigin = forwardedHost ? `${forwardedProto}://${forwardedHost}` : req.nextUrl.origin;
+    const qrBase =
+      reqOrigin &&
+      reqOrigin.startsWith('https://') &&
+      reqOrigin.length <= 50 &&
+      !reqOrigin.includes('run.app') &&
+      !reqOrigin.includes('localhost') &&
+      !reqOrigin.includes('127.0.0.1') &&
+      !reqOrigin.includes('0.0.0.0')
+        ? reqOrigin.replace(/\/$/, '')
+        : 'https://ramussbirr.vercel.app';
+    const qrTargetUrl = `${qrBase}/r/${encodeURIComponent(resolvedRef)}`;
+    const qrBuffer = await generateMatchedSquareQrPngBuffer(qrTargetUrl, 208);
 
     // High-resolution SVG text overlay mapped onto 1330 x 1824 coordinates
     // Fonts: Liberation Sans, DejaVu Sans, Noto Sans Ethiopic with XML escaping
@@ -161,10 +159,10 @@ export async function GET(req: NextRequest) {
         ${recName ? `<text x="884" y="802" class="val">${escapeXml(recName)}</text>` : ''}
 
         <!-- 4. Order ID Value -->
-        <text x="884" y="852" class="val">${escapeXml(ref)}</text>
+        <text x="884" y="852" class="val">${escapeXml(resolvedRef)}</text>
 
         <!-- 5. Receipt Number in Table -->
-        <text x="32" y="1154" class="val">${escapeXml(ref)}</text>
+        <text x="32" y="1154" class="val">${escapeXml(resolvedRef)}</text>
 
         <!-- 6. Transaction Date in Table -->
         <text x="570" y="1154" class="val">${escapeXml(date)}</text>
@@ -202,8 +200,8 @@ export async function GET(req: NextRequest) {
         <rect x="360" y="1450" width="500" height="30" fill="white" />
         <text x="364" y="1472" class="smVal">${escapeXml(reason)}</text>
 
-        <!-- 13. Clean white backing for QR code to cover old real transaction QR -->
-        <rect x="1035" y="1535" width="215" height="215" fill="white" />
+        <!-- Clean white cover over bottom-right QR slot for crisp 33x33 Version 4 QR -->
+        <rect x="1034" y="1536" width="216" height="216" fill="white" />
       </svg>
     `);
 
@@ -213,11 +211,11 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Official receipt template not found' }, { status: 404 });
     }
 
-    // Composite template with SVG text overlay and dynamic QR code (replaces old real transaction QR)
+    // Composite template with SVG text overlay and matched crisp square 33x33 live QR
     const compositedPngBuffer = await sharp(templatePath)
       .composite([
         { input: svgOverlay, top: 0, left: 0 },
-        { input: qrBuffer, top: 1540, left: 1040 },
+        { input: qrBuffer, top: 1540, left: 1038 },
       ])
       .png({ quality: 95 })
       .toBuffer();

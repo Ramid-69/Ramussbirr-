@@ -9,13 +9,23 @@ export interface StyledQrOptions {
   bgColor?: string;
 }
 
+function createVersion4Qr(url: string) {
+  for (const ecc of ['Q', 'M', 'L'] as const) {
+    try {
+      return QRCode.create(url, { version: 4, errorCorrectionLevel: ecc });
+    } catch {
+      // try lower ECC
+    }
+  }
+  return QRCode.create(url, { errorCorrectionLevel: 'L' });
+}
+
 /**
- * Generates an SVG string of an authentic CBE styled QR code.
+ * Generates an SVG string of an authentic CBE styled QR code (33x33 Version 4 match).
  * Features:
  * - Rounded eye finder patterns (outer frame 7x7 with inner cutout 5x5, center 3x3 dot)
- * - Smooth rounded connected modules (pill/capsule styling matching the authentic CBEBirr app)
- * - Authentic CBE Birr Plus badge embedded as inline base64 so it renders in ALL browser contexts
- * - Error correction (level 'M') matching the 33x33 Version 4 layout of official CBE receipts
+ * - Smooth rounded connected modules matching receipt_page.png
+ * - Authentic CBE Birr Plus badge embedded cleanly in center
  */
 export function generateStyledQrSvg(url: string, options: StyledQrOptions = {}): string {
   const {
@@ -26,11 +36,12 @@ export function generateStyledQrSvg(url: string, options: StyledQrOptions = {}):
     bgColor = '#eeeeee',
   } = options;
 
-  const resolvedLogoHref = (centerLogoHref && centerLogoHref.startsWith('data:'))
-    ? centerLogoHref
-    : CBE_QR_LOGO_BASE64;
+  const resolvedLogoHref =
+    centerLogoHref && centerLogoHref.startsWith('data:')
+      ? centerLogoHref
+      : CBE_QR_LOGO_BASE64;
 
-  const qr = QRCode.create(url, { errorCorrectionLevel: 'M' });
+  const qr = createVersion4Qr(url);
   const count = qr.modules.size;
   const data = qr.modules.data;
 
@@ -40,13 +51,12 @@ export function generateStyledQrSvg(url: string, options: StyledQrOptions = {}):
   }
 
   function isFinder(x: number, y: number): boolean {
-    if (x < 7 && y < 7) return true; // Top-Left
-    if (x >= count - 7 && y < 7) return true; // Top-Right
-    if (x < 7 && y >= count - 7) return true; // Bottom-Left
+    if (x < 7 && y < 7) return true;
+    if (x >= count - 7 && y < 7) return true;
+    if (x < 7 && y >= count - 7) return true;
     return false;
   }
 
-  // Define center area reserved for logo (exact 5x5 modules around center, keeping surrounding modules spacious)
   const centerRadius = withCenterLogo ? 2 : 0;
   const centerMid = Math.floor(count / 2);
   function isCenter(x: number, y: number): boolean {
@@ -59,7 +69,7 @@ export function generateStyledQrSvg(url: string, options: StyledQrOptions = {}):
 
   const svgPaths: string[] = [];
 
-  // 1. Draw 3 Eye Finder patterns (authentic CBE rounded outer frame and rounded inner dot)
+  // 1. Eye Finder patterns
   const eyes = [
     { x: margin, y: margin },
     { x: margin + count - 7, y: margin },
@@ -101,13 +111,11 @@ export function generateStyledQrSvg(url: string, options: StyledQrOptions = {}):
     `);
   }
 
-  // 2. Draw Data Modules with smooth connected / rounded shape and seam overlap to eliminate hairlines
+  // 2. Smooth connected Data Modules
   const overlap = 0.18;
   for (let y = 0; y < count; y++) {
     for (let x = 0; x < count; x++) {
-      if (isFinder(x, y)) continue;
-      if (isCenter(x, y)) continue;
-      if (!isDark(x, y)) continue;
+      if (isFinder(x, y) || isCenter(x, y) || !isDark(x, y)) continue;
 
       let px = (margin + x) * cell;
       let py = (margin + y) * cell;
@@ -125,7 +133,6 @@ export function generateStyledQrSvg(url: string, options: StyledQrOptions = {}):
       if (right) { w += overlap; }
 
       const r = cell * 0.44;
-
       const rtl = !top && !left ? r : 0;
       const rtr = !top && !right ? r : 0;
       const rbr = !bottom && !right ? r : 0;
@@ -148,16 +155,16 @@ export function generateStyledQrSvg(url: string, options: StyledQrOptions = {}):
     }
   }
 
-  // 3. Center Logo matching authentic CBE receipt PNG design
+  // 3. Center badge matching receipt_page.png
   let centerLogoMarkup = '';
   if (withCenterLogo && resolvedLogoHref) {
-    const logoW = 7.0 * cell;
-    const logoH = 7.0 * cell;
+    const logoW = 6.6 * cell;
+    const logoH = 6.6 * cell;
     const logoX = (size - logoW) / 2;
     const logoY = (size - logoH) / 2;
 
     centerLogoMarkup = `
-      <rect x="${logoX}" y="${logoY}" width="${logoW}" height="${logoH}" rx="${cell * 1.2}" ry="${cell * 1.2}" fill="#ffffff" />
+      <rect x="${logoX}" y="${logoY}" width="${logoW}" height="${logoH}" rx="${cell * 1.1}" ry="${cell * 1.1}" fill="#ffffff" />
       <image href="${resolvedLogoHref}" x="${logoX}" y="${logoY}" width="${logoW}" height="${logoH}" preserveAspectRatio="xMidYMid meet" />
     `;
   }
@@ -175,4 +182,55 @@ export function generateStyledQrSvg(url: string, options: StyledQrOptions = {}):
 export function generateStyledQrDataUrl(url: string, options: StyledQrOptions = {}): string {
   const svg = generateStyledQrSvg(url, options);
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
+/**
+ * Generates a crisp square black-on-white QR code (33x33 Version 4 match, no center badge)
+ * matching official_receipt_hq.png.
+ */
+export async function generateMatchedSquareQrDataUrl(url: string, width = 240): Promise<string> {
+  for (const ecc of ['Q', 'M', 'L'] as const) {
+    try {
+      return await QRCode.toDataURL(url, {
+        version: 4,
+        errorCorrectionLevel: ecc,
+        margin: 1,
+        width,
+        color: { dark: '#000000', light: '#ffffff' },
+      });
+    } catch {
+      // try lower ECC
+    }
+  }
+  return QRCode.toDataURL(url, {
+    errorCorrectionLevel: 'L',
+    margin: 1,
+    width,
+    color: { dark: '#000000', light: '#ffffff' },
+  });
+}
+
+/**
+ * Server-side PNG buffer version for crisp Official Receipt PNG / PDF downloads.
+ */
+export async function generateMatchedSquareQrPngBuffer(url: string, width = 208): Promise<Buffer> {
+  for (const ecc of ['Q', 'M', 'L'] as const) {
+    try {
+      return await QRCode.toBuffer(url, {
+        version: 4,
+        errorCorrectionLevel: ecc,
+        margin: 1,
+        width,
+        color: { dark: '#000000', light: '#ffffff' },
+      });
+    } catch {
+      // try lower ECC
+    }
+  }
+  return QRCode.toBuffer(url, {
+    errorCorrectionLevel: 'L',
+    margin: 1,
+    width,
+    color: { dark: '#000000', light: '#ffffff' },
+  });
 }

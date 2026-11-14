@@ -91,9 +91,18 @@ export function formatCbeAmount(val: string | number): string {
  * Returns the current application base URL so receipts are always accessible from any browser
  */
 export function getAppBaseUrl(): string {
+  const isPublicWebOrigin = (o: string) =>
+    Boolean(o) &&
+    o.startsWith('http') &&
+    !o.includes('0.0.0.0') &&
+    !o.includes('localhost') &&
+    !o.includes('127.0.0.1') &&
+    !o.includes('appassets.androidplatform.net') &&
+    !o.includes('file:');
+
   if (typeof window !== 'undefined' && window.location?.origin) {
     const origin = window.location.origin;
-    if (!origin.includes('0.0.0.0') && !origin.includes('localhost') && !origin.includes('127.0.0.1')) {
+    if (isPublicWebOrigin(origin)) {
       try {
         localStorage.setItem('cbebirr_current_origin', origin);
       } catch {}
@@ -103,16 +112,29 @@ export function getAppBaseUrl(): string {
   if (typeof window !== 'undefined') {
     try {
       const stored = localStorage.getItem('cbebirr_current_origin');
-      if (stored && !stored.includes('0.0.0.0') && !stored.includes('localhost') && !stored.includes('127.0.0.1')) {
+      if (stored && isPublicWebOrigin(stored)) {
         return stored;
       }
     } catch {}
   }
   if (process.env.NEXT_PUBLIC_APP_URL) {
     const envUrl = process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, '');
-    if (!envUrl.includes('0.0.0.0') && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
+    if (isPublicWebOrigin(envUrl)) {
       return envUrl;
     }
+  }
+  return 'https://ramussbirr.vercel.app';
+}
+
+/**
+ * Returns a short public base URL so `/r/<ref>` stays <= 50 chars,
+ * guaranteeing 33x33 Version 4 QR matrix density matching the authentic PNGs
+ * and remaining accessible from any external phone camera without preview auth walls.
+ */
+export function getShortQrBaseUrl(): string {
+  const base = getAppBaseUrl().replace(/\/$/, '');
+  if (base.length <= 50 && !base.includes('run.app')) {
+    return base;
   }
   return 'https://ramussbirr.vercel.app';
 }

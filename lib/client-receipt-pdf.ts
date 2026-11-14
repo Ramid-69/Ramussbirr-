@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf';
-import QRCode from 'qrcode';
+import { generateMatchedSquareQrDataUrl } from './styled-qr';
+import { getShortQrBaseUrl } from './sms-webhook';
 
 export interface ReceiptData {
   ref: string;
@@ -226,27 +227,22 @@ export async function generateClientReceiptPdf(data: ReceiptData): Promise<{ blo
         ctx.fillStyle = '#141414';
         ctx.fillText(reason, 364, 1472);
 
-        // 13. Dynamic QR code
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(1035, 1535, 215, 215);
-
+        // 13. Crisp 33x33 Version 4 live QR code matching official_receipt_hq.png
         try {
-          const rawOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://ramussbirr.vercel.app';
-          const origin = (!rawOrigin || rawOrigin.includes('0.0.0.0') || rawOrigin.includes('localhost') || rawOrigin.includes('127.0.0.1')) ? 'https://ramussbirr.vercel.app' : rawOrigin;
-          const qrUrl = `${origin}/official-receipt?TID=${encodeURIComponent(ref)}&PH=${encodeURIComponent(acc)}${bank ? `&bank=${encodeURIComponent(bank)}` : ''}`;
-          const qrDataUrl = await QRCode.toDataURL(qrUrl, { margin: 1, width: 215, errorCorrectionLevel: 'M' });
+          const qrTarget = `${getShortQrBaseUrl()}/r/${encodeURIComponent(ref)}`;
+          const qrDataUrl = await generateMatchedSquareQrDataUrl(qrTarget, 240);
           const qrImg = new Image();
-          await new Promise<void>((r) => {
-            qrImg.onload = () => {
-              ctx.drawImage(qrImg, 1038, 1538, 209, 209);
-              r();
-            };
-            qrImg.onerror = () => r();
+          await new Promise<void>((resQr) => {
+            qrImg.onload = () => resQr();
+            qrImg.onerror = () => resQr();
             qrImg.src = qrDataUrl;
           });
-        } catch {
-          // ignore
-        }
+          if (qrImg.complete && qrImg.naturalWidth > 0) {
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(1034, 1536, 216, 216);
+            ctx.drawImage(qrImg, 1038, 1540, 208, 208);
+          }
+        } catch {}
 
         const pngDataUrl = canvas.toDataURL('image/png', 0.95);
         const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });

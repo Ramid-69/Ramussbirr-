@@ -21,18 +21,21 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const resolvedParams = await params;
-  const ref = resolvedParams.id || req.nextUrl.searchParams.get('TID') || '9V8GPL5D';
+  const rawRef = resolvedParams.id || req.nextUrl.searchParams.get('TID') || 'DJM51SKYIQ3';
+  const stored = getReceipt(rawRef);
+  const resolvedRef = stored?.ref || rawRef;
 
   const safeBase = getSafeBaseUrl(req);
-  const targetUrl = new URL('/official-receipt', safeBase);
-  targetUrl.searchParams.set('ref', ref);
-  targetUrl.searchParams.set('TID', ref);
+  const targetUrl = new URL('/aureceipt', safeBase);
+  targetUrl.searchParams.set('ref', resolvedRef);
+  targetUrl.searchParams.set('TID', resolvedRef);
 
   req.nextUrl.searchParams.forEach((val, key) => {
-    targetUrl.searchParams.set(key, val);
+    if (key !== 'ref' && key !== 'TID') {
+      targetUrl.searchParams.set(key, val);
+    }
   });
 
-  const stored = getReceipt(ref);
   if (stored) {
     if (!targetUrl.searchParams.get('amt') && stored.amt) targetUrl.searchParams.set('amt', stored.amt);
     if (!targetUrl.searchParams.get('rec') && stored.rec) targetUrl.searchParams.set('rec', stored.rec);
@@ -49,3 +52,4 @@ export async function GET(
 
   return NextResponse.redirect(targetUrl, 302);
 }
+

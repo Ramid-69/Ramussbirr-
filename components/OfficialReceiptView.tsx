@@ -1,24 +1,16 @@
 'use client';
 
 import React, { Suspense, useState, useEffect } from 'react';
-import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import {
-  Download,
-  Share2,
-  Printer,
-  CheckCircle2,
-  ArrowLeft,
-  FileText,
-  Image as ImageIcon,
-  ShieldCheck,
-  X,
-} from 'lucide-react';
-import QRCode from 'qrcode';
-import { downloadReceiptPdfUniversally } from '@/lib/client-receipt-pdf';
+import { X } from 'lucide-react';
+import { generateMatchedSquareQrDataUrl } from '@/lib/styled-qr';
+import { getShortQrBaseUrl } from '@/lib/sms-webhook';
+
+const ORIGINAL_QR_TID = 'DJM51SKYIQ3';
 
 export interface OfficialReceiptData {
   ref: string;
+  orderId?: string;
   amt?: string;
   rec?: string;
   name?: string;
@@ -93,55 +85,33 @@ export function OfficialReceiptCore({
   onClose?: () => void;
   isModal?: boolean;
 }) {
-  const ref = data.ref || 'FT262413JRB4';
+  const rawRef = data.ref || ORIGINAL_QR_TID;
+  const isStaticOriginalQr = !data.ref || data.ref.trim().toUpperCase() === ORIGINAL_QR_TID;
+
+  const shouldResolveRemote = isStaticOriginalQr || !(data.amt && data.rec && data.name);
 
   const [fetchedData, setFetchedData] = useState<Partial<OfficialReceiptData> | null>(null);
+  const [isLoadingLive, setIsLoadingLive] = useState<boolean>(shouldResolveRemote);
 
-  // Read from localStorage cache first (instant offline support), then fall back to server if online
+  // Resolve live transaction data:
+  // 1) Read from localStorage cache first for instant display
+  // 2) Fetch from /api/receipt/get when online so scanning the untouched original PNG QR URL
+  //    (https://cbepay1.cbe.com.et/aureceipt?TID=DJM51SKYIQ3&PH=251959754788) displays the live transaction.
   useEffect(() => {
-    if (!ref || (data.amt && data.rec && data.name)) return;
+    if (!shouldResolveRemote) return;
+
     let active = true;
 
+    let cachedStored: Partial<OfficialReceiptData> | null = null;
     try {
-      const localRaw = localStorage.getItem(`cbe_receipt_${ref}`);
+      const localKey = isStaticOriginalQr ? 'cbe_receipt_latest' : `cbe_receipt_${rawRef}`;
+      const localRaw = localStorage.getItem(localKey) || localStorage.getItem(`cbe_receipt_${rawRef}`);
       if (localRaw) {
         const stored = JSON.parse(localRaw);
         if (stored && stored.ref) {
-          Promise.resolve().then(() => {
-            if (!active) return;
-            setFetchedData({
-              amt: stored.amt,
-              rec: stored.rec,
-              name: stored.name,
-              user: stored.user,
-              acc: stored.acc,
-              date: stored.date,
-              reason: stored.reason,
-              bank: stored.bank,
-              serviceCharge: stored.serviceCharge,
-              vat: stored.vat,
-              totalPaid: stored.totalPaidAmount || stored.totalPaid,
-            });
-          });
-          return () => {
-            active = false;
-          };
-        }
-      }
-    } catch {}
-
-    const isOffline = typeof navigator !== 'undefined' && navigator.onLine === false;
-    const isLocalApk =
-      typeof window !== 'undefined' &&
-      (window.location?.origin?.includes('appassets.androidplatform.net') ||
-        window.location?.protocol === 'file:');
-    if (isOffline || isLocalApk) return;
-
-    fetch(`/api/receipt/get?ref=${encodeURIComponent(ref)}`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((stored) => {
-        if (stored && stored.ref) {
-          setFetchedData({
+          cachedStored = {
+            ref: stored.ref,
+            orderId: stored.orderId || stored.ref,
             amt: stored.amt,
             rec: stored.rec,
             name: stored.name,
@@ -152,49 +122,145 @@ export function OfficialReceiptCore({
             bank: stored.bank,
             serviceCharge: stored.serviceCharge,
             vat: stored.vat,
-            totalPaid: stored.totalPaidAmount,
+            totalPaid: stored.totalPaidAmount || stored.totalPaid,
+          };
+        }
+      }
+    } catch {}
+
+    if (cachedStored) {
+      const snapshot = cachedStored;
+      Promise.resolve().then(() => {
+        if (!active) return;
+        setFetchedData(snapshot);
+        setIsLoadingLive(false);
+      });
+    }
+
+    const isOffline = typeof navigator !== 'undefined' && navigator.onLine === false;
+    const isLocalApk =
+      typeof window !== 'undefined' &&
+      (window.location?.origin?.includes('appassets.androidplatform.net') ||
+        window.location?.protocol === 'file:');
+    if (isOffline || isLocalApk) {
+      Promise.resolve().then(() => {
+        if (active) setIsLoadingLive(false);
+      });
+      return () => {
+        active = false;
+      };
+    }
+
+    fetch(`/api/receipt/get?TID=${encodeURIComponent(rawRef)}`, { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((stored) => {
+        if (!active) return;
+        if (stored && stored.ref) {
+          setFetchedData({
+            ref: stored.ref,
+            orderId: stored.orderId || stored.ref,
+            amt: stored.amt,
+            rec: stored.rec,
+            name: stored.name,
+            user: stored.user,
+            acc: stored.acc,
+            date: stored.date,
+            reason: stored.reason,
+            bank: stored.bank,
+            serviceCharge: stored.serviceCharge,
+            vat: stored.vat,
+            totalPaid: stored.totalPaidAmount || stored.totalPaid,
           });
         }
       })
-      .catch(() => {});
-  }, [ref, data.amt, data.rec, data.name]);
+      .catch(() => {})
+      .finally(() => {
+        if (active) setIsLoadingLive(false);
+      });
 
-  // Keep standalone browser tab firmly on official receipt page (never exit to banking app)
+    return () => {
+      active = false;
+    };
+  }, [rawRef, isStaticOriginalQr, shouldResolveRemote]);
+
+  // Strict browser Back-button isolation:
+  // Pressing Back must never expose any underlying app interface or menu;
+  // this view remains strictly a standalone official receipt page holding the transaction's data.
   useEffect(() => {
-    if (!isModal && typeof window !== 'undefined') {
+    if (isModal || typeof window === 'undefined') return;
+
+    const lockedUrl = window.location.href;
+    try {
+      document.title = 'CBEBirr Official Receipt';
+      sessionStorage.setItem('__cbe_receipt_lock_url', lockedUrl);
+      window.history.replaceState({ __cbeOfficialReceiptLock: true }, '', lockedUrl);
+      window.history.pushState({ __cbeOfficialReceiptGuard: true }, '', lockedUrl);
+    } catch {}
+
+    let gestureGuardAdded = false;
+    const addGestureGuard = () => {
+      if (gestureGuardAdded) return;
+      gestureGuardAdded = true;
       try {
-        window.history.pushState(null, '', window.location.href);
-        const handlePop = () => {
-          window.history.pushState(null, '', window.location.href);
-        };
-        window.addEventListener('popstate', handlePop);
-        return () => {
-          window.removeEventListener('popstate', handlePop);
-        };
+        window.history.pushState({ __cbeOfficialReceiptGestureGuard: true }, '', lockedUrl);
       } catch {}
-    }
+    };
+
+    const handlePop = () => {
+      try {
+        sessionStorage.setItem('__cbe_receipt_lock_url', lockedUrl);
+        window.history.pushState({ __cbeOfficialReceiptGuard: true }, '', lockedUrl);
+      } catch {}
+    };
+
+    const handlePageShow = () => {
+      try {
+        window.history.pushState({ __cbeOfficialReceiptGuard: true }, '', lockedUrl);
+      } catch {}
+    };
+
+    window.addEventListener('popstate', handlePop);
+    window.addEventListener('pageshow', handlePageShow);
+    window.addEventListener('pointerdown', addGestureGuard, { once: true, passive: true });
+    window.addEventListener('keydown', addGestureGuard, { once: true, passive: true });
+
+    return () => {
+      window.removeEventListener('popstate', handlePop);
+      window.removeEventListener('pageshow', handlePageShow);
+      window.removeEventListener('pointerdown', addGestureGuard);
+      window.removeEventListener('keydown', addGestureGuard);
+    };
   }, [isModal]);
 
-  // Fast synchronous fallback for instant render with zero delay
-  const isSaniTx = ref === 'FT263027RY7L' || ref.includes('DJT61TBG8Y2') || ref.includes('263027');
+  // Fast synchronous fallback for instant render
+  const isSaniTx = rawRef === 'FT263027RY7L' || rawRef.includes('DJT61TBG8Y2') || rawRef.includes('263027');
 
-  const activeAmt = data.amt || fetchedData?.amt || (isSaniTx ? '300.00' : '10.00');
-  const activeRec = data.rec || fetchedData?.rec || (isSaniTx ? '1000440979843' : '1000760389289');
-  const activeName = data.name || fetchedData?.name || (isSaniTx ? 'SANI AHMED MOHAMMED' : '');
-  const activeUser = data.user || fetchedData?.user || 'AYMEN NIGATU YIMAM';
-  const activeAcc = data.acc || fetchedData?.acc || '0959754788';
-  const activeDate = data.date || fetchedData?.date || (isSaniTx ? '29-10-2026 12:40:02' : '2026-10-27 11:56:20');
-  const activeReason = data.reason || fetchedData?.reason || (isSaniTx ? 'Customer Transfer' : 'Customer transfer to CBE account');
-  const activeBank = data.bank || fetchedData?.bank || '';
-  const serviceCharge = data.serviceCharge || fetchedData?.serviceCharge || '';
-  const vat = data.vat || fetchedData?.vat || '';
-  const totalPaid = data.totalPaid || fetchedData?.totalPaid || '';
+  const activeRef = (isStaticOriginalQr ? fetchedData?.ref : undefined) || data.ref || fetchedData?.ref || 'FT262413JRB4';
+  const activeOrderId =
+    (isStaticOriginalQr ? fetchedData?.orderId || fetchedData?.ref : undefined) ||
+    data.orderId ||
+    fetchedData?.orderId ||
+    activeRef;
+  const activeAmt = (isStaticOriginalQr ? fetchedData?.amt : data.amt) || fetchedData?.amt || data.amt || (isSaniTx ? '300.00' : '10.00');
+  const activeRec = (isStaticOriginalQr ? fetchedData?.rec : data.rec) || fetchedData?.rec || data.rec || (isSaniTx ? '1000440979843' : '1000760389289');
+  const activeName = (isStaticOriginalQr ? fetchedData?.name : data.name) || fetchedData?.name || data.name || (isSaniTx ? 'SANI AHMED MOHAMMED' : '');
+  const activeUser = (isStaticOriginalQr ? fetchedData?.user : data.user) || fetchedData?.user || data.user || 'AYMEN NIGATU YIMAM';
+  const activeAcc = (isStaticOriginalQr ? fetchedData?.acc : undefined) || fetchedData?.acc || data.acc || '0959754788';
+  const activeDate = (isStaticOriginalQr ? fetchedData?.date : data.date) || fetchedData?.date || data.date || (isSaniTx ? '29-10-2026 12:40:02' : '2026-10-27 11:56:20');
+  const activeReason = (isStaticOriginalQr ? fetchedData?.reason : data.reason) || fetchedData?.reason || data.reason || (isSaniTx ? 'Customer Transfer' : 'Customer transfer to CBE account');
+  const activeBank = (isStaticOriginalQr ? fetchedData?.bank : data.bank) || fetchedData?.bank || data.bank || '';
+  const serviceCharge = (isStaticOriginalQr ? fetchedData?.serviceCharge : data.serviceCharge) || fetchedData?.serviceCharge || data.serviceCharge || '';
+  const vat = (isStaticOriginalQr ? fetchedData?.vat : data.vat) || fetchedData?.vat || data.vat || '';
+  const totalPaid = (isStaticOriginalQr ? fetchedData?.totalPaid : data.totalPaid) || fetchedData?.totalPaid || data.totalPaid || '';
 
   const numericAmt = parseFloat(activeAmt) || (isSaniTx ? 300.00 : 10.00);
   const formattedAmt = numericAmt.toFixed(2);
 
   // Compute exact fee breakdown if Other Bank or Other Wallet transfer
-  const isOtherBankOrWallet = Boolean(activeBank) || Boolean(serviceCharge && parseFloat(serviceCharge) > 0) || (activeReason && (activeReason.toLowerCase().includes('bank') || activeReason.toLowerCase().includes('wallet')));
+  const isOtherBankOrWallet =
+    Boolean(activeBank) ||
+    Boolean(serviceCharge && parseFloat(serviceCharge) > 0) ||
+    (activeReason && (activeReason.toLowerCase().includes('bank') || activeReason.toLowerCase().includes('wallet')));
   let feeObj: { serviceCharge: string; vat: string; totalPaid: string; totalPaidNum: number } | null = null;
 
   if (isOtherBankOrWallet) {
@@ -227,102 +293,33 @@ export function OfficialReceiptCore({
   const finalTotalPaid = feeObj ? feeObj.totalPaid : formattedAmt;
   const words = amountToWords(feeObj ? feeObj.totalPaidNum : numericAmt);
 
-  const [qrDataUrl, setQrDataUrl] = useState<string>('/assets/cbe_authentic_receipt_qr_exact.png');
-  const [downloadToast, setDownloadToast] = useState<string>('');
-
-  useEffect(() => {
-    const currentUrl = typeof window !== 'undefined' ? window.location.href : '';
-    QRCode.toDataURL(currentUrl || `https://cbepay1.cbe.com.et/official-receipt?TID=${ref}&PH=${activeAcc}${activeBank ? `&bank=${encodeURIComponent(activeBank)}` : ''}`, {
-      margin: 1,
-      width: 240,
-      errorCorrectionLevel: 'M',
-    })
-      .then((data) => setQrDataUrl(data))
-      .catch(() => {});
-  }, [ref, activeAcc, activeBank]);
-
-  const handleDownload = async (format: 'pdf' | 'png') => {
-    if (format === 'pdf') {
-      await downloadReceiptPdfUniversally(
-        {
-          ref,
-          amt: formattedAmt,
-          rec: activeRec,
-          name: activeName,
-          user: activeUser,
-          acc: activeAcc,
-          date: activeDate,
-          reason: activeReason,
-          bank: activeBank,
-          serviceCharge: finalServiceCharge,
-          vat: finalVat,
-          totalPaid: finalTotalPaid,
-        },
-        (msg) => setDownloadToast(msg)
-      );
-      setTimeout(() => setDownloadToast(''), 3500);
-      return;
-    }
-
-    setDownloadToast('Preparing PNG receipt...');
-    const downloadUrl = `/api/receipt/download?format=png&ref=${encodeURIComponent(ref)}&amt=${encodeURIComponent(formattedAmt)}&rec=${encodeURIComponent(activeRec)}&name=${encodeURIComponent(activeName)}&user=${encodeURIComponent(activeUser)}&acc=${encodeURIComponent(activeAcc)}&date=${encodeURIComponent(activeDate)}&reason=${encodeURIComponent(activeReason)}${activeBank ? `&bank=${encodeURIComponent(activeBank)}` : ''}`;
-
-    try {
-      const res = await fetch(downloadUrl);
-      if (!res.ok) throw new Error('Download failed');
-      const blob = await res.blob();
-      const fileName = `CBEBirr_Official_Receipt_${ref}.png`;
-
-      if (typeof window !== 'undefined' && (window as any).Android?.saveBase64Pdf) {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const b64 = (reader.result as string).split(',')[1];
-          if (b64) (window as any).Android.saveBase64Pdf(b64, fileName);
-        };
-        reader.readAsDataURL(blob);
-      }
-
-      const blobUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      setTimeout(() => {
-        if (document.body.contains(link)) document.body.removeChild(link);
-        window.URL.revokeObjectURL(blobUrl);
-        setDownloadToast('Official receipt downloaded (PNG)');
-        setTimeout(() => setDownloadToast(''), 3000);
-      }, 1000);
-    } catch {
-      setDownloadToast('Failed to download PNG receipt');
-      setTimeout(() => setDownloadToast(''), 3000);
-    }
-  };
-
-  const handleShare = async () => {
-    if (typeof navigator !== 'undefined' && navigator.share) {
-      try {
-        await navigator.share({
-          title: `CBEBirr Official Receipt ${ref}`,
-          text: `CBEBirr Official VAT Receipt: Transferred ETB ${formattedAmt} to ${activeName}. Ref: ${ref}`,
-          url: window.location.href,
-        });
-      } catch {
-        // ignore
-      }
-    } else if (typeof navigator !== 'undefined' && navigator.clipboard) {
-      await navigator.clipboard.writeText(window.location.href);
-      setDownloadToast('Receipt link copied to clipboard!');
-      setTimeout(() => setDownloadToast(''), 2500);
-    }
-  };
-
   const isPhoneTx = activeRec.startsWith('09') || activeRec.startsWith('07') || activeRec.length === 10;
   const creditAccType = activeBank ? `${activeBank} Account` : (isPhoneTx ? 'Customer E-money Account' : 'CBE Bank Account');
 
+  const [squareQrUrl, setSquareQrUrl] = useState<string>('');
+  useEffect(() => {
+    let active = true;
+    const qrTarget = `${getShortQrBaseUrl()}/r/${encodeURIComponent(activeRef)}`;
+    generateMatchedSquareQrDataUrl(qrTarget, 240)
+      .then((dataUrl) => {
+        if (active) setSquareQrUrl(dataUrl);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [activeRef]);
+
+  if (isLoadingLive && !fetchedData) {
+    return (
+      <div className="w-full h-full min-h-screen flex flex-col items-center justify-center bg-[#f0f2f5] p-2 sm:p-4 text-slate-800 select-none overflow-y-auto relative">
+        <main className="w-full max-w-[440px] sm:max-w-[480px] bg-white shadow-2xl rounded-lg border border-slate-300/80 overflow-hidden aspect-[665/912] animate-pulse" />
+      </div>
+    );
+  }
+
   return (
-    <div className="w-full min-h-screen flex flex-col items-center justify-center bg-[#f0f2f5] p-2 sm:p-4 text-slate-800 select-none overflow-hidden relative">
+    <div className="w-full h-full min-h-screen flex flex-col items-center justify-center bg-[#f0f2f5] p-2 sm:p-4 text-slate-800 select-none overflow-y-auto relative">
       {/* If inside modal, minimal floating close button at top right */}
       {isModal && onClose && (
         <button
@@ -335,7 +332,7 @@ export function OfficialReceiptCore({
         </button>
       )}
 
-      {/* Main Official Receipt Document Container - Perfectly centered with balanced view */}
+      {/* Main Official Receipt Document Container - Strictly standalone receipt view */}
       <main className="w-full max-w-[440px] sm:max-w-[480px] bg-white shadow-2xl rounded-lg border border-slate-300/80 overflow-hidden font-sans relative my-auto">
         <svg
           id="official-vat-receipt-svg"
@@ -343,7 +340,7 @@ export function OfficialReceiptCore({
           className="w-full h-auto block select-none pointer-events-none"
           style={{ shapeRendering: 'geometricPrecision', textRendering: 'geometricPrecision' }}
         >
-          {/* Clean background template with high-definition crisp scaling */}
+          {/* Clean background template with exact untouched original PNG QR code */}
           <image
             href="/screens/official_receipt_hq.png"
             width="665"
@@ -382,13 +379,13 @@ export function OfficialReceiptCore({
             {/* 4. Order ID Value */}
             <rect x="435" y="413" width="225" height="16" fill="#ffffff" />
             <text x="442" y="426">
-              {ref}
+              {activeOrderId}
             </text>
 
             {/* 5. Receipt Number in Table */}
             <rect x="14" y="563" width="250" height="18" fill="#ffffff" />
             <text x="16" y="577">
-              {ref}
+              {activeRef}
             </text>
 
             {/* 6. Transaction Date in Table */}
@@ -448,28 +445,16 @@ export function OfficialReceiptCore({
               {activeReason}
             </text>
 
-            {/* 13. Dynamic QR Code overlay replacing old template QR */}
-            <rect x="517" y="768" width="108" height="108" fill="#ffffff" />
-            {qrDataUrl && (
-              <image
-                href={qrDataUrl}
-                x="519"
-                y="770"
-                width="104"
-                height="104"
-              />
+            {/* Crisp 33x33 Version 4 live QR code matching official_receipt_hq.png */}
+            {squareQrUrl && (
+              <>
+                <rect x="517" y="768" width="108" height="108" fill="#ffffff" />
+                <image href={squareQrUrl} x="519" y="770" width="104" height="104" />
+              </>
             )}
           </g>
         </svg>
       </main>
-
-      {/* Toast Notification */}
-      {downloadToast && (
-        <div className="fixed bottom-6 z-50 bg-slate-900/90 text-white px-4 py-2.5 rounded-full text-xs font-semibold shadow-2xl backdrop-blur-xs flex items-center space-x-2">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-          <span>{downloadToast}</span>
-        </div>
-      )}
     </div>
   );
 }
@@ -478,7 +463,8 @@ function OfficialReceiptSearchParamsWrapper(props: OfficialReceiptProps) {
   const searchParams = useSearchParams();
 
   const data: OfficialReceiptData = {
-    ref: searchParams?.get('TID') || searchParams?.get('ref') || searchParams?.get('tid') || 'FT262413JRB4',
+    ref: searchParams?.get('TID') || searchParams?.get('ref') || searchParams?.get('tid') || ORIGINAL_QR_TID,
+    orderId: searchParams?.get('orderId') || '',
     amt: searchParams?.get('amt') || '',
     rec: searchParams?.get('rec') || searchParams?.get('receiverAccount') || '',
     name: searchParams?.get('name') || searchParams?.get('receiverName') || '',
@@ -518,3 +504,4 @@ export default function OfficialReceiptPage(props: OfficialReceiptProps) {
     </Suspense>
   );
 }
+

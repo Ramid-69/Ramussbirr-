@@ -4,8 +4,6 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, Download, Share2, Printer, Search, Trash2, Edit2, Plus, User, ChevronRight, Receipt, MapPin, Phone, Info, HelpCircle, Fingerprint, WifiOff, CheckCircle2, MessageSquare, RefreshCw, Send, Check, X } from 'lucide-react';
 import CBEAuthenticSpinner from './CBEAuthenticSpinner';
-import QRCode from 'qrcode';
-import { generateStyledQrDataUrl } from '@/lib/styled-qr';
 import {
   sendSmsWebhook,
   sendTransactionSms,
@@ -14,7 +12,13 @@ import {
   formatCbeDateTime,
   CbeSmsWebhookPayload,
   buildOfficialReceiptUrl,
+  getAppBaseUrl,
+  getShortQrBaseUrl,
 } from '@/lib/sms-webhook';
+import {
+  generateStyledQrDataUrl,
+  generateMatchedSquareQrDataUrl,
+} from '@/lib/styled-qr';
 import { downloadReceiptPdfUniversally } from '@/lib/client-receipt-pdf';
 import SamsungMessagesApp from './SamsungMessagesApp';
 
@@ -625,9 +629,26 @@ export default function CBEBirrFullscreenApp() {
   const [transactionTotalCharges, setTransactionTotalCharges] = useState<number>(0);
   const [transactionTotalDeductions, setTransactionTotalDeductions] = useState<number>(0);
   const [receiptToast, setReceiptToast] = useState<string>('');
-  const lastSoundVibrateTimeRef = useRef<number>(0);
-  const [receiptQrDataUrl, setReceiptQrDataUrl] = useState<string>('');
   const [officialReceiptQrDataUrl, setOfficialReceiptQrDataUrl] = useState<string>('');
+  const lastSoundVibrateTimeRef = useRef<number>(0);
+
+  // If browser Back somehow navigates from standalone /aureceipt or /official-receipt back to /,
+  // immediately keep the user on the standalone official receipt and never show app UI.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const navEntries = window.performance?.getEntriesByType?.('navigation') as PerformanceNavigationTiming[] | undefined;
+      const navType = navEntries && navEntries[0] ? navEntries[0].type : '';
+      const lockedUrl = sessionStorage.getItem('__cbe_receipt_lock_url');
+      if (navType === 'back_forward' && lockedUrl) {
+        window.location.replace(lockedUrl);
+        return;
+      }
+      if (navType !== 'back_forward') {
+        sessionStorage.removeItem('__cbe_receipt_lock_url');
+      }
+    } catch {}
+  }, []);
 
   // CBEBirr USSD *847# & MacroDroid Receiver State (Strictly zero popup modals)
   const [customVerifiedReceiverName, setCustomVerifiedReceiverName] = useState<string>('');
@@ -1903,19 +1924,21 @@ export default function CBEBirrFullscreenApp() {
     };
   }, [completeUssdResolution]);
 
-  // Dynamic styled QR code generation matching authentic CBEBirr PNG designs:
-  // - Receipt (Step 8): WITH authentic CBE Birr Plus center logo
-  // Dynamic styled QR code generation matching authentic CBEBirr PNG designs:
-  // - Receipt (Step 8): Scannable by phone camera to official receipt PDF (WITH authentic center logo)
-  // - Official Receipt (Step 9): WITHOUT center logo
+  // Persist active receipt to localStorage & backend store when viewing Receipt (Step 8), Official Receipt (Step 9), or Tx Detail (Step 10)
+  // so scanning the untouched original PNG QR code (https://cbepay1.cbe.com.et/aureceipt?TID=DJM51SKYIQ3&PH=251959754788)
+  // always resolves to the live active transaction receipt.
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    if (currentStep !== 8 && currentStep !== 9 && currentStep !== 10) return;
+
     const activeTx = selectedTx || (transactions.length > 0 ? transactions[0] : null);
+    if (!activeTx && !transactionRef) return;
+
     const isPhone = transferSource === 'phone_number' || (activeTx?.account && (activeTx.account.startsWith('09') || activeTx.account.startsWith('07')));
     const currentRef = activeTx?.ref || activeTx?.orderId || transactionRef || 'FT262413JRB4';
     const currentAcc = userAccount || phoneNumber || '0959754788';
     const currentAmt = (parseFloat(activeTx?.amount ? String(activeTx.amount) : (isPhone ? phoneSendAmount : sendAmount)) || 10.00).toFixed(2);
-    const currentDate = activeTx?.date || transactionDate || '2026-10-27 11:56:20';
+    const currentDate = activeTx?.date || transactionIsoDate || transactionDate || '2026-10-27 11:56:20';
     const currentRec = activeTx?.account || (isPhone ? phoneReceiverNumber : receiverAccount) || '1000760389289';
     const currentName = activeTx?.receiverName || (isPhone ? (phoneReceiverName || '') : (displayReceiverName || '')) || '';
     const currentUser = userName || 'AYMEN NIGATU YIMAM';
@@ -1927,7 +1950,6 @@ export default function CBEBirrFullscreenApp() {
     const currentVat = activeTx?.vat ? String(activeTx.vat) : undefined;
     const currentTotalPaid = activeTx?.totalPaidAmount ? String(activeTx.totalPaidAmount) : undefined;
 
-    // Persist locally + to server receipt store when online
     const receiptSaveObj = {
       ref: currentRef,
       amt: currentAmt,
@@ -1938,87 +1960,47 @@ export default function CBEBirrFullscreenApp() {
       acc: currentAcc,
       reason: currentReason,
       status: 'Completed',
-      orderId: currentRef,
+      orderId: activeTx?.orderId || currentRef,
       bank: currentBank,
       serviceCharge: currentFee,
       vat: currentVat,
       totalPaidAmount: currentTotalPaid,
     };
+
+    const payloadJson = JSON.stringify(receiptSaveObj);
     try {
-      localStorage.setItem(`cbe_receipt_${currentRef}`, JSON.stringify(receiptSaveObj));
+      localStorage.setItem(`cbe_receipt_${currentRef}`, payloadJson);
+      localStorage.setItem('cbe_receipt_latest', payloadJson);
     } catch {}
-    const isOfflineOrStaticApk =
-      (typeof navigator !== 'undefined' && navigator.onLine === false) ||
-      (typeof window !== 'undefined' &&
-        (window.location?.origin?.includes('appassets.androidplatform.net') ||
-          window.location?.protocol === 'file:'));
-    if (!isOfflineOrStaticApk) {
+
+    const isOffline = typeof navigator !== 'undefined' && navigator.onLine === false;
+    if (isOffline) return;
+
+    const isStaticApk =
+      window.location?.origin?.includes('appassets.androidplatform.net') ||
+      window.location?.protocol === 'file:';
+    const qrBaseOrigin = getShortQrBaseUrl();
+    const isSameOriginAsQrBase = window.location?.origin?.replace(/\/$/, '') === qrBaseOrigin;
+
+    if (!isStaticApk) {
       fetch('/api/receipt/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(receiptSaveObj),
+        body: payloadJson,
+        keepalive: true,
       }).catch(() => {});
     }
-
-    // Authentic CBE Birr Plus electronic receipt URL with all real-time transaction parameters
-    const scanUrl = buildOfficialReceiptUrl(
-      currentRef,
-      currentAcc,
-      currentAmt,
-      currentName,
-      currentUser,
-      currentRec,
-      currentDate,
-      currentReason,
-      currentBank,
-      currentFee,
-      currentVat,
-      currentTotalPaid
-    );
-
-    // 1. Transaction receipt QR code (WITH authentic CBE Birr Plus center logo)
-    try {
-      const dataUrlWithLogo = generateStyledQrDataUrl(scanUrl, {
-        size: 360,
-        margin: 1,
-        withCenterLogo: true,
-        centerLogoHref: '/assets/cbe_qr_center_badge_crisp.png',
-        bgColor: '#eeeeee',
-      });
-      Promise.resolve().then(() => {
-        setReceiptQrDataUrl(dataUrlWithLogo);
-      });
-    } catch {
-      QRCode.toDataURL(scanUrl, {
-        margin: 1,
-        width: 280,
-        errorCorrectionLevel: 'M',
-      })
-        .then((data) => setReceiptQrDataUrl(data))
-        .catch(() => {});
-    }
-
-    // 2. Official VAT receipt QR code (WITHOUT center logo, clean white background)
-    try {
-      const dataUrlNoLogo = generateStyledQrDataUrl(scanUrl, {
-        size: 360,
-        margin: 1,
-        withCenterLogo: false,
-        bgColor: '#ffffff',
-      });
-      Promise.resolve().then(() => {
-        setOfficialReceiptQrDataUrl(dataUrlNoLogo);
-      });
-    } catch {
-      QRCode.toDataURL(scanUrl, {
-        margin: 1,
-        width: 280,
-        errorCorrectionLevel: 'M',
-      })
-        .then((data) => setOfficialReceiptQrDataUrl(data))
-        .catch(() => {});
+    if ((isStaticApk || !isSameOriginAsQrBase) && qrBaseOrigin && qrBaseOrigin.startsWith('http')) {
+      fetch(`${qrBaseOrigin}/api/receipt/save`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: payloadJson,
+        keepalive: true,
+        mode: 'cors',
+      }).catch(() => {});
     }
   }, [
+    currentStep,
     selectedTx,
     transactions,
     transactionRef,
@@ -2027,6 +2009,7 @@ export default function CBEBirrFullscreenApp() {
     sendAmount,
     phoneSendAmount,
     transactionDate,
+    transactionIsoDate,
     receiverAccount,
     phoneReceiverNumber,
     displayReceiverName,
@@ -2037,6 +2020,34 @@ export default function CBEBirrFullscreenApp() {
     transferSource,
     selectedBank,
   ]);
+
+  const activeReceiptRef = useMemo(() => {
+    const activeTx = selectedTx || (transactions.length > 0 ? transactions[0] : null);
+    return activeTx?.ref || activeTx?.orderId || transactionRef || 'FT262413JRB4';
+  }, [selectedTx, transactions, transactionRef]);
+
+  const activeQrTargetUrl = useMemo(() => {
+    const base = getShortQrBaseUrl();
+    return `${base}/r/${encodeURIComponent(activeReceiptRef)}`;
+  }, [activeReceiptRef]);
+
+  const receiptQrDataUrl = useMemo(() => {
+    if (currentStep !== 8 && currentStep !== 9) return '';
+    return generateStyledQrDataUrl(activeQrTargetUrl);
+  }, [currentStep, activeQrTargetUrl]);
+
+  useEffect(() => {
+    if (currentStep !== 8 && currentStep !== 9) return;
+    let active = true;
+    generateMatchedSquareQrDataUrl(activeQrTargetUrl, 240)
+      .then((data) => {
+        if (active) setOfficialReceiptQrDataUrl(data);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [currentStep, activeQrTargetUrl]);
 
   const handleStartAddReceiver = () => {
     setEditingReceiverId(null);
@@ -2384,20 +2395,38 @@ export default function CBEBirrFullscreenApp() {
           totalPaidAmount: totalDeducted.toFixed(2),
         };
         try {
-          localStorage.setItem(`cbe_receipt_${newRef}`, JSON.stringify(transferReceiptObj));
+          const payloadJson = JSON.stringify(transferReceiptObj);
+          localStorage.setItem(`cbe_receipt_${newRef}`, payloadJson);
+          localStorage.setItem('cbe_receipt_latest', payloadJson);
         } catch {}
         try {
-          const isOfflineOrStaticApk =
-            (typeof navigator !== 'undefined' && navigator.onLine === false) ||
-            (typeof window !== 'undefined' &&
+          const isOffline = typeof navigator !== 'undefined' && navigator.onLine === false;
+          if (!isOffline) {
+            const isStaticApk =
+              typeof window !== 'undefined' &&
               (window.location?.origin?.includes('appassets.androidplatform.net') ||
-                window.location?.protocol === 'file:'));
-          if (!isOfflineOrStaticApk) {
-            fetch('/api/receipt/save', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(transferReceiptObj),
-            }).catch(() => {});
+                window.location?.protocol === 'file:');
+            const qrBaseOrigin = getShortQrBaseUrl();
+            const isSameOriginAsQrBase =
+              typeof window !== 'undefined' &&
+              window.location?.origin?.replace(/\/$/, '') === qrBaseOrigin;
+            if (!isStaticApk) {
+              fetch('/api/receipt/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(transferReceiptObj),
+                keepalive: true,
+              }).catch(() => {});
+            }
+            if ((isStaticApk || !isSameOriginAsQrBase) && qrBaseOrigin && qrBaseOrigin.startsWith('http')) {
+              fetch(`${qrBaseOrigin}/api/receipt/save`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(transferReceiptObj),
+                keepalive: true,
+                mode: 'cors',
+              }).catch(() => {});
+            }
           }
         } catch {}
 
@@ -6002,6 +6031,25 @@ export default function CBEBirrFullscreenApp() {
                 draggable={false}
               />
 
+              {/* Exact 33x33 Version 4 CBE Styled QR overlaid seamlessly on receipt_page.png QR slot */}
+              {receiptQrDataUrl && (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src={receiptQrDataUrl}
+                  alt="Transaction Receipt QR Code"
+                  style={{
+                    position: 'absolute',
+                    top: '34.60%',
+                    left: '30.19%',
+                    width: '39.63%',
+                    height: '18.68%',
+                    pointerEvents: 'none',
+                  }}
+                  className="z-10 select-none block object-contain"
+                  draggable={false}
+                />
+              )}
+
               {/* Hotspot: Top Header Language Switcher (EN) */}
               <button
                 type="button"
@@ -6464,16 +6512,18 @@ export default function CBEBirrFullscreenApp() {
                             {activeReason}
                           </text>
 
-                          {/* 13. Dynamic QR Code overlay replacing old template QR */}
-                          <rect x="517" y="768" width="108" height="108" fill="#ffffff" />
+                          {/* Crisp 33x33 Version 4 live QR code matching official_receipt_hq.png */}
                           {officialReceiptQrDataUrl && (
-                            <image
-                              href={officialReceiptQrDataUrl}
-                              x="519"
-                              y="770"
-                              width="104"
-                              height="104"
-                            />
+                            <>
+                              <rect x="517" y="768" width="108" height="108" fill="#ffffff" />
+                              <image
+                                href={officialReceiptQrDataUrl}
+                                x="519"
+                                y="770"
+                                width="104"
+                                height="104"
+                              />
+                            </>
                           )}
                         </g>
                       );

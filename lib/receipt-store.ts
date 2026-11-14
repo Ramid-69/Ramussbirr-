@@ -1,5 +1,4 @@
 import fs from 'fs';
-import path from 'path';
 
 export interface StoredReceipt {
   ref: string;
@@ -19,10 +18,22 @@ export interface StoredReceipt {
   totalPaidAmount?: string;
 }
 
+/**
+ * Exact URL & parameters decoded verbatim from the untouched original PNG QR codes
+ * (public/assets/cbe_authentic_receipt_qr_exact.png, public/screens/receipt_page.png,
+ * and public/screens/official_receipt_hq.png).
+ */
+export const ORIGINAL_QR_URL =
+  'https://cbepay1.cbe.com.et/aureceipt?TID=DJM51SKYIQ3&PH=251959754788';
+export const ORIGINAL_QR_TID = 'DJM51SKYIQ3';
+export const ORIGINAL_QR_PH = '251959754788';
+
+const LATEST_KEY = '__LATEST__';
 const STORAGE_FILE = '/tmp/cbe_receipts.json';
 
 // In-memory cache pre-seeded with user's authentic screenshots
 const memoryStore = new Map<string, StoredReceipt>();
+let lastLoadedMtime = 0;
 
 // Default fallback for any unknown reference
 export const DEFAULT_RECEIPT: StoredReceipt = {
@@ -130,39 +141,75 @@ for (const seed of INITIAL_SEEDS) {
   memoryStore.set(seed.ref, seed);
 }
 
-// Load persisted transactions on startup
-try {
-  if (fs.existsSync(STORAGE_FILE)) {
+function syncFromDisk(): void {
+  try {
+    if (!fs.existsSync(STORAGE_FILE)) return;
+    const stat = fs.statSync(STORAGE_FILE);
+    if (stat.mtimeMs <= lastLoadedMtime) return;
     const raw = fs.readFileSync(STORAGE_FILE, 'utf-8');
     const parsed = JSON.parse(raw);
     for (const [k, v] of Object.entries(parsed)) {
       memoryStore.set(k, v as StoredReceipt);
     }
+    lastLoadedMtime = stat.mtimeMs;
+  } catch {
+    // ignore
   }
-} catch {
-  // ignore
+}
+
+syncFromDisk();
+
+/**
+ * Extracts a TID / ref from either a raw ID or the full scanned QR URL.
+ */
+export function extractReceiptRef(input: string): string {
+  if (!input) return '';
+  const trimmed = input.trim();
+  if (trimmed.includes('://') || trimmed.includes('?')) {
+    try {
+      const urlObj = new URL(trimmed.startsWith('http') ? trimmed : `https://cbepay1.cbe.com.et${trimmed.startsWith('/') ? '' : '/'}${trimmed}`);
+      return (
+        urlObj.searchParams.get('TID') ||
+        urlObj.searchParams.get('tid') ||
+        urlObj.searchParams.get('ref') ||
+        ''
+      ).trim();
+    } catch {
+      // fall through
+    }
+  }
+  return trimmed;
 }
 
 export function saveReceipt(data: StoredReceipt): void {
   if (!data || !data.ref) return;
-  const cleanRef = data.ref.trim();
-  memoryStore.set(cleanRef, data);
-  memoryStore.set(cleanRef.toUpperCase(), data);
-  memoryStore.set(cleanRef.toLowerCase(), data);
+  syncFromDisk();
 
-  if (data.orderId) {
-    const oId = data.orderId.trim();
-    memoryStore.set(oId, data);
-    memoryStore.set(oId.toUpperCase(), data);
+  const cleanRef = data.ref.trim();
+  const normalized: StoredReceipt = { ...data, ref: cleanRef };
+
+  memoryStore.set(cleanRef, normalized);
+  memoryStore.set(cleanRef.toUpperCase(), normalized);
+  memoryStore.set(cleanRef.toLowerCase(), normalized);
+
+  // Track latest live transaction so scanning the untouched original PNG QR code
+  // (https://cbepay1.cbe.com.et/aureceipt?TID=DJM51SKYIQ3&PH=251959754788)
+  // resolves to the live transaction receipt immediately.
+  memoryStore.set(LATEST_KEY, normalized);
+
+  if (normalized.orderId) {
+    const oId = normalized.orderId.trim();
+    memoryStore.set(oId, normalized);
+    memoryStore.set(oId.toUpperCase(), normalized);
   }
 
   // Also index by 8-character TID
   if (cleanRef.length >= 8) {
     const last8 = cleanRef.slice(-8).toUpperCase();
-    memoryStore.set(last8, data);
+    memoryStore.set(last8, normalized);
   }
   if (cleanRef.toUpperCase().startsWith('FT') && cleanRef.length >= 10) {
-    memoryStore.set(cleanRef.slice(2, 10).toUpperCase(), data);
+    memoryStore.set(cleanRef.slice(2, 10).toUpperCase(), normalized);
   }
 
   try {
@@ -171,37 +218,32 @@ export function saveReceipt(data: StoredReceipt): void {
       obj[k] = v;
     }
     fs.writeFileSync(STORAGE_FILE, JSON.stringify(obj, null, 2), 'utf-8');
+    lastLoadedMtime = fs.statSync(STORAGE_FILE).mtimeMs;
   } catch {
     // ignore
   }
 }
 
 export function getReceipt(ref: string): StoredReceipt {
-  if (!ref) return DEFAULT_RECEIPT;
-  const clean = ref.trim();
+  syncFromDisk();
 
-  if (memoryStore.has(clean)) return memoryStore.get(clean)!;
-  if (memoryStore.has(clean.toUpperCase())) return memoryStore.get(clean.toUpperCase())!;
+  const clean = extractReceiptRef(ref);
 
-  // Try reload from disk in case written by a concurrent route
-  try {
-    if (fs.existsSync(STORAGE_FILE)) {
-      const raw = fs.readFileSync(STORAGE_FILE, 'utf-8');
-      const parsed = JSON.parse(raw);
-      for (const [k, v] of Object.entries(parsed)) {
-        memoryStore.set(k, v as StoredReceipt);
-      }
-    }
-  } catch {
-    // ignore
+  // When scanned from the untouched original PNG QR code (TID=DJM51SKYIQ3),
+  // or requesting the latest transaction, return the latest live transaction if saved.
+  if (!clean || clean.toUpperCase() === ORIGINAL_QR_TID || clean === LATEST_KEY || clean.toLowerCase() === 'latest') {
+    const latest = memoryStore.get(LATEST_KEY);
+    if (latest) return latest;
+    return memoryStore.get(ORIGINAL_QR_TID) || DEFAULT_RECEIPT;
   }
 
   if (memoryStore.has(clean)) return memoryStore.get(clean)!;
   if (memoryStore.has(clean.toUpperCase())) return memoryStore.get(clean.toUpperCase())!;
 
-  // Try case-insensitive or partial match
+  // Try case-insensitive or partial match (skipping internal __LATEST__ key)
   const upper = clean.toUpperCase();
   for (const [k, v] of memoryStore.entries()) {
+    if (k === LATEST_KEY) continue;
     const kUpper = k.toUpperCase();
     if (kUpper === upper || (upper.length >= 8 && kUpper.includes(upper)) || (kUpper.length >= 8 && upper.includes(kUpper))) {
       return v;
@@ -210,4 +252,3 @@ export function getReceipt(ref: string): StoredReceipt {
 
   return { ...DEFAULT_RECEIPT, ref: clean };
 }
-
