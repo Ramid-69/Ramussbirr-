@@ -366,7 +366,10 @@ if (fs.existsSync(cbeApkPath) && fs.existsSync(logoPng512) && fs.existsSync(clea
         let changed = false;
 
         if (base === 'MainActivity.smali') {
-          const updated = code.replace(/(const\/16 v\d+, )0x20([\s\S]{0,120}?setSoftInputMode\(I\)V)/g, '$10x30$2');
+          const updated = code.replace(
+            /(const\/16 v\d+, )0x20([\s\S]{0,120}?setSoftInputMode\(I\)V)/g,
+            (_, prefix, suffix) => `${prefix}0x30${suffix}`
+          );
           if (updated !== code) {
             code = updated;
             changed = true;
@@ -392,14 +395,29 @@ if (fs.existsSync(cbeApkPath) && fs.existsSync(logoPng512) && fs.existsSync(clea
         } else if (base === 'UssdAccessibilityService$1.smali') {
           let updated = code.replace(/"#99000000"/gi, '"#FF7A1C7D"');
           if (!updated.includes('UssdAccessibilityService$4')) {
+            let regListener = 'v2';
+            let regService = 'v3';
+            const localsMatch = updated.match(/(\.method\s+[^\r\n]*\brun\(\)V[\s\S]*?\.locals\s+)(\d+)/);
+            if (localsMatch) {
+              const oldLocals = Number.parseInt(localsMatch[2], 10);
+              if (Number.isFinite(oldLocals) && oldLocals <= 13) {
+                regListener = `v${oldLocals}`;
+                regService = `v${oldLocals + 1}`;
+                updated = updated.replace(
+                  /(\.method\s+[^\r\n]*\brun\(\)V[\s\S]*?\.locals\s+)\d+/,
+                  (_, headerPrefix) => `${headerPrefix}${oldLocals + 2}`
+                );
+              }
+            }
             updated = updated.replace(
               /(invoke-virtual \{(v\d+), (v\d+)\}, Landroid\/widget\/FrameLayout;->setFocusable\(Z\)V)/,
-              `$1\n\n` +
-                `    invoke-virtual {$2, $3}, Landroid/widget/FrameLayout;->setLongClickable(Z)V\n\n` +
-                `    new-instance v2, Lcom/cbe/cbebirrtransfer/UssdAccessibilityService$4;\n\n` +
-                `    iget-object v3, p0, Lcom/cbe/cbebirrtransfer/UssdAccessibilityService$1;->this$0:Lcom/cbe/cbebirrtransfer/UssdAccessibilityService;\n\n` +
-                `    invoke-direct {v2, v3}, Lcom/cbe/cbebirrtransfer/UssdAccessibilityService$4;-><init>(Lcom/cbe/cbebirrtransfer/UssdAccessibilityService;)V\n\n` +
-                `    invoke-virtual {$2, v2}, Landroid/widget/FrameLayout;->setOnTouchListener(Landroid/view/View$OnTouchListener;)V`
+              (_, callMatch, viewReg, boolReg) =>
+                `${callMatch}\n\n` +
+                `    invoke-virtual {${viewReg}, ${boolReg}}, Landroid/widget/FrameLayout;->setLongClickable(Z)V\n\n` +
+                `    new-instance ${regListener}, Lcom/cbe/cbebirrtransfer/UssdAccessibilityService$4;\n\n` +
+                `    iget-object ${regService}, p0, Lcom/cbe/cbebirrtransfer/UssdAccessibilityService$1;->this$0:Lcom/cbe/cbebirrtransfer/UssdAccessibilityService;\n\n` +
+                `    invoke-direct {${regListener}, ${regService}}, Lcom/cbe/cbebirrtransfer/UssdAccessibilityService$4;-><init>(Lcom/cbe/cbebirrtransfer/UssdAccessibilityService;)V\n\n` +
+                `    invoke-virtual {${viewReg}, ${regListener}}, Landroid/widget/FrameLayout;->setOnTouchListener(Landroid/view/View$OnTouchListener;)V`
             );
           }
           if (updated !== code) {
