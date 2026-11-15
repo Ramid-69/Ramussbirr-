@@ -264,6 +264,7 @@ interface TransactionItem {
   debitAccountType?: string;
   creditAccountType?: string;
   bank?: string;
+  reason?: string;
   serviceCharge?: string | number;
   vat?: string | number;
   totalCharges?: string | number;
@@ -2594,10 +2595,14 @@ export default function CBEBirrFullscreenApp() {
     const currentRec = activeTx?.account || (isPhone ? phoneReceiverNumber : receiverAccount) || '1000760389289';
     const currentName = activeTx?.receiverName || (isPhone ? (phoneReceiverName || '') : (displayReceiverName || '')) || '';
     const currentUser = userName || 'AYMEN NIGATU YIMAM';
-    const currentReason = activeTx?.title
-      ? (activeTx.title === 'Bank Transfer' ? 'Transfer to Other Bank' : (activeTx.title === 'Wallet Transfer' ? 'Wallet Transfer' : 'Customer transfer to CBE account'))
-      : (isPhone ? (phoneReason || 'Wallet Transfer') : (sendReason || 'Customer transfer to CBE account'));
     const currentBank = activeTx?.bank || (transferSource === 'other_banks' && selectedBank ? selectedBank.name : (transferSource === 'other_wallets' && selectedWallet ? selectedWallet.name : undefined));
+    const currentReason = activeTx?.reason
+      ? activeTx.reason
+      : (currentBank
+        ? `Transfer to ${currentBank}`
+        : (activeTx?.title
+          ? (activeTx.title === 'Bank Transfer' ? 'Transfer to Other Bank' : (activeTx.title === 'Wallet Transfer' ? 'Wallet Transfer' : 'Customer transfer to CBE account'))
+          : (isPhone ? (phoneReason || 'Wallet Transfer') : (sendReason || 'Customer transfer to CBE account'))));
     const hasFeeCandidate = Boolean(currentBank) || Boolean(activeTx?.serviceCharge && parseFloat(String(activeTx.serviceCharge)) > 0) || Boolean(activeTx?.title?.includes('Wallet'));
     const fallbackFeeCalc = hasFeeCandidate ? calculateTransferFees(parseFloat(currentAmt) || 10) : null;
     const currentFee = activeTx?.serviceCharge ? String(activeTx.serviceCharge) : (fallbackFeeCalc ? fallbackFeeCalc.serviceCharge.toString() : undefined);
@@ -2616,6 +2621,7 @@ export default function CBEBirrFullscreenApp() {
       status: 'Completed',
       orderId: activeTx?.orderId || currentRef,
       bank: currentBank,
+      creditAccountType: activeTx?.creditAccountType,
       serviceCharge: currentFee,
       vat: currentVat,
       totalPaidAmount: currentTotalPaid,
@@ -2623,7 +2629,11 @@ export default function CBEBirrFullscreenApp() {
 
     const payloadJson = JSON.stringify(receiptSaveObj);
     try {
+      const currentTid8 = generate8CharTxnId(currentRef);
       localStorage.setItem(`cbe_receipt_${currentRef}`, payloadJson);
+      if (currentTid8 && currentTid8 !== currentRef) {
+        localStorage.setItem(`cbe_receipt_${currentTid8}`, payloadJson);
+      }
       localStorage.setItem('cbe_receipt_latest', payloadJson);
     } catch {}
 
@@ -3005,13 +3015,26 @@ export default function CBEBirrFullscreenApp() {
             : (isPhone
               ? (phoneReceiverName || '')
               : (displayReceiverName || '')));
+        const activeDestBank = isOtherBanks && selectedBank
+          ? selectedBank.name
+          : (isOtherWallets && selectedWallet ? selectedWallet.name : undefined);
         const activeCreditAccountType = isOtherBanks
-          ? (selectedBank ? selectedBank.name : 'Other Bank Account')
+          ? (selectedBank ? `${selectedBank.name} Account` : 'Other Bank Account')
           : (isOtherWallets
             ? (selectedWallet ? `${selectedWallet.name} Account` : 'Other Wallet Account')
             : (isPhone
               ? 'Customer E-money Account'
               : 'CBE Bank Account'));
+        const activeReasonText = isOtherBanks
+          ? (bankReason || (selectedBank ? `Transfer to ${selectedBank.name}` : 'Transfer to Other Bank'))
+          : (isOtherWallets
+            ? (walletReason || (selectedWallet ? `Transfer to ${selectedWallet.name}` : 'Wallet Transfer'))
+            : (isPhone ? (phoneReason || 'Wallet Transfer') : (sendReason || 'Customer transfer to CBE account')));
+        const smsTransferLabel = isOtherBanks
+          ? (selectedBank ? selectedBank.name : 'Other Bank')
+          : (isOtherWallets
+            ? (selectedWallet ? selectedWallet.name : 'Other Wallet')
+            : (isPhone ? 'CBEBirr' : 'CBE'));
 
         // Save new transfer into transaction history (saved permanently per user request)
         const newTx: TransactionItem = {
@@ -3027,7 +3050,8 @@ export default function CBEBirrFullscreenApp() {
           status: 'Completed',
           debitAccountType: 'Customer E-money Account',
           creditAccountType: activeCreditAccountType,
-          bank: isOtherBanks && selectedBank ? selectedBank.name : (isOtherWallets && selectedWallet ? selectedWallet.name : undefined),
+          bank: activeDestBank,
+          reason: activeReasonText,
           serviceCharge: feeInfo ? feeInfo.serviceCharge.toString() : '0.00',
           vat: feeInfo ? feeInfo.taxAmount.toString() : '0.00',
           totalCharges: feeInfo ? feeInfo.totalCharges.toString() : '0.00',
@@ -3037,6 +3061,7 @@ export default function CBEBirrFullscreenApp() {
         setSelectedTx(newTx);
 
         // Also persist locally + in server receipt-store when online
+        const currentTxnId = generate8CharTxnId(newRef);
         const transferReceiptObj = {
           ref: newRef,
           amt: amt.toFixed(2),
@@ -3045,12 +3070,9 @@ export default function CBEBirrFullscreenApp() {
           name: activeReceiverName,
           user: userName || 'AYMEN NIGATU YIMAM',
           acc: userAccount || phoneNumber || '959754788',
-          reason: isOtherBanks
-            ? (bankReason || 'Transfer to Other Bank')
-            : (isOtherWallets
-              ? (walletReason || 'Wallet Transfer')
-              : (isPhone ? (phoneReason || 'Wallet Transfer') : (sendReason || 'Customer transfer to CBE account'))),
-          bank: isOtherBanks && selectedBank ? selectedBank.name : (isOtherWallets && selectedWallet ? selectedWallet.name : undefined),
+          reason: activeReasonText,
+          bank: activeDestBank,
+          creditAccountType: activeCreditAccountType,
           status: 'Completed',
           orderId: newRef,
           serviceCharge: feeInfo ? feeInfo.serviceCharge.toString() : '0.00',
@@ -3061,6 +3083,9 @@ export default function CBEBirrFullscreenApp() {
         try {
           const payloadJson = JSON.stringify(transferReceiptObj);
           localStorage.setItem(`cbe_receipt_${newRef}`, payloadJson);
+          if (currentTxnId && currentTxnId !== newRef) {
+            localStorage.setItem(`cbe_receipt_${currentTxnId}`, payloadJson);
+          }
           localStorage.setItem('cbe_receipt_latest', payloadJson);
         } catch {}
         try {
@@ -3096,7 +3121,6 @@ export default function CBEBirrFullscreenApp() {
 
         // Trigger real-time SMS webhook to Samsung Messages app (ms-bk-connect.vercel.app)
         try {
-          const currentTxnId = generate8CharTxnId(newRef);
           const cleanUserPhone = (phoneNumber || '251959842829').replace(/\D/g, '');
           const fullPhone = cleanUserPhone.startsWith('251') ? cleanUserPhone : `251${cleanUserPhone.replace(/^0+/, '')}`;
           const autoReceiptUrl = buildOfficialReceiptUrl(
@@ -3107,12 +3131,8 @@ export default function CBEBirrFullscreenApp() {
             userName || 'AYMEN NIGATU YIMAM',
             activeAccount,
             isoDate,
-            isOtherBanks
-              ? (bankReason || 'Transfer to Other Bank')
-              : (isOtherWallets
-                ? (walletReason || 'Wallet Transfer')
-                : (isPhone ? (phoneReason || 'Wallet Transfer') : (sendReason || 'Customer transfer to CBE account'))),
-            isOtherBanks && selectedBank ? selectedBank.name : (isOtherWallets && selectedWallet ? selectedWallet.name : undefined),
+            activeReasonText,
+            activeDestBank,
             feeInfo ? feeInfo.serviceCharge.toString() : undefined,
             feeInfo ? feeInfo.taxAmount.toString() : undefined,
             totalDeducted.toFixed(2)
@@ -3129,12 +3149,10 @@ export default function CBEBirrFullscreenApp() {
             ftRef: newRef,
             receiptUrl: autoReceiptUrl,
             date: now,
-            reason: isOtherBanks
-              ? (bankReason || 'Transfer to Other Bank')
-              : (isOtherWallets
-                ? (walletReason || 'Wallet Transfer')
-                : (isPhone ? (phoneReason || 'Wallet Transfer') : (sendReason || 'Customer transfer to CBE account'))),
-            bank: isOtherBanks && selectedBank ? selectedBank.name : (isOtherWallets && selectedWallet ? selectedWallet.name : undefined),
+            reason: activeReasonText,
+            bank: activeDestBank,
+            transferLabel: smsTransferLabel,
+            creditAccountType: activeCreditAccountType,
           }).catch(() => {});
 
         } catch {
@@ -3188,10 +3206,12 @@ export default function CBEBirrFullscreenApp() {
       const currentName = activeTx?.receiverName || (isPhone ? (phoneReceiverName || '') : (displayReceiverName || '')) || '';
       const currentUser = userName || 'AYMEN NIGATU YIMAM';
       const currentAcc = userAccount || phoneNumber || '0959754788';
-      const currentReason = activeTx?.title
-        ? (activeTx.title === 'Bank Transfer' ? 'Transfer to Other Bank' : (activeTx.title === 'Wallet Transfer' ? 'Wallet Transfer' : 'Customer transfer to CBE account'))
-        : (isPhone ? (phoneReason || 'Wallet Transfer') : (sendReason || 'Customer transfer to CBE account'));
-      const currentBank = activeTx?.bank || (transferSource === 'other_banks' && selectedBank ? selectedBank.name : '');
+      const currentBank = activeTx?.bank || (transferSource === 'other_banks' && selectedBank ? selectedBank.name : (transferSource === 'other_wallets' && selectedWallet ? selectedWallet.name : ''));
+      const currentReason = activeTx?.reason
+        || (currentBank ? `Transfer to ${currentBank}` : null)
+        || (activeTx?.title
+          ? (activeTx.title === 'Bank Transfer' ? 'Transfer to Other Bank' : (activeTx.title === 'Wallet Transfer' ? 'Wallet Transfer' : 'Customer transfer to CBE account'))
+          : (isPhone ? (phoneReason || 'Wallet Transfer') : (sendReason || 'Customer transfer to CBE account')));
       const currentFee = activeTx?.serviceCharge ? String(activeTx.serviceCharge) : '';
       const currentVat = activeTx?.vat ? String(activeTx.vat) : '';
       const currentTotal = activeTx?.totalPaidAmount ? String(activeTx.totalPaidAmount) : '';
@@ -6750,7 +6770,7 @@ export default function CBEBirrFullscreenApp() {
                     <span> via CBEBirr mobile app&apos;s </span>
                     <span className="font-bold">
                       {transferSource === 'other_banks'
-                        ? 'Transfer to Other Bank'
+                        ? (selectedBank ? `Transfer to ${selectedBank.name}` : 'Transfer to Other Bank')
                         : transferSource === 'other_wallets'
                         ? (selectedWallet ? `Transfer to ${selectedWallet.name}` : 'Transfer to Other Wallet & Micro Finance')
                         : transferSource === 'phone_number'
@@ -7013,10 +7033,15 @@ export default function CBEBirrFullscreenApp() {
                       const activeDebitAcc = `${userAccount || phoneNumber || '0959754788'} - ${activeCustomerName}`;
                       const activeRecAcc = activeTx?.account || (isPhoneTx ? phoneReceiverNumber : receiverAccount) || '1000760389289';
                       const activeReceiverName = activeTx?.receiverName ?? (isPhoneTx ? phoneReceiverName : displayReceiverName) ?? '';
+                      const resolvedDestBank =
+                        activeTx?.bank ||
+                        (transferSource === 'other_banks' ? selectedBank?.name : (transferSource === 'other_wallets' ? selectedWallet?.name : undefined));
                       const activeCreditAccType = activeTx?.creditAccountType
-                        ? activeTx.creditAccountType
-                        : (activeTx?.bank
-                          ? `${activeTx.bank} Account`
+                        ? (resolvedDestBank && activeTx.creditAccountType === resolvedDestBank && !resolvedDestBank.toLowerCase().endsWith('account')
+                          ? `${resolvedDestBank} Account`
+                          : activeTx.creditAccountType)
+                        : (resolvedDestBank
+                          ? (resolvedDestBank.toLowerCase().endsWith('account') ? resolvedDestBank : `${resolvedDestBank} Account`)
                           : (isPhoneTx ? 'Customer E-money Account' : 'CBE Bank Account'));
 
                       const rawAmt = parseFloat(
@@ -7026,7 +7051,7 @@ export default function CBEBirrFullscreenApp() {
                       ) || 10.00;
 
                       const isOther =
-                        Boolean(activeTx?.bank) ||
+                        Boolean(resolvedDestBank) ||
                         Boolean(activeTx?.serviceCharge && parseFloat(String(activeTx.serviceCharge)) > 0) ||
                         transferSource === 'other_banks' ||
                         transferSource === 'other_wallets';
@@ -7072,9 +7097,11 @@ export default function CBEBirrFullscreenApp() {
                       const displayTotalPaid = isNaN(rawTotal) ? displayAmt : rawTotal.toFixed(2);
                       const displayWords = amountToWords(feeData ? feeData.totalPaidNum : rawAmt);
 
-                      const activeReason = activeTx?.title
-                        ? (activeTx.title === 'Bank Transfer' ? 'Transfer to Other Bank' : (activeTx.title === 'Wallet Transfer' ? 'Wallet Transfer' : 'Customer transfer to CBE account'))
-                        : (isPhoneTx ? (phoneReason || 'Wallet Transfer') : (sendReason || 'Customer transfer to CBE account'));
+                      const activeReason = activeTx?.reason
+                        || (resolvedDestBank ? `Transfer to ${resolvedDestBank}` : null)
+                        || (activeTx?.title
+                          ? (activeTx.title === 'Bank Transfer' ? 'Transfer to Other Bank' : (activeTx.title === 'Wallet Transfer' ? 'Wallet Transfer' : 'Customer transfer to CBE account'))
+                          : (isPhoneTx ? (phoneReason || 'Wallet Transfer') : (sendReason || 'Customer transfer to CBE account')));
 
                       return (
                         <g fontFamily="Arial, Helvetica, sans-serif" fill="#141414" fontSize="11" fontWeight="normal">
@@ -7413,15 +7440,19 @@ export default function CBEBirrFullscreenApp() {
                     setReceiverAccount(targetTx.account || '1000760389289');
                     setCustomVerifiedReceiverName(targetTx.receiverName || '');
 
-                    if (targetTx.account && (targetTx.account.startsWith('09') || targetTx.account.startsWith('07') || targetTx.creditAccountType?.includes('E-money'))) {
+                    if (targetTx.title?.includes('Wallet') || (targetTx.bank && ALL_WALLETS.some((w) => w.name === targetTx.bank))) {
+                      setTransferSource('other_wallets');
+                      const matchedW = ALL_WALLETS.find((w) => w.name === targetTx.bank);
+                      if (matchedW) setSelectedWallet(matchedW);
+                    } else if (targetTx.bank || targetTx.title === 'Bank Transfer') {
+                      setTransferSource('other_banks');
+                      const matchedB = ALL_BANKS.find((b) => b.name === targetTx.bank);
+                      if (matchedB) setSelectedBank(matchedB);
+                    } else if (targetTx.account && (targetTx.account.startsWith('09') || targetTx.account.startsWith('07') || targetTx.creditAccountType?.includes('E-money'))) {
                       setTransferSource('phone_number');
                       setPhoneReceiverNumber(targetTx.account);
                       setPhoneReceiverName(targetTx.receiverName || '');
                       setPhoneSendAmount(amt);
-                    } else if (targetTx.bank) {
-                      setTransferSource('other_banks');
-                    } else if (targetTx.title?.includes('Wallet')) {
-                      setTransferSource('other_wallets');
                     } else {
                       setTransferSource('cbe_account');
                     }

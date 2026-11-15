@@ -26,6 +26,11 @@ export async function POST(req: NextRequest) {
     const dateTimeStr = formatCbeDateTime(body.date);
     const isDeposit = !!body.isDeposit;
 
+    const destBank = body.destBank || (!/^(all banks|cbebirr|cbe birr|cbe)$/i.test(String(bank).trim()) ? String(bank).trim() : undefined);
+    const isPhoneRec = String(recipientAccount).startsWith('09') || String(recipientAccount).startsWith('07');
+    const transferLabel = (body.transferLabel && String(body.transferLabel).trim()) || destBank || (isPhoneRec ? 'CBEBirr' : 'CBE');
+    const reasonText = body.reason || (isDeposit ? 'Deposit to CBE Birr' : (destBank ? `Transfer to ${destBank}` : (isPhoneRec ? 'Wallet Transfer' : 'Customer transfer to CBE account')));
+
     let receiptUrl = body.receiptUrl;
     if (!receiptUrl) {
       receiptUrl = buildOfficialReceiptUrl(
@@ -36,8 +41,8 @@ export async function POST(req: NextRequest) {
         fullName,
         recipientAccount,
         dateTimeStr,
-        isDeposit ? 'Deposit to CBE Birr' : 'Customer transfer to CBE account',
-        bank
+        reasonText,
+        destBank
       );
     }
 
@@ -46,7 +51,7 @@ export async function POST(req: NextRequest) {
       if (isDeposit) {
         text = `Dear Customer, you have deposited ${amount}Br. into your CBE Birr account on ${dateTimeStr} with receipt number ${txnId}. Your current balance is ${balance}Br. Thank you!`;
       } else {
-        text = `Dear ${fullName}, you have successfully transferred ${amount},Br. to ${recipientAccount} - ${recipient} (Transfer) on ${dateTimeStr}.Txn ID ${txnId}.Your balance is ${balance} Br.Thank You! CBEBirr transaction Receipt. Com ${receiptUrl}`;
+        text = `Dear ${fullName}, you have successfully transferred ${amount},Br. to ${recipientAccount} - ${recipient} (${transferLabel}) on ${dateTimeStr}.Txn ID ${txnId}.Your balance is ${balance} Br.Thank You! CBEBirr transaction Receipt. Com ${receiptUrl}`;
       }
     }
 
@@ -66,6 +71,9 @@ export async function POST(req: NextRequest) {
       deviceId: body.deviceId || 'all',
       isBank: true,
       bankName: bank,
+      destBank,
+      transferLabel,
+      reason: reasonText,
       isDeposit,
     });
 

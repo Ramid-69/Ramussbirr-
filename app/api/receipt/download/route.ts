@@ -152,7 +152,14 @@ export async function GET(req: NextRequest) {
         <text x="884" y="736" class="val">${escapeXml(userAcc)} - ${escapeXml(user.toUpperCase())}</text>
 
         <!-- 2. Credit Account Value -->
-        <text x="884" y="768" class="val">${escapeXml(rec)} - ${bank ? escapeXml(bank) + ' Account' : (rec.startsWith('0') ? 'MPESA' : 'CBE Account')}</text>
+        <text x="884" y="768" class="val">${escapeXml(rec)} - ${(() => {
+          const cleanBank = bank && !/^(all banks|cbebirr|cbe birr|cbe)$/i.test(bank.trim()) ? bank.trim() : '';
+          if (cleanBank) {
+            return escapeXml(cleanBank.toLowerCase().endsWith('account') ? cleanBank : `${cleanBank} Account`);
+          }
+          const isPhoneRec = rec.startsWith('09') || rec.startsWith('07') || (rec.startsWith('251') && rec.length >= 11);
+          return isPhoneRec ? 'Customer E-money Account' : 'CBE Bank Account';
+        })()}</text>
 
         <!-- 3. Receiver Name Value (Clean white backing so unsaved accounts show completely blank) -->
         <rect x="880" y="780" width="400" height="30" fill="white" />

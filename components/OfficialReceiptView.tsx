@@ -89,10 +89,10 @@ export function OfficialReceiptCore({
   const rawRef = data.ref || ORIGINAL_QR_TID;
   const isStaticOriginalQr = !data.ref || data.ref.trim().toUpperCase() === ORIGINAL_QR_TID;
 
-  const shouldResolveRemote = isStaticOriginalQr || !(data.amt && data.rec && data.name);
+  const shouldResolveRemote = isStaticOriginalQr || !(data.amt && data.rec && data.name && data.bank);
 
   const [fetchedData, setFetchedData] = useState<Partial<OfficialReceiptData> | null>(null);
-  const [isLoadingLive, setIsLoadingLive] = useState<boolean>(shouldResolveRemote);
+  const [isLoadingLive, setIsLoadingLive] = useState<boolean>(isStaticOriginalQr || !(data.amt && data.rec));
 
   // Resolve live transaction data:
   // 1) Read from localStorage cache first for instant display
@@ -156,7 +156,14 @@ export function OfficialReceiptCore({
       .then((res) => (res.ok ? res.json() : null))
       .then((stored) => {
         if (!active) return;
-        if (stored && stored.ref) {
+        const matchesRawRef =
+          stored &&
+          stored.ref &&
+          (isStaticOriginalQr ||
+            stored.ref.toUpperCase() === rawRef.toUpperCase() ||
+            stored.orderId?.toUpperCase() === rawRef.toUpperCase() ||
+            (stored.ref.toUpperCase().startsWith('FT') && stored.ref.slice(2, 10).toUpperCase() === rawRef.toUpperCase()));
+        if (matchesRawRef) {
           setFetchedData({
             ref: stored.ref,
             orderId: stored.orderId || stored.ref,
@@ -299,7 +306,8 @@ export function OfficialReceiptCore({
   const activeAcc = (isStaticOriginalQr ? fetchedData?.acc : undefined) || fetchedData?.acc || data.acc || '0959754788';
   const activeDate = (isStaticOriginalQr ? fetchedData?.date : data.date) || fetchedData?.date || data.date || (isSaniTx ? '29-10-2026 12:40:02' : '2026-10-27 11:56:20');
   const activeReason = (isStaticOriginalQr ? fetchedData?.reason : data.reason) || fetchedData?.reason || data.reason || (isSaniTx ? 'Customer Transfer' : 'Customer transfer to CBE account');
-  const activeBank = (isStaticOriginalQr ? fetchedData?.bank : data.bank) || fetchedData?.bank || data.bank || '';
+  const cleanRawBank = (isStaticOriginalQr ? fetchedData?.bank : (data.bank || fetchedData?.bank)) || fetchedData?.bank || data.bank || '';
+  const activeBank = /^(all banks|cbebirr|cbe birr|cbe)$/i.test(cleanRawBank.trim()) ? '' : cleanRawBank.trim();
   const serviceCharge = (isStaticOriginalQr ? fetchedData?.serviceCharge : data.serviceCharge) || fetchedData?.serviceCharge || data.serviceCharge || '';
   const vat = (isStaticOriginalQr ? fetchedData?.vat : data.vat) || fetchedData?.vat || data.vat || '';
   const totalPaid = (isStaticOriginalQr ? fetchedData?.totalPaid : data.totalPaid) || fetchedData?.totalPaid || data.totalPaid || '';
@@ -344,8 +352,10 @@ export function OfficialReceiptCore({
   const finalTotalPaid = feeObj ? feeObj.totalPaid : formattedAmt;
   const words = amountToWords(feeObj ? feeObj.totalPaidNum : numericAmt);
 
-  const isPhoneTx = activeRec.startsWith('09') || activeRec.startsWith('07') || activeRec.length === 10;
-  const creditAccType = activeBank ? `${activeBank} Account` : (isPhoneTx ? 'Customer E-money Account' : 'CBE Bank Account');
+  const isPhoneTx = activeRec.startsWith('09') || activeRec.startsWith('07') || (activeRec.startsWith('251') && activeRec.length >= 11);
+  const creditAccType = activeBank
+    ? (activeBank.toLowerCase().endsWith('account') ? activeBank : `${activeBank} Account`)
+    : (isPhoneTx ? 'Customer E-money Account' : 'CBE Bank Account');
 
   const [squareQrUrl, setSquareQrUrl] = useState<string>('');
   useEffect(() => {

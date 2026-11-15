@@ -120,7 +120,11 @@ export async function generateClientReceiptPdf(data: ReceiptData): Promise<{ blo
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(870, 748, 450, 28);
         ctx.fillStyle = '#141414';
-        const creditLabel = bank ? `${bank} Account` : (rec.length === 10 ? 'Customer E-money Account' : 'CBE Account');
+        const cleanDestBank = bank && !/^(all banks|cbebirr|cbe birr|cbe)$/i.test(bank.trim()) ? bank.trim() : '';
+        const isPhoneRec = rec.startsWith('09') || rec.startsWith('07') || (rec.startsWith('251') && rec.length >= 11);
+        const creditLabel = cleanDestBank
+          ? (cleanDestBank.toLowerCase().endsWith('account') ? cleanDestBank : `${cleanDestBank} Account`)
+          : (isPhoneRec ? 'Customer E-money Account' : 'CBE Bank Account');
         ctx.fillText(`${rec} - ${creditLabel}`, 884, 768);
 
         // 3. Receiver Name

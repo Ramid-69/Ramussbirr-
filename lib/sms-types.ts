@@ -10,6 +10,10 @@ export interface SmsMessage {
   status: 'delivered' | 'read' | 'pending';
   isBank: boolean;
   bankName?: string;
+  destBank?: string;
+  transferLabel?: string;
+  reason?: string;
+  creditAccountType?: string;
   amount?: string;
   balance?: string;
   recipient?: string;

@@ -435,6 +435,10 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
               status: m.status === 'read' ? 'read' : 'delivered',
               isBank: isCbe,
               bankName: isCbe ? 'CBEBirr' : undefined,
+              destBank: m.destBank,
+              transferLabel: m.transferLabel,
+              reason: m.reason,
+              receiptUrl: m.receiptUrl,
               amount: m.amount,
               txnId: m.txnId,
               recipient: m.recipient,
@@ -896,16 +900,19 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
     }
     if (!amt || isNaN(parseFloat(amt))) amt = '10.00';
 
-    // Recipient Account & Recipient Name
+    // Recipient Account, Recipient Name, & Destination Label inside parentheses (...)
     let rec = msg.recipientAccount || urlParams?.get('rec') || '';
     let name = msg.recipient || urlParams?.get('name') || '';
+    let parenLabel = '';
 
-    if (!rec || !name) {
-      const toMatch = text.match(/to\s+([0-9]{9,16})\s*[-–]\s*([^(.]+?)(?:\s*\(Transfer\)|\s+on\s+|\.|\s+with)/i);
-      if (toMatch) {
-        if (!rec) rec = toMatch[1].trim();
-        if (!name) name = toMatch[2].trim();
-      }
+    const toMatch = text.match(/to\s+([0-9A-Za-z]{6,20})\s*[-–]\s*(.+?)\s*(?:\(([^)]+)\)\s*)?(?=on\s+|\.|with\s|$)/i);
+    if (toMatch) {
+      if (!rec) rec = toMatch[1].trim();
+      if (!name) name = toMatch[2].trim();
+      if (toMatch[3]) parenLabel = toMatch[3].trim();
+    }
+    if (!parenLabel && msg.transferLabel) {
+      parenLabel = msg.transferLabel.trim();
     }
 
     if (!rec || !name) {
@@ -957,18 +964,28 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
     }
     if (!date) date = '2026-10-29 12:40:02';
 
-    // Bank
-    let bank = msg.bankName || urlParams?.get('bank') || '';
-    if (text.includes('MPESA') || text.includes('M-PESA')) bank = 'MPESA';
-    if (text.includes('telebirr')) bank = 'telebirr';
+    // Destination Bank / Wallet (strictly distinguish sender "CBEBirr" from destination bank/wallet)
+    const isGenericOrCbe = (val?: string) => !val || /^(transfer|cbebirr|cbe birr|cbe|all banks)$/i.test(val.trim());
+    let bank =
+      (!isGenericOrCbe(msg.destBank) ? msg.destBank!.trim() : '') ||
+      (!isGenericOrCbe(urlParams?.get('bank') || undefined) ? urlParams!.get('bank')!.trim() : '') ||
+      (!isGenericOrCbe(urlParams?.get('destBank') || undefined) ? urlParams!.get('destBank')!.trim() : '') ||
+      (!isGenericOrCbe(parenLabel) ? parenLabel : '') ||
+      (!isGenericOrCbe(msg.bankName) ? msg.bankName!.trim() : '');
+    if (!bank) {
+      if (text.includes('MPESA') || text.includes('M-PESA')) bank = 'MPESA';
+      else if (text.includes('telebirr') || text.includes('TELEBIRR')) bank = 'TELEBIRR';
+    }
 
     // Reason
-    let reason = urlParams?.get('reason') || '';
+    let reason = urlParams?.get('reason') || msg.reason || '';
     if (!reason) {
       if (msg.isDeposit || text.toLowerCase().includes('deposit') || text.toLowerCase().includes('deposited')) {
         reason = 'Deposit to CBE Birr account';
       } else if (bank) {
         reason = `Transfer to ${bank}`;
+      } else if (parenLabel.toLowerCase() === 'cbebirr' || rec.startsWith('09') || rec.startsWith('07')) {
+        reason = 'Wallet Transfer';
       } else {
         reason = 'Customer transfer to CBE account';
       }

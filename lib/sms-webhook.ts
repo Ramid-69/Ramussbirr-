@@ -12,9 +12,15 @@ export interface CbeSmsWebhookPayload {
   balance: string;
   reference: string;
   txnId: string;
+  ftRef?: string;
   receiptUrl: string;
   text: string;
   deviceId: string;
+  destBank?: string;
+  bank?: string;
+  transferLabel?: string;
+  reason?: string;
+  creditAccountType?: string;
 }
 
 export interface CbeTransactionInput {
@@ -207,6 +213,13 @@ export function formatPhoneForCbeLink(phone?: string): string {
  * For deposit:
  * "Dear Customer, you have deposited [AMOUNT]Br. into your CBE Birr account on [DATE_TIME] with receipt number [TXN_ID]. Your current balance is [BALANCE]Br. Thank you!"
  */
+export function resolveDestBankName(bank?: string): string | undefined {
+  const clean = (bank || '').trim();
+  if (!clean) return undefined;
+  if (/^(all banks|cbe ?birr|cbe)$/i.test(clean)) return undefined;
+  return clean;
+}
+
 export function buildCbeSmsText({
   fullName,
   amount,
@@ -218,6 +231,8 @@ export function buildCbeSmsText({
   receiptUrl,
   isDeposit,
   userPhone,
+  transferLabel,
+  bank,
 }: {
   fullName: string;
   amount: string;
@@ -229,6 +244,8 @@ export function buildCbeSmsText({
   receiptUrl?: string;
   isDeposit?: boolean;
   userPhone?: string;
+  transferLabel?: string;
+  bank?: string;
 }): string {
   const rawNum = typeof balance === 'number' ? balance : parseFloat(String(balance).replace(/,/g, ''));
   const formattedBalance = isNaN(rawNum)
@@ -241,12 +258,17 @@ export function buildCbeSmsText({
 
   const recName = receiverName || 'Miss Simera Gofer Abdisa';
   const recAcc = receiverAccount || '1000760389289';
+  const cleanDestBank = resolveDestBankName(bank);
+  const label =
+    (transferLabel && transferLabel.trim()) ||
+    cleanDestBank ||
+    (recAcc.startsWith('09') || recAcc.startsWith('07') ? 'CBEBirr' : 'CBE');
 
   // Authentic visual CBE link format: https://cbepay1.cbe.com.et/aureceipt?TID=[transaction id]&PH=[my number]
   const ph = formatPhoneForCbeLink(userPhone);
   const visualUrl = `https://cbepay1.cbe.com.et/aureceipt?TID=${txnId}&PH=${ph}`;
 
-  return `Dear ${fullName}, you have successfully transferred ${amount},Br. to ${recAcc} - ${recName} (Transfer) on ${dateTimeStr}.Txn ID ${txnId}.Your balance is ${formattedBalance} Br.Thank You! CBEBirr transaction Receipt. Com ${visualUrl}`;
+  return `Dear ${fullName}, you have successfully transferred ${amount},Br. to ${recAcc} - ${recName} (${label}) on ${dateTimeStr}.Txn ID ${txnId}.Your balance is ${formattedBalance} Br.Thank You! CBEBirr transaction Receipt. Com ${visualUrl}`;
 }
 
 /**
@@ -266,6 +288,8 @@ export function buildCbeSmsPayload({
   isDeposit,
   reason,
   bank,
+  transferLabel,
+  creditAccountType,
 }: {
   userFullName?: string;
   userPhone?: string;
@@ -280,6 +304,8 @@ export function buildCbeSmsPayload({
   isDeposit?: boolean;
   reason?: string;
   bank?: string;
+  transferLabel?: string;
+  creditAccountType?: string;
 }): CbeSmsWebhookPayload {
   const finalFullName = (userFullName && userFullName.trim()) || 'AYMEN NIGATU YIMAM';
   const finalAmount = formatCbeAmount(amount);
@@ -297,6 +323,12 @@ export function buildCbeSmsPayload({
         : `251${cleanPhone.replace(/^0+/, '')}`
       : '251959842829';
 
+  const cleanDestBank = resolveDestBankName(bank);
+  const finalTransferLabel =
+    (transferLabel && transferLabel.trim()) ||
+    cleanDestBank ||
+    (finalReceiverAcc.startsWith('09') || finalReceiverAcc.startsWith('07') ? 'CBEBirr' : 'CBE');
+
   // Working official receipt URL that displays the authentic receipt in any browser
   const workingReceiptUrl =
     receiptUrl && !receiptUrl.includes('cbepay1.cbe.com.et')
@@ -310,7 +342,7 @@ export function buildCbeSmsPayload({
           finalReceiverAcc,
           finalDateTime,
           reason,
-          bank
+          cleanDestBank
         );
 
   const text = buildCbeSmsText({
@@ -324,6 +356,8 @@ export function buildCbeSmsPayload({
     receiptUrl: workingReceiptUrl,
     isDeposit,
     userPhone: cleanPhone ? `+${cleanPhone}` : '+251915695670',
+    transferLabel: finalTransferLabel,
+    bank: cleanDestBank,
   });
 
   const rawNum = typeof balance === 'number' ? balance : parseFloat(String(balance).replace(/,/g, ''));
@@ -346,8 +380,14 @@ export function buildCbeSmsPayload({
     balance: formattedBalanceStr,
     reference: finalTxnId,
     txnId: finalTxnId,
+    ftRef,
     receiptUrl: workingReceiptUrl,
     deviceId: 'all',
+    destBank: cleanDestBank,
+    bank: cleanDestBank,
+    transferLabel: finalTransferLabel,
+    reason,
+    creditAccountType,
   };
 }
 
@@ -396,6 +436,10 @@ export async function sendSmsWebhook(
           status: 'delivered',
           isBank: true,
           bankName: 'CBEBirr',
+          destBank: item.destBank || resolveDestBankName(item.bank),
+          transferLabel: item.transferLabel,
+          reason: item.reason,
+          creditAccountType: item.creditAccountType,
           amount: item.amount,
           balance: item.balance,
           reference: item.reference,
@@ -484,6 +528,8 @@ export interface SendTransactionSmsParams {
   isDeposit?: boolean;
   reason?: string;
   bank?: string;
+  transferLabel?: string;
+  creditAccountType?: string;
 }
 
 /**
@@ -506,6 +552,8 @@ export async function sendTransactionSms(
     isDeposit: params.isDeposit,
     reason: params.reason,
     bank: params.bank,
+    transferLabel: params.transferLabel,
+    creditAccountType: params.creditAccountType,
   });
 
   return sendSmsWebhook(payload);

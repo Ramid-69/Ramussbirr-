@@ -1629,6 +1629,13 @@
                     recipient: m.recipient,
                     recipientAccount: m.recipientAccount,
                     receiptUrl: m.receiptUrl,
+                    destBank: m.destBank,
+                    transferLabel: m.transferLabel,
+                    reason: m.reason,
+                    creditAccountType: m.creditAccountType,
+                    serviceCharge: m.serviceCharge,
+                    vat: m.vat,
+                    totalPaid: m.totalPaid,
                     isOutgoing: !!m.isOutgoing,
                     type: m.isOutgoing ? 'sent' : 'inbox',
                     read: m.isRead !== false,
@@ -1675,6 +1682,13 @@
               isOutgoing: !!m.isOutgoing,
               receiptUrl: m.receiptUrl,
               txnId: m.txnId,
+              destBank: m.destBank,
+              transferLabel: m.transferLabel,
+              reason: m.reason,
+              creditAccountType: m.creditAccountType,
+              serviceCharge: m.serviceCharge,
+              vat: m.vat,
+              totalPaid: m.totalPaid,
               source: m.source || 'app'
             })), 'offline_q');
           }
@@ -2928,6 +2942,10 @@
         const isOut = item.type === 'sent' || !!item.isOutgoing;
         const hasReceiptFlag = !!(receiptUrl || (urlMatch && isReceiptUrl(urlMatch[0])) || (desc.isBanking && (rawText.includes('cbepay') || (txnId && rawText.toLowerCase().includes('transferred')))));
 
+        const rawDestBank = item.destBank || item.bank || '';
+        const cleanDestBank = (rawDestBank && !/^(all banks|cbebirr|cbe birr|cbe|transfer)$/i.test(String(rawDestBank).trim()))
+          ? String(rawDestBank).trim()
+          : '';
         const newMsg = {
           nativeId: nativeId,
           txnId: txnId,
@@ -2939,6 +2957,13 @@
           amount: item.amount || '',
           recipient: item.recipient || item.receiverName || '',
           recipientAccount: item.recipientAccount || item.receiverAccount || '',
+          destBank: cleanDestBank,
+          transferLabel: item.transferLabel || '',
+          reason: item.reason || '',
+          creditAccountType: item.creditAccountType || '',
+          serviceCharge: item.serviceCharge || item.fee || '',
+          vat: item.vat || '',
+          totalPaid: item.totalPaid || item.totalPaidAmount || '',
           hasReceipt: hasReceiptFlag,
           receiptUrl: receiptUrl,
           isOutgoing: isOut,
@@ -3123,35 +3148,84 @@
     function openOfficialReceiptByIndex(idx) {
       const msg = activeConv && activeConv.messages ? activeConv.messages[idx] : null;
       const text = msg?.text || '';
+
+      let urlParams = null;
+      try {
+        const rawUrl = msg?.receiptUrl || (text.match(/https?:\/\/[^\s<>"']+/i)?.[0] || '');
+        if (rawUrl) {
+          urlParams = new URL(rawUrl.replace(/[.,;:)]+$/, '')).searchParams;
+        }
+      } catch (e) {}
+
       const amtM = text.match(/transferred\s+([\d,.]+)\s*,?\s*Br/i) || text.match(/deposited\s+([\d,.]+)\s*Br/i);
-      const recM = text.match(/to\s+([0-9]+)\s*-\s*([^(\n]+?)(?:\s*\(|\s+on\s+)/i);
-      const dateM = text.match(/on\s+(\d{2}-\d{2}-\d{4}\s+\d{2}:\d{2}:\d{2})/i);
+      const recM = text.match(/to\s+([0-9A-Za-z]+)\s*[-–]\s*(.+?)\s*(?:\(([^)]+)\)\s*)?(?=on\s+|\.|with\s|$)/i);
+      const dateM = text.match(/on\s+(\d{2}[-/]\d{2}[-/]\d{2,4}\s+\d{2}:\d{2}(?::\d{2})?)/i);
       const txnM = text.match(/Txn\s*ID\s+([A-Z0-9]+)/i) || text.match(/receipt\s+number\s+([A-Z0-9]+)/i);
       const custM = text.match(/^Dear\s+([^,]+),/i);
 
-      const amtVal = parseFloat((msg?.amount || (amtM ? amtM[1] : '300.00')).replace(/,/g, '')) || 300.00;
+      const amtRaw = msg?.amount || (urlParams && urlParams.get('amt')) || (amtM ? amtM[1] : '300.00');
+      const amtVal = parseFloat(String(amtRaw).replace(/,/g, '')) || 300.00;
       const amtStr = amtVal.toFixed(2);
-      const ref = msg?.txnId || (txnM ? txnM[1] : 'FT263027RY7L');
-      const recAcc = msg?.recipientAccount || (recM ? recM[1].trim() : '1000760389289');
-      const recName = msg?.recipient || (recM ? recM[2].trim() : 'CBE Customer');
-      const custName = (custM && custM[1].toLowerCase() !== 'customer') ? custM[1].trim().toUpperCase() : 'AYMEN NIGATU YIMAM';
-      const dt = dateM ? dateM[1] : (msg?.rawDate ? new Date(msg.rawDate).toLocaleString() : '29-10-2026 12:40:02');
+      const ref = msg?.txnId || (urlParams && (urlParams.get('TID') || urlParams.get('ref'))) || (txnM ? txnM[1] : 'FT263027RY7L');
+      const recAcc = msg?.recipientAccount || (urlParams && urlParams.get('rec')) || (recM ? recM[1].trim() : '1000760389289');
+      const recName = msg?.recipient || (urlParams && urlParams.get('name')) || (recM ? recM[2].trim() : 'CBE Customer');
+      const parenLabel = (recM && recM[3] ? recM[3].trim() : '') || (msg?.transferLabel ? String(msg.transferLabel).trim() : '');
+      const custName = (urlParams && urlParams.get('user'))
+        ? urlParams.get('user').trim().toUpperCase()
+        : ((custM && custM[1].toLowerCase() !== 'customer') ? custM[1].trim().toUpperCase() : 'AYMEN NIGATU YIMAM');
+      const dt = (urlParams && urlParams.get('date')) || (dateM ? dateM[1] : (msg?.rawDate ? new Date(msg.rawDate).toLocaleString() : '29-10-2026 12:40:02'));
+
+      const isGenericOrCbeLabel = (v) => !v || /^(transfer|cbebirr|cbe birr|cbe|all banks)$/i.test(String(v).trim());
+      const destBank =
+        (!isGenericOrCbeLabel(msg?.destBank) ? String(msg.destBank).trim() : '') ||
+        (!isGenericOrCbeLabel(urlParams && urlParams.get('bank')) ? urlParams.get('bank').trim() : '') ||
+        (!isGenericOrCbeLabel(urlParams && urlParams.get('destBank')) ? urlParams.get('destBank').trim() : '') ||
+        (!isGenericOrCbeLabel(parenLabel) ? parenLabel : '');
+
+      const isPhoneTx = parenLabel.toLowerCase() === 'cbebirr' || recAcc.startsWith('09') || recAcc.startsWith('07') || (recAcc.startsWith('251') && recAcc.length >= 11);
+      const creditAccLabel = destBank
+        ? (destBank.toLowerCase().endsWith('account') ? destBank : destBank + ' Account')
+        : (isPhoneTx ? 'Customer E-money Account' : 'CBE Bank Account');
+
+      const rawFee = parseFloat((urlParams && (urlParams.get('fee') || urlParams.get('serviceCharge'))) || msg?.serviceCharge || '0') || 0;
+      const rawVat = parseFloat((urlParams && urlParams.get('vat')) || msg?.vat || '0') || 0;
+      const rawTotal = parseFloat((urlParams && urlParams.get('totalPaid')) || msg?.totalPaid || '0') || 0;
+      let scNum = 0, vatNum = 0, totalNum = amtVal;
+      if (rawFee > 0) {
+        scNum = rawFee;
+        vatNum = rawVat > 0 ? rawVat : +(scNum * 0.15).toFixed(5);
+        totalNum = rawTotal > 0 ? rawTotal : +(amtVal + scNum + vatNum).toFixed(2);
+      } else if (destBank) {
+        scNum = Math.max(0.005, +(amtVal * 0.005).toFixed(5));
+        vatNum = +(scNum * 0.15).toFixed(5);
+        totalNum = +(amtVal + scNum + vatNum).toFixed(2);
+      }
+      const feeStr = scNum <= 0 ? '0.00' : (scNum >= 0.005 && scNum < 0.01 ? '0.01' : scNum.toFixed(2));
+      const vatStr = vatNum <= 0 ? '0.00' : vatNum.toFixed(2);
+      const totalStr = totalNum.toFixed(2);
+
+      const reasonStr =
+        (urlParams && urlParams.get('reason')) ||
+        msg?.reason ||
+        (destBank
+          ? 'Transfer to ' + destBank
+          : (isPhoneTx ? 'Wallet Transfer' : 'Customer transfer to CBE account'));
 
       const setTxt = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
       setTxt('rc-cust-name', custName);
       setTxt('rc-debit-acc', '0959754788 - ' + custName);
-      setTxt('rc-credit-acc', recAcc + (recAcc.startsWith('09') || recAcc.startsWith('07') ? ' - Customer E-money Account' : ' - CBE Bank Account'));
+      setTxt('rc-credit-acc', recAcc + ' - ' + creditAccLabel);
       setTxt('rc-rec-name', recName);
       setTxt('rc-order-id', ref);
       setTxt('rc-tbl-ref', ref);
       setTxt('rc-tbl-date', dt);
       setTxt('rc-tbl-amt', amtStr);
       setTxt('rc-paid-amt', amtStr);
-      setTxt('rc-fee', '0.00');
-      setTxt('rc-vat', '0.00');
-      setTxt('rc-total-amt', amtStr);
-      setTxt('rc-words', numberToWords(amtVal));
-      setTxt('rc-reason', 'Customer Transfer');
+      setTxt('rc-fee', feeStr);
+      setTxt('rc-vat', vatStr);
+      setTxt('rc-total-amt', totalStr);
+      setTxt('rc-words', numberToWords(totalNum));
+      setTxt('rc-reason', reasonStr);
 
       try {
         const qrTargetUrl = 'https://ramussbirr.vercel.app/r/' + encodeURIComponent(ref);
@@ -3176,7 +3250,11 @@
               name: recName,
               user: custName,
               acc: '0959754788',
-              reason: 'Customer Transfer',
+              bank: destBank,
+              reason: reasonStr,
+              serviceCharge: feeStr,
+              vat: vatStr,
+              totalPaidAmount: totalStr,
               status: 'Completed'
             }),
             mode: 'cors',

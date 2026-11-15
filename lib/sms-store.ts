@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { saveReceipt, StoredReceipt } from './receipt-store';
+import { getReceipt, saveReceipt, StoredReceipt } from './receipt-store';
 
 import {
   SmsMessage,
@@ -209,6 +209,26 @@ class SmsStore {
     const hour12 = hours % 12 || 12;
     const timestamp = msgInput.timestamp || `${hour12}:${mins} ${ampm}`;
 
+    let extractedDestBank = msgInput.destBank;
+    if (!extractedDestBank && msgInput.bankName && !/^(all banks|cbebirr|cbe birr|cbe)$/i.test(msgInput.bankName.trim())) {
+      extractedDestBank = msgInput.bankName.trim();
+    }
+    if (!extractedDestBank && msgInput.receiptUrl) {
+      try {
+        const u = new URL(msgInput.receiptUrl);
+        const ub = u.searchParams.get('bank') || u.searchParams.get('destBank') || '';
+        if (ub && !/^(all banks|cbebirr|cbe birr|cbe)$/i.test(ub.trim())) {
+          extractedDestBank = ub.trim();
+        }
+      } catch {}
+    }
+    if (!extractedDestBank && msgInput.text) {
+      const pm = msgInput.text.match(/to\s+[0-9]+\s*[-–]\s*.+?\s*\(([^)]+)\)\s+on\s+/i);
+      if (pm && pm[1] && !/^(transfer|cbebirr|cbe birr|cbe|all banks)$/i.test(pm[1].trim())) {
+        extractedDestBank = pm[1].trim();
+      }
+    }
+
     const newMsg: SmsMessage = {
       id,
       conversationId,
@@ -221,6 +241,10 @@ class SmsStore {
       status: msgInput.status || 'delivered',
       isBank: msgInput.isBank ?? ['CBEBirr', '127', 'Safaricom'].includes(conversationId),
       bankName: msgInput.bankName || (conversationId === 'CBEBirr' ? 'CBEBirr' : undefined),
+      destBank: extractedDestBank,
+      transferLabel: msgInput.transferLabel,
+      reason: msgInput.reason,
+      creditAccountType: msgInput.creditAccountType,
       amount: msgInput.amount,
       balance: msgInput.balance,
       recipient: msgInput.recipient,
@@ -234,22 +258,42 @@ class SmsStore {
       isDeposit: msgInput.isDeposit,
     };
 
-    // If it's a CBEBirr transaction with a TID, also register it in receipt-store
+    // If it's a CBEBirr transaction with a TID, register or merge into receipt-store without clobbering rich bank/fee data
     if (newMsg.txnId) {
-      const storedRec: StoredReceipt = {
-        ref: newMsg.reference || newMsg.txnId,
-        amt: newMsg.amount || '0.00',
-        date: newMsg.date,
-        rec: newMsg.recipientAccount || '1000760389289',
-        name: newMsg.recipient || 'Miss Simera Gofer Abdisa',
-        user: newMsg.fullName || 'AYMEN NIGATU YIMAM',
-        acc: '959754788',
-        reason: newMsg.isDeposit ? 'Deposit to CBE Birr' : 'Customer transfer to CBE account',
-        status: 'Completed',
-        orderId: newMsg.txnId,
-      };
       try {
-        saveReceipt(storedRec);
+        const existingReceipt = getReceipt(newMsg.txnId);
+        const hasExactSavedReceipt =
+          existingReceipt &&
+          (existingReceipt.ref?.toUpperCase() === newMsg.txnId.toUpperCase() ||
+            existingReceipt.orderId?.toUpperCase() === newMsg.txnId.toUpperCase() ||
+            (existingReceipt.ref?.toUpperCase().startsWith('FT') &&
+              existingReceipt.ref.slice(2, 10).toUpperCase() === newMsg.txnId.toUpperCase()));
+
+        if (!hasExactSavedReceipt) {
+          const isPhoneRec = (newMsg.recipientAccount || '').startsWith('09') || (newMsg.recipientAccount || '').startsWith('07');
+          const storedRec: StoredReceipt = {
+            ref: newMsg.reference || newMsg.txnId,
+            amt: newMsg.amount || '0.00',
+            date: newMsg.date,
+            rec: newMsg.recipientAccount || '1000760389289',
+            name: newMsg.recipient || 'Miss Simera Gofer Abdisa',
+            user: newMsg.fullName || 'AYMEN NIGATU YIMAM',
+            acc: '959754788',
+            bank: extractedDestBank,
+            reason: newMsg.isDeposit
+              ? 'Deposit to CBE Birr'
+              : (newMsg.reason || (extractedDestBank ? `Transfer to ${extractedDestBank}` : (isPhoneRec ? 'Wallet Transfer' : 'Customer transfer to CBE account'))),
+            status: 'Completed',
+            orderId: newMsg.txnId,
+          };
+          saveReceipt(storedRec);
+        } else if (extractedDestBank && !existingReceipt.bank) {
+          saveReceipt({
+            ...existingReceipt,
+            bank: extractedDestBank,
+            reason: newMsg.reason || existingReceipt.reason || `Transfer to ${extractedDestBank}`,
+          });
+        }
       } catch {}
     }
 
