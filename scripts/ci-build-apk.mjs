@@ -149,10 +149,15 @@ if (fs.existsSync(cbeApkPath) && fs.existsSync(logoPng512) && fs.existsSync(clea
   }
   const expectedWebStamp = stampHasher.digest('hex');
 
+  const expectedIconHash = sha256(logoPng512);
   let alreadyPatched = false;
   try {
     const hasIcon = execSync(
       `unzip -l "${cbeApkPath}" | grep -c "res/mipmap-xxxhdpi/ic_launcher.png"`,
+      { encoding: 'utf8' }
+    ).trim();
+    const existingIconHash = execSync(
+      `unzip -p "${cbeApkPath}" res/drawable/ic_launcher.png 2>/dev/null | sha256sum | awk '{print $1}'`,
       { encoding: 'utf8' }
     ).trim();
     const existingWalletHash = execSync(
@@ -181,6 +186,7 @@ if (fs.existsSync(cbeApkPath) && fs.existsSync(logoPng512) && fs.existsSync(clea
     ).trim();
     if (
       parseInt(hasIcon, 10) > 0 &&
+      existingIconHash === expectedIconHash &&
       hasAdjustNothing === '1' &&
       hasDexAdjustNothing === '1' &&
       hasOpaqueOverlayAndNoTimeout === '1' &&
@@ -256,11 +262,55 @@ if (fs.existsSync(cbeApkPath) && fs.existsSync(logoPng512) && fs.existsSync(clea
     fs.rmSync(decDir, { recursive: true, force: true });
     execSync(`java -jar "${apktoolJar}" d -f "${cbeApkPath}" -o "${decDir}"`, { env, stdio: 'inherit' });
 
-    // Place CBE Birr launcher icon in mipmap + drawable directories
-    for (const dirName of ['mipmap-xxxhdpi', 'mipmap-xxhdpi', 'mipmap-xhdpi', 'mipmap-hdpi', 'mipmap-mdpi', 'drawable']) {
-      const targetDir = path.join(decDir, 'res', dirName);
+    // Remove any stale/adaptive launcher icon overrides and place new CBE Birr Plus launcher icon in all mipmap + drawable directories
+    const resDir = path.join(decDir, 'res');
+    if (fs.existsSync(resDir)) {
+      for (const entry of fs.readdirSync(resDir)) {
+        const fullEntry = path.join(resDir, entry);
+        if (/^mipmap-anydpi/i.test(entry)) {
+          fs.rmSync(fullEntry, { recursive: true, force: true });
+        } else if (/^(mipmap|drawable)/i.test(entry) && fs.statSync(fullEntry).isDirectory()) {
+          for (const f of fs.readdirSync(fullEntry)) {
+            if (/^ic_launcher.*\.(png|webp|xml)$/i.test(f)) {
+              fs.rmSync(path.join(fullEntry, f), { force: true });
+            }
+          }
+        }
+      }
+    }
+
+    let sharpMod = null;
+    try {
+      const imported = await import('sharp');
+      sharpMod = imported.default || imported;
+    } catch {
+      sharpMod = null;
+    }
+
+    const densitySizes = [
+      ['mipmap-mdpi', 48],
+      ['mipmap-hdpi', 72],
+      ['mipmap-xhdpi', 96],
+      ['mipmap-xxhdpi', 144],
+      ['mipmap-xxxhdpi', 192],
+      ['drawable', 512],
+    ];
+    for (const [dirName, pxSize] of densitySizes) {
+      const targetDir = path.join(resDir, dirName);
       fs.mkdirSync(targetDir, { recursive: true });
-      fs.copyFileSync(logoPng512, path.join(targetDir, 'ic_launcher.png'));
+      const outIcon = path.join(targetDir, 'ic_launcher.png');
+      const outRound = path.join(targetDir, 'ic_launcher_round.png');
+      if (sharpMod && pxSize < 512) {
+        const resizedBuf = await sharpMod(logoPng512)
+          .resize(pxSize, pxSize, { kernel: 'lanczos3' })
+          .png()
+          .toBuffer();
+        fs.writeFileSync(outIcon, resizedBuf);
+        fs.writeFileSync(outRound, resizedBuf);
+      } else {
+        fs.copyFileSync(logoPng512, outIcon);
+        fs.copyFileSync(logoPng512, outRound);
+      }
     }
 
     // Bump versionCode monotonically on every rebuild so Android allows in-place updates
@@ -287,7 +337,7 @@ if (fs.existsSync(cbeApkPath) && fs.existsSync(logoPng512) && fs.existsSync(clea
     }
     manifestXml = manifestXml.replace(/\sandroid:icon="[^"]*"/g, '');
     manifestXml = manifestXml.replace(/\sandroid:roundIcon="[^"]*"/g, '');
-    manifestXml = manifestXml.replace('<application', '<application android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher"');
+    manifestXml = manifestXml.replace('<application', '<application android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round"');
     manifestXml = manifestXml.replace(/\sandroid:windowSoftInputMode="[^"]*"/g, '');
     manifestXml = manifestXml.replace(/<activity(?=[\s>])/g, '<activity android:windowSoftInputMode="adjustNothing"');
     fs.writeFileSync(manifestPath, manifestXml, 'utf8');
