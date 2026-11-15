@@ -1,26 +1,35 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
-export async function GET() {
+function getMsgVersionTag(): string {
   try {
-    const filePath = path.join(process.cwd(), 'public', fs.existsSync(path.join(process.cwd(), 'public', 'CBEMessages.apk')) ? 'CBEMessages.apk' : 'SamsungMessages.apk');
-    if (!fs.existsSync(filePath)) {
-      return new NextResponse('APK file not found', { status: 404 });
+    const metaPath = path.join(process.cwd(), 'public', 'apk-version.json');
+    if (fs.existsSync(metaPath)) {
+      const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8')) as {
+        msgApkSha256?: string;
+        cbeVersionCode?: number;
+      };
+      const sha = (meta.msgApkSha256 || '').slice(0, 12);
+      if (sha) {
+        return `${meta.cbeVersionCode || 'v'}-${sha}`;
+      }
     }
-    const fileBuffer = fs.readFileSync(filePath);
-    return new NextResponse(fileBuffer, {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/vnd.android.package-archive',
-        'Content-Disposition': 'attachment; filename="CBEMessages.apk"',
-        'Content-Length': fileBuffer.length.toString(),
-        'Cache-Control': 'no-store, no-cache, must-revalidate',
-      },
-    });
-  } catch (err: any) {
-    return new NextResponse(`Error: ${err?.message || 'Failed to download'}`, { status: 500 });
-  }
+  } catch {}
+  return String(Date.now());
+}
+
+export async function GET(req: NextRequest) {
+  const target = new URL(`/CBEMessages.apk?v=${encodeURIComponent(getMsgVersionTag())}`, req.url);
+  return NextResponse.redirect(target, {
+    status: 307,
+    headers: {
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      Pragma: 'no-cache',
+      Expires: '0',
+    },
+  });
 }

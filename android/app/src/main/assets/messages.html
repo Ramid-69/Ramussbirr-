@@ -648,55 +648,359 @@
       user-select: text;
     }
     .chat-input-field, .recipient-input { user-select: text; }
+
+    /* Contacts Panel & List */
+    .contacts-panel {
+      display: none;
+      flex: 1;
+      flex-direction: column;
+      overflow: hidden;
+      background: #ffffff;
+    }
+    .contacts-panel.active { display: flex; }
+    .contacts-header {
+      padding: 20px 20px 10px 20px;
+      background: #ffffff;
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+    }
+    .contacts-title {
+      font-size: 30px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      color: #000000;
+    }
+    .contacts-count {
+      font-size: 13px;
+      color: #747775;
+      font-weight: 500;
+    }
+    .contacts-search-wrap {
+      padding: 6px 20px 12px 20px;
+      background: #ffffff;
+      border-bottom: 1px solid #f0f0f2;
+    }
+    .contacts-list {
+      flex: 1;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      background: #ffffff;
+    }
+    .contact-row {
+      display: flex;
+      align-items: center;
+      padding: 11px 18px;
+      cursor: pointer;
+    }
+    .contact-row:active { background: #f4f6fa; }
+    .contact-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .contact-name {
+      font-size: 16px;
+      font-weight: 600;
+      color: #111111;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .contact-num {
+      font-size: 13px;
+      color: #757980;
+      margin-top: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .sim-tag {
+      display: inline-block;
+      margin-left: 6px;
+      padding: 1px 6px;
+      border-radius: 6px;
+      background: #e8f1ff;
+      color: #0b57d0;
+      font-size: 10.5px;
+      font-weight: 700;
+      vertical-align: middle;
+    }
+    .avatar.purple { background: #7a1c7d; color: #ffffff; }
+    .avatar.teal { background: #22a699; color: #ffffff; }
+    .avatar.orange { background: #ea7c28; color: #ffffff; }
+
+    /* New Conv Contacts Suggestions */
+    .new-conv-contacts {
+      flex: 1;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      background: rgba(255,255,255,0.72);
+    }
+
+    /* Full Message Viewer (Matches Samsung Messages Screenshot) */
+    #full-msg-view {
+      background: #ffffff;
+      z-index: 120;
+    }
+    .full-msg-header {
+      padding: 10px 12px 10px 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #ffffff;
+      flex-shrink: 0;
+    }
+    .full-msg-header-info {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      flex: 1;
+    }
+    .full-msg-sender {
+      font-size: 19px;
+      font-weight: 700;
+      color: #111111;
+      line-height: 1.25;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .full-msg-time {
+      font-size: 12.5px;
+      color: #757980;
+      margin-top: 1px;
+    }
+    .full-msg-body-wrap {
+      flex: 1;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding: 14px 20px 28px 20px;
+      background: #ffffff;
+    }
+    .full-msg-body {
+      font-size: 16.5px;
+      line-height: 1.48;
+      color: #2f3134;
+      font-weight: 500;
+      word-break: break-word;
+      user-select: text;
+      -webkit-user-select: text;
+    }
+    .full-msg-underline {
+      color: #2f3134;
+      text-decoration: underline;
+      text-underline-thickness: 1.3px;
+      text-underline-offset: 2.5px;
+    }
+    .full-msg-link {
+      color: #2f3134;
+      text-decoration: underline;
+      text-underline-thickness: 1.3px;
+      text-underline-offset: 2.5px;
+      cursor: pointer;
+    }
+    .full-msg-bottom-bar {
+      height: 64px;
+      background: #ffffff;
+      border-top: 1px solid #f0f1f4;
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      flex-shrink: 0;
+      position: relative;
+    }
+    .full-msg-action {
+      flex: 1;
+      height: 100%;
+      background: none;
+      border: none;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      color: #5f6368;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    .full-msg-action:active { background: #f5f6f8; }
+    .full-msg-more-menu {
+      position: absolute;
+      right: 16px;
+      bottom: 70px;
+      background: #ffffff;
+      border-radius: 18px;
+      box-shadow: 0 8px 28px rgba(0,0,0,0.18);
+      border: 1px solid #edf0f5;
+      min-width: 170px;
+      padding: 6px 0;
+      display: none;
+      flex-direction: column;
+      z-index: 140;
+    }
+    .full-msg-more-menu.open { display: flex; }
+
+    /* One UI Action Sheet & Confirm Dialog & Toast */
+    .sheet-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.36);
+      z-index: 220;
+      display: none;
+      align-items: flex-end;
+      justify-content: center;
+      padding: 12px;
+    }
+    .sheet-backdrop.open { display: flex; }
+    .sheet-card {
+      width: 100%;
+      max-width: 420px;
+      background: #ffffff;
+      border-radius: 24px;
+      padding: 10px 0;
+      box-shadow: 0 10px 32px rgba(0,0,0,0.22);
+      overflow: hidden;
+    }
+    .sheet-title {
+      padding: 10px 20px 8px 20px;
+      font-size: 14px;
+      font-weight: 700;
+      color: #747775;
+      border-bottom: 1px solid #f0f1f4;
+    }
+    .sheet-item {
+      width: 100%;
+      text-align: left;
+      background: none;
+      border: none;
+      padding: 14px 20px;
+      font-size: 15.5px;
+      font-weight: 500;
+      color: #1c1b1f;
+      cursor: pointer;
+      display: block;
+    }
+    .sheet-item:active { background: #f4f6fa; }
+    .sheet-item.danger { color: #d93025; font-weight: 600; }
+
+    .confirm-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.4);
+      z-index: 260;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .confirm-backdrop.open { display: flex; }
+    .confirm-card {
+      width: 100%;
+      max-width: 340px;
+      background: #ffffff;
+      border-radius: 24px;
+      padding: 22px 20px 16px 20px;
+      box-shadow: 0 12px 36px rgba(0,0,0,0.22);
+    }
+    .confirm-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #111111;
+      margin-bottom: 8px;
+    }
+    .confirm-desc {
+      font-size: 14px;
+      color: #5f6368;
+      line-height: 1.45;
+      margin-bottom: 18px;
+    }
+    .confirm-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+    .confirm-btn {
+      border: none;
+      background: transparent;
+      padding: 10px 16px;
+      border-radius: 18px;
+      font-size: 14.5px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .confirm-btn.cancel { color: #5f6368; }
+    .confirm-btn.delete { color: #d93025; }
+    .confirm-btn:active { background: #f1f3f6; }
+
+    .toast-pill {
+      position: fixed;
+      bottom: 82px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(30,32,35,0.92);
+      color: #ffffff;
+      padding: 9px 18px;
+      border-radius: 22px;
+      font-size: 13px;
+      font-weight: 500;
+      z-index: 400;
+      display: none;
+      pointer-events: none;
+      white-space: nowrap;
+    }
   </style>
 </head>
 <body>
   <div id="app">
     <!-- VIEW 1: HOME CONVERSATIONS -->
     <div class="view active" id="home-view">
-      <div class="home-header" id="home-header">
-        <div class="unread-hero" id="unread-hero">
-          <div class="unread-hero-title" id="unread-hero-title">0 unread messages</div>
-          <button class="unread-view-btn" id="unread-view-btn" onclick="toggleUnreadFilter()">View</button>
-        </div>
-        <div class="home-top-row">
-          <div class="home-title">Messages</div>
-          <div class="header-icons">
-            <button class="icon-btn" onclick="openSearch()" title="Search">
-              <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-            </button>
-            <button class="icon-btn" onclick="toggleMenu()" title="More options">
-              <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
-            </button>
+      <div id="conversations-panel" style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
+        <div class="home-header" id="home-header">
+          <div class="unread-hero" id="unread-hero">
+            <div class="unread-hero-title" id="unread-hero-title">0 unread messages</div>
+            <button class="unread-view-btn" id="unread-view-btn" onclick="toggleUnreadFilter()">View</button>
+          </div>
+          <div class="home-top-row">
+            <div class="home-title">Messages</div>
+            <div class="header-icons">
+              <button class="icon-btn" onclick="openSearch()" title="Search">
+                <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+              </button>
+              <button class="icon-btn" onclick="toggleMenu()" title="More options">
+                <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
+              </button>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div class="search-bar-wrap" id="search-bar-wrap">
-        <input type="text" class="search-input" id="search-input" placeholder="Search messages or numbers" oninput="renderConvList()">
-      </div>
-
-      <div class="tabs-row">
-        <span class="tab-item">All</span>
-      </div>
-
-      <div class="conv-list" id="conv-list"></div>
-
-      <button class="fab-btn" onclick="openNewConversation()" title="New message">
-        <svg width="28" height="28" fill="none" stroke="#0381fe" stroke-width="2" viewBox="0 0 24 24">
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-          <path d="M12 8v6m-3-3h6" stroke-width="2" stroke-linecap="round"/>
-        </svg>
-      </button>
-
-      <div class="bottom-nav">
-        <div class="nav-tab active" onclick="renderConvList()">
-          <span>Conversations</span>
-          <span class="nav-badge" id="nav-badge" style="display:none">0</span>
+        <div class="search-bar-wrap" id="search-bar-wrap">
+          <input type="text" class="search-input" id="search-input" placeholder="Search messages or numbers" oninput="renderConvList()">
         </div>
-        <div class="nav-tab" onclick="openNewConversation()">
-          <span>Contacts</span>
+
+        <div class="tabs-row">
+          <span class="tab-item">All</span>
         </div>
+
+        <div class="conv-list" id="conv-list"></div>
+
+        <button class="fab-btn" onclick="openNewConversation()" title="New message">
+          <svg width="28" height="28" fill="none" stroke="#0381fe" stroke-width="2" viewBox="0 0 24 24">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            <path d="M12 8v6m-3-3h6" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="contacts-panel" id="contacts-panel">
+        <div class="contacts-header">
+          <div class="contacts-title">Contacts</div>
+          <div class="contacts-count" id="contacts-count"></div>
+        </div>
+        <div class="contacts-search-wrap">
+          <input type="text" class="search-input" id="contacts-search-input" placeholder="Search contacts or numbers" oninput="renderContactsList()">
+        </div>
+        <div class="contacts-list" id="contacts-list"></div>
       </div>
 
       <div id="perm-helper-bar" style="display:none;margin:4px 16px 6px 16px;padding:10px 12px;border-radius:12px;background:#eef5ff;border:1px solid #cce0ff;align-items:center;justify-content:space-between;gap:10px;">
@@ -704,6 +1008,16 @@
         <div style="display:flex;gap:6px;flex-shrink:0;">
           <button type="button" onclick="triggerNativePermissionFix()" style="border:none;background:#0381fe;color:#fff;border-radius:14px;padding:6px 11px;font-size:12px;font-weight:600;cursor:pointer;">Allow</button>
           <button type="button" onclick="openNativeNotifSettings()" style="border:1px solid #b5cef5;background:#fff;color:#1b3b6f;border-radius:14px;padding:6px 10px;font-size:12px;font-weight:600;cursor:pointer;">Settings</button>
+        </div>
+      </div>
+
+      <div class="bottom-nav">
+        <div class="nav-tab active" id="nav-tab-conversations" onclick="switchBottomTab('conversations')">
+          <span>Conversations</span>
+          <span class="nav-badge" id="nav-badge" style="display:none">0</span>
+        </div>
+        <div class="nav-tab" id="nav-tab-contacts" onclick="switchBottomTab('contacts')">
+          <span>Contacts</span>
         </div>
       </div>
 
@@ -767,10 +1081,10 @@
         </div>
       </div>
       <div class="recipient-bar">
-        <input type="text" class="recipient-input" id="recipient-input" placeholder="Recipient phone number">
-        <button class="add-contact-btn" onclick="document.getElementById('recipient-input').focus()">+</button>
+        <input type="text" class="recipient-input" id="recipient-input" placeholder="Recipient name or phone number" oninput="renderNewConvContacts()">
+        <button class="add-contact-btn" onclick="openContactsFromCompose()">+</button>
       </div>
-      <div style="flex:1;"></div>
+      <div class="new-conv-contacts" id="new-conv-contacts"></div>
       <div class="chat-input-bar">
         <button class="icon-btn" type="button"><svg width="22" height="22" fill="none" stroke="#5f6368" stroke-width="2" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg></button>
         <button class="icon-btn" type="button"><svg width="22" height="22" fill="none" stroke="#5f6368" stroke-width="2" viewBox="0 0 24 24"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg></button>
@@ -779,6 +1093,70 @@
         <button class="send-btn" style="background:#00897b" onclick="sendNewConvMessage()"><svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></button>
       </div>
     </div>
+
+    <!-- VIEW 4: FULL MESSAGE VIEWER (Opened by "View all >", Matches Screenshot) -->
+    <div class="view" id="full-msg-view">
+      <div class="full-msg-header">
+        <button class="icon-btn" onclick="closeFullMessageView()" title="Back">
+          <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>
+        </button>
+        <div class="full-msg-header-info">
+          <div class="full-msg-sender" id="full-msg-sender">CBEBirr</div>
+          <div class="full-msg-time" id="full-msg-time"></div>
+        </div>
+      </div>
+      <div class="full-msg-body-wrap">
+        <div class="full-msg-body" id="full-msg-body"></div>
+      </div>
+      <div class="full-msg-bottom-bar">
+        <button class="full-msg-action" type="button" onclick="copyFullMsgText()">
+          <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" viewBox="0 0 24 24">
+            <rect x="9" y="9" width="11" height="11" rx="2"/>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+          </svg>
+          <span>Copy text</span>
+        </button>
+        <button class="full-msg-action" type="button" onclick="shareFullMsgText()">
+          <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" viewBox="0 0 24 24">
+            <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+            <path d="m8.59 13.51 6.83 3.98m-.01-10.98-6.82 3.98"/>
+          </svg>
+          <span>Share</span>
+        </button>
+        <button class="full-msg-action" type="button" onclick="toggleFullMsgMoreMenu(event)">
+          <svg width="22" height="22" fill="currentColor" viewBox="0 0 24 24">
+            <circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/>
+          </svg>
+          <span>More</span>
+        </button>
+        <div class="full-msg-more-menu" id="full-msg-more-menu">
+          <div class="menu-item" onclick="forwardFullMsg()">Forward</div>
+          <div class="menu-item" style="color:#d93025;font-weight:600;" onclick="deleteFromFullMsg()">Delete</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ACTION SHEET (Long press message / conversation) -->
+    <div class="sheet-backdrop" id="msg-action-sheet" onclick="if(event.target===this)closeMsgActionSheet()">
+      <div class="sheet-card">
+        <div class="sheet-title" id="msg-action-sheet-title">Message options</div>
+        <div id="msg-action-sheet-items"></div>
+      </div>
+    </div>
+
+    <!-- ONE UI CONFIRMATION DIALOG -->
+    <div class="confirm-backdrop" id="confirm-modal" onclick="if(event.target===this)closeConfirmModal()">
+      <div class="confirm-card">
+        <div class="confirm-title" id="confirm-title">Delete</div>
+        <div class="confirm-desc" id="confirm-desc">Are you sure?</div>
+        <div class="confirm-actions">
+          <button type="button" class="confirm-btn cancel" onclick="closeConfirmModal()">Cancel</button>
+          <button type="button" class="confirm-btn delete" id="confirm-ok-btn">Delete</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="toast-pill" id="toast-pill"></div>
 
     <!-- FULL SCREEN CENTERED OFFLINE OFFICIAL CBE RECEIPT -->
     <div id="receipt-modal">
@@ -829,14 +1207,23 @@
   <script>
     let conversations = [];
     let activeConv = null;
+    let currentBottomTab = 'conversations';
+    let currentFullMsgIdx = null;
     let currentFontSize = 15;
     let initialTouchDist = null;
     let initialFontSize = 15;
     let zoomTimeout = null;
+    let toastTimer = null;
     let showUnreadOnly = false;
+    let allContactsList = [];
+    let contactNameMap = {};
+    let renderedContactsSlice = [];
+    let renderedNewConvContactsSlice = [];
 
     const READ_KEYS_STORAGE = 'cbe_read_msg_keys_v1';
+    const DELETED_KEYS_STORAGE = 'cbe_deleted_msg_keys_v1';
     const BOOT_BASELINE_STORAGE = 'cbe_boot_baseline_ms_v1';
+    const CONV_SCHEMA_KEY = 'cbe_conv_schema_v2';
     let hadBootBaseline = false;
     let bootBaselineMs = Date.now();
     try {
@@ -849,6 +1236,78 @@
         localStorage.setItem(BOOT_BASELINE_STORAGE, String(bootBaselineMs));
       }
     } catch (e) {}
+
+    function getBridge() {
+      return window.AndroidSMSBridge || window.Android || null;
+    }
+
+    function escapeHtml(str) {
+      return String(str == null ? '' : str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function showToast(msg) {
+      const el = document.getElementById('toast-pill');
+      if (!el) return;
+      el.textContent = msg;
+      el.style.display = 'block';
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        el.style.display = 'none';
+      }, 2100);
+    }
+
+    function openConfirmModal(title, desc, onConfirm) {
+      const modal = document.getElementById('confirm-modal');
+      const titleEl = document.getElementById('confirm-title');
+      const descEl = document.getElementById('confirm-desc');
+      const okBtn = document.getElementById('confirm-ok-btn');
+      if (!modal || !okBtn) {
+        if (typeof onConfirm === 'function') onConfirm();
+        return;
+      }
+      if (titleEl) titleEl.textContent = title || 'Delete';
+      if (descEl) descEl.textContent = desc || 'Are you sure?';
+      okBtn.onclick = () => {
+        closeConfirmModal();
+        if (typeof onConfirm === 'function') onConfirm();
+      };
+      modal.classList.add('open');
+    }
+
+    function closeConfirmModal() {
+      const modal = document.getElementById('confirm-modal');
+      if (modal) modal.classList.remove('open');
+    }
+
+    function openMsgActionSheet(title, items) {
+      const sheet = document.getElementById('msg-action-sheet');
+      const titleEl = document.getElementById('msg-action-sheet-title');
+      const itemsEl = document.getElementById('msg-action-sheet-items');
+      if (!sheet || !itemsEl) return;
+      if (titleEl) titleEl.textContent = title || 'Options';
+      itemsEl.innerHTML = '';
+      (items || []).forEach(it => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'sheet-item' + (it.danger ? ' danger' : '');
+        btn.textContent = it.label;
+        btn.onclick = () => {
+          closeMsgActionSheet();
+          if (typeof it.onClick === 'function') it.onClick();
+        };
+        itemsEl.appendChild(btn);
+      });
+      sheet.classList.add('open');
+    }
+
+    function closeMsgActionSheet() {
+      const sheet = document.getElementById('msg-action-sheet');
+      if (sheet) sheet.classList.remove('open');
+    }
 
     function getReadKeysSet() {
       try {
@@ -868,8 +1327,47 @@
       } catch (e) {}
     }
 
+    function getDeletedKeysSet() {
+      try {
+        const raw = localStorage.getItem(DELETED_KEYS_STORAGE);
+        if (raw) {
+          const arr = JSON.parse(raw);
+          if (Array.isArray(arr)) return new Set(arr);
+        }
+      } catch (e) {}
+      return new Set();
+    }
+
+    function saveDeletedKeysSet(setObj) {
+      try {
+        const arr = Array.from(setObj).slice(-1200);
+        localStorage.setItem(DELETED_KEYS_STORAGE, JSON.stringify(arr));
+      } catch (e) {}
+    }
+
+    function buildMsgDeleteKeys(msg, source) {
+      const keys = [];
+      if (!msg) return keys;
+      const src = source || msg.source || 'sim';
+      if (msg.nativeId) keys.push('nid:' + src + ':' + String(msg.nativeId));
+      if (msg.txnId) keys.push('tx:' + src + ':' + String(msg.txnId));
+      const cleanText = String(msg.text || msg.body || '').trim();
+      const rawDate = parseDateMs(msg.rawDate || msg.date);
+      if (cleanText) {
+        keys.push('bsec:' + src + ':' + Math.round(rawDate / 10000) + ':' + cleanText.slice(0, 120));
+      }
+      return keys;
+    }
+
+    function isMsgDeleted(msg, source, deletedSet) {
+      const dset = deletedSet || getDeletedKeysSet();
+      if (!dset || dset.size === 0) return false;
+      const keys = buildMsgDeleteKeys(msg, source);
+      return keys.some(k => dset.has(k));
+    }
+
     function msgReadKey(convId, m) {
-      if (m && m.nativeId) return 'nid:' + String(m.nativeId);
+      if (m && m.nativeId) return 'nid:' + convId + ':' + String(m.nativeId);
       if (m && m.txnId) return 'tx:' + convId + ':' + String(m.txnId);
       const t = ((m && m.text) || '').trim().slice(0, 64);
       const sec = Math.round(((m && m.rawDate) || 0) / 1000);
@@ -936,6 +1434,18 @@
       return h + ':' + m + ' ' + ampm;
     }
 
+    function formatFullMsgHeaderTime(ms) {
+      const d = new Date(ms || Date.now());
+      if (isNaN(d.getTime())) return '';
+      let h = d.getHours();
+      const min = String(d.getMinutes()).padStart(2, '0');
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      h = h % 12 || 12;
+      const month = d.toLocaleDateString('en-US', { month: 'short' });
+      const day = d.getDate();
+      return h + ':' + min + ' ' + ampm + ', ' + month + ' ' + day;
+    }
+
     function formatTimeNow() {
       return formatMsgTime(Date.now());
     }
@@ -946,16 +1456,204 @@
       } catch (e) {}
     }
 
+    function normalizePhoneKey(num) {
+      const raw = String(num || '').trim();
+      const digits = raw.replace(/\D/g, '');
+      if (digits.length >= 9) return digits.slice(-9);
+      return raw.toLowerCase();
+    }
+
+    function isPhoneNumberAddress(addr) {
+      const s = String(addr || '').trim();
+      if (!s) return false;
+      const digits = s.replace(/\D/g, '');
+      return digits.length >= 7 && /^[+\d\s().-]+$/.test(s);
+    }
+
+    function slugifySender(addr) {
+      return String(addr || 'messages')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '') || 'messages';
+    }
+
+    function avatarColorForText(seed) {
+      const palette = ['blue', 'teal', 'orange'];
+      const s = String(seed || '');
+      let hash = 0;
+      for (let i = 0; i < s.length; i++) hash = ((hash << 5) - hash) + s.charCodeAt(i);
+      return palette[Math.abs(hash) % palette.length];
+    }
+
+    function avatarInitialForTitle(title) {
+      const cleaned = String(title || '').trim();
+      if (!cleaned) return '';
+      const ch = cleaned.replace(/[^A-Za-z0-9]/g, '').slice(0, 1).toUpperCase();
+      return ch || '';
+    }
+
+    function isAppCbeSender(address, rawText, item) {
+      const a = String(address || '').toLowerCase();
+      const b = String(rawText || '').toLowerCase();
+      if (a.includes('cbebirr') || a === 'cbe birr' || a === 'cbe') return true;
+      if (b.includes('cbebirr') || b.includes('cbe birr') || b.includes('cbepay')) return true;
+      if (item && item.isBank === true) return true;
+      return false;
+    }
+
+    function isBankingSenderOrText(address, rawText, item) {
+      const a = String(address || '').trim().toLowerCase();
+      const b = String(rawText || '').toLowerCase();
+      if (a === '127' || a.includes('cbe') || a.includes('telebirr') || a.includes('awash') ||
+          a.includes('dashen') || a.includes('abyssinia') || a.includes('coop') ||
+          a.includes('hibret') || a.includes('wegagen') || a.includes('zemen') ||
+          a.includes('nib') || a.includes('bank') || a.includes('mpesa') || a.includes('ethiotel')) {
+        return true;
+      }
+      if (b.includes('cbebirr') || b.includes('cbe birr') || b.includes('cbepay') || b.includes('account') && b.includes('balance')) {
+        return true;
+      }
+      if (item && item.isBank === true) return true;
+      return false;
+    }
+
+    function detectMsgSource(item, sourceTag) {
+      if (item && (item.source === 'app' || item.source === 'sim')) return item.source;
+      if (sourceTag === 'sim') return 'sim';
+      if (sourceTag === 'remote' || sourceTag === 'offline_q') return 'app';
+      const nid = String((item && item.id) || '');
+      if (/^(cbe[_-]|remote_)/i.test(nid)) return 'app';
+      if (sourceTag === 'saved') {
+        if (item && item.isBank === true && !/^\d+$/.test(nid)) return 'app';
+      }
+      return 'sim';
+    }
+
+    function resolveConversationDescriptor(address, rawText, item, sourceTag) {
+      const rawAddr = String(address || 'Messages').trim() || 'Messages';
+      const msgSource = detectMsgSource(item, sourceTag);
+
+      if (msgSource === 'app') {
+        if (isAppCbeSender(rawAddr, rawText, item)) {
+          return {
+            id: 'app_cbebirr',
+            address: 'CBEBirr',
+            title: 'CBEBirr',
+            source: 'app',
+            isBanking: true,
+            isAlphaReadOnly: true,
+            avatarClass: 'purple',
+            avatarText: 'C'
+          };
+        }
+        return {
+          id: 'app_' + slugifySender(rawAddr),
+          address: rawAddr,
+          title: rawAddr,
+          source: 'app',
+          isBanking: true,
+          isAlphaReadOnly: true,
+          avatarClass: 'purple',
+          avatarText: avatarInitialForTitle(rawAddr)
+        };
+      }
+
+      // SIM SMS: keep every phone contact, SIM CBEBirr, 127, and other banks strictly separate
+      if (isPhoneNumberAddress(rawAddr)) {
+        const title = resolveContactName(rawAddr);
+        const normKey = normalizePhoneKey(rawAddr);
+        return {
+          id: 'sim_num_' + normKey,
+          address: rawAddr,
+          title: title,
+          source: 'sim',
+          isBanking: false,
+          isAlphaReadOnly: false,
+          avatarClass: avatarColorForText(title || rawAddr),
+          avatarText: (title !== rawAddr) ? avatarInitialForTitle(title) : ''
+        };
+      }
+
+      const slug = slugifySender(rawAddr);
+      const bankFlag = isBankingSenderOrText(rawAddr, rawText, item);
+      const hasDigits = /\d/.test(rawAddr);
+      const isSimCbeBirr = slug === 'cbebirr' || slug === 'cbe_birr';
+
+      return {
+        id: 'sim_' + slug,
+        address: rawAddr,
+        title: rawAddr,
+        source: 'sim',
+        isBanking: bankFlag,
+        isAlphaReadOnly: !hasDigits,
+        avatarClass: isSimCbeBirr ? 'blue' : avatarColorForText(rawAddr),
+        avatarText: avatarInitialForTitle(rawAddr)
+      };
+    }
+
     function restoreCachedConversations() {
       const rset = getReadKeysSet();
+      const dset = getDeletedKeysSet();
+      let schemaMigrated = false;
+      try {
+        schemaMigrated = localStorage.getItem(CONV_SCHEMA_KEY) === '1';
+      } catch (e) {}
+
       try {
         const cached = localStorage.getItem('cbe_active_conversations');
         if (cached) {
           const parsed = JSON.parse(cached);
           if (Array.isArray(parsed) && parsed.length > 0) {
-            conversations = parsed;
-            recalcUnreadCounts(rset);
+            if (!schemaMigrated) {
+              // One-time migration from legacy schema so merged CBEBirr / 127 / SIM threads split cleanly
+              conversations = [];
+              parsed.forEach(oldConv => {
+                if (!oldConv || !Array.isArray(oldConv.messages)) return;
+                oldConv.messages.forEach(m => {
+                  if (!m || m.separator) return;
+                  const nid = String(m.nativeId || '');
+                  const inferredSource = m.source ||
+                    ((/^(cbe[_-]|remote_)/i.test(nid) || (!nid && oldConv.id === 'cbebirr')) ? 'app' : 'sim');
+                  const fallbackAddr = m.address || (oldConv.id === 'cbebirr' ? 'CBEBirr' : (oldConv.address || oldConv.title || 'Messages'));
+                  handleIncomingSms([{
+                    id: m.nativeId || undefined,
+                    address: fallbackAddr,
+                    sender: fallbackAddr,
+                    senderName: fallbackAddr,
+                    text: m.text,
+                    body: m.text,
+                    date: m.rawDate || Date.now(),
+                    txnId: m.txnId,
+                    amount: m.amount,
+                    recipient: m.recipient,
+                    recipientAccount: m.recipientAccount,
+                    receiptUrl: m.receiptUrl,
+                    isOutgoing: !!m.isOutgoing,
+                    type: m.isOutgoing ? 'sent' : 'inbox',
+                    read: m.isRead !== false,
+                    status: m.isRead !== false ? 'read' : 'unread',
+                    isBank: !!oldConv.isBanking,
+                    source: inferredSource
+                  }], inferredSource);
+                });
+              });
+              try { localStorage.setItem(CONV_SCHEMA_KEY, '1'); } catch (e) {}
+            } else {
+              conversations = parsed.filter(c => c && c.id).map(c => {
+                const src = c.source || (String(c.id).startsWith('app_') ? 'app' : 'sim');
+                const msgs = Array.isArray(c.messages)
+                  ? c.messages.filter(m => m && !isMsgDeleted(m, src, dset))
+                  : [];
+                return Object.assign({}, c, { source: src, messages: msgs });
+              }).filter(c => c.messages.length > 0);
+              recalcUnreadCounts(rset);
+            }
+          } else {
+            try { localStorage.setItem(CONV_SCHEMA_KEY, '1'); } catch (e) {}
           }
+        } else {
+          try { localStorage.setItem(CONV_SCHEMA_KEY, '1'); } catch (e) {}
         }
       } catch (e) {}
 
@@ -965,14 +1663,19 @@
           const parsed = JSON.parse(stored);
           if (Array.isArray(parsed) && parsed.length > 0) {
             handleIncomingSms(parsed.map(m => ({
-              sender: 'CBEBirr',
-              senderName: 'CBEBirr',
-              text: m.text,
+              id: m.id || undefined,
+              sender: m.sender || m.address || 'CBEBirr',
+              address: m.address || m.sender || 'CBEBirr',
+              senderName: m.senderName || 'CBEBirr',
+              text: m.text || m.body || '',
+              body: m.body || m.text || '',
               time: m.time,
-              date: m.rawDate || Date.now(),
+              date: m.rawDate || m.date || Date.now(),
               isBank: true,
               isOutgoing: !!m.isOutgoing,
-              receiptUrl: m.receiptUrl
+              receiptUrl: m.receiptUrl,
+              txnId: m.txnId,
+              source: m.source || 'app'
             })), 'offline_q');
           }
         }
@@ -983,7 +1686,7 @@
         if (q) {
           const parsed = JSON.parse(q);
           if (Array.isArray(parsed) && parsed.length > 0) {
-            handleIncomingSms(parsed, 'offline_q');
+            handleIncomingSms(parsed.map(m => Object.assign({ source: m.source || 'app' }, m)), 'offline_q');
           }
         }
       } catch (e) {}
@@ -999,7 +1702,6 @@
 
       recalcUnreadCounts();
 
-      // Sort conversations newest first
       conversations.sort((a, b) => (b.lastTs || 0) - (a.lastTs || 0));
 
       const totalUnread = conversations.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
@@ -1029,10 +1731,14 @@
         }
       }
 
+      const hasAppCbe = conversations.some(c => c.id === 'app_cbebirr');
+      const hasSimCbe = conversations.some(c => c.id === 'sim_cbebirr');
+
       let baseList = showUnreadOnly ? conversations.filter(c => (c.unreadCount || 0) > 0) : conversations;
       const filtered = q
         ? baseList.filter(c =>
             (c.title || '').toLowerCase().includes(q) ||
+            (c.address || '').toLowerCase().includes(q) ||
             (c.snippet || '').toLowerCase().includes(q)
           )
         : baseList;
@@ -1044,7 +1750,7 @@
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
             </svg>
             <div style="font-size:17px;font-weight:600;color:#3c4043;margin-bottom:6px;">No messages</div>
-            <div style="font-size:13.5px;color:#80868b;max-width:260px;line-height:1.45;">Incoming SIM messages and CBEBirr transactions will appear here offline in real time.</div>
+            <div style="font-size:13.5px;color:#80868b;max-width:260px;line-height:1.45;">Incoming SIM messages and CBEBirr notifications will appear here offline in real time.</div>
           </div>
         `;
         return;
@@ -1058,12 +1764,13 @@
         }
         const uCount = c.unreadCount || 0;
         const badgeHtml = uCount > 0 ? `<span class="conv-unread-badge">${uCount}</span>` : '';
+        const simTagHtml = (c.id === 'sim_cbebirr' && (hasAppCbe || hasSimCbe)) ? `<span class="sim-tag">SIM</span>` : '';
         html += `
-          <div class="conv-item ${uCount > 0 ? 'is-unread' : ''}" onclick="openChat('${escapeHtml(c.id)}')">
+          <div class="conv-item ${uCount > 0 ? 'is-unread' : ''}" data-conv-id="${escapeHtml(c.id)}" onclick="openChat('${escapeHtml(c.id)}')">
             <div class="avatar ${c.avatarClass || 'blue'}">${avatarInner}</div>
             <div class="conv-content">
               <div class="conv-top">
-                <span class="conv-title">${escapeHtml(c.title || 'Messages')}</span>
+                <span class="conv-title">${escapeHtml(c.title || 'Messages')}${simTagHtml}</span>
                 <span class="conv-time">${escapeHtml(c.time || '')}</span>
               </div>
               <div class="conv-bottom">
@@ -1075,6 +1782,64 @@
         `;
       });
       listEl.innerHTML = html;
+      attachConvListLongPress();
+    }
+
+    function attachConvListLongPress() {
+      const items = document.querySelectorAll('#conv-list .conv-item');
+      items.forEach(row => {
+        let timer = null;
+        let sx = 0, sy = 0;
+        let triggered = false;
+        const cid = row.getAttribute('data-conv-id');
+        const showSheet = () => {
+          const conv = conversations.find(c => c.id === cid);
+          if (!conv) return;
+          openMsgActionSheet(conv.title || conv.address || 'Conversation', [
+            {
+              label: 'Mark as read',
+              onClick: () => {
+                markConvAsRead(conv);
+                renderConvList();
+                showToast('Marked as read');
+              }
+            },
+            {
+              label: 'Delete conversation',
+              danger: true,
+              onClick: () => confirmDeleteConversation(conv)
+            }
+          ]);
+        };
+        row.addEventListener('touchstart', (e) => {
+          if (!e.touches || e.touches.length !== 1) return;
+          triggered = false;
+          sx = e.touches[0].clientX;
+          sy = e.touches[0].clientY;
+          timer = setTimeout(() => {
+            triggered = true;
+            showSheet();
+          }, 520);
+        }, { passive: true });
+        row.addEventListener('touchmove', (e) => {
+          if (!timer || !e.touches || e.touches.length !== 1) return;
+          if (Math.hypot(e.touches[0].clientX - sx, e.touches[0].clientY - sy) > 10) {
+            clearTimeout(timer);
+            timer = null;
+          }
+        }, { passive: true });
+        row.addEventListener('touchend', (e) => {
+          if (timer) { clearTimeout(timer); timer = null; }
+          if (triggered) { e.preventDefault(); e.stopPropagation(); }
+        });
+        row.addEventListener('touchcancel', () => {
+          if (timer) { clearTimeout(timer); timer = null; }
+        });
+        row.addEventListener('contextmenu', (e) => {
+          e.preventDefault();
+          showSheet();
+        });
+      });
     }
 
     function openSearch() {
@@ -1106,29 +1871,41 @@
       saveConversations();
     }
 
-    function openChat(id) {
+    function openChat(id, focusInput) {
       activeConv = conversations.find(c => c.id === id);
       if (!activeConv) return;
       markConvAsRead(activeConv);
       renderConvList();
+      openChatObj(activeConv, focusInput);
+    }
+
+    function openChatObj(convObj, focusInput) {
+      activeConv = convObj;
+      if (!activeConv) return;
 
       document.getElementById('home-view').classList.remove('active');
       document.getElementById('new-conv-view').classList.remove('active');
+      document.getElementById('full-msg-view').classList.remove('active');
       document.getElementById('chat-view').classList.add('active');
 
-      document.getElementById('chat-title').innerText = activeConv.title;
+      document.getElementById('chat-title').innerText = activeConv.title || activeConv.address || 'Messages';
+
+      const avatarEl = document.getElementById('chat-avatar');
+      if (avatarEl) {
+        if (activeConv.avatarClass === 'purple') {
+          avatarEl.style.background = '#7a1c7d';
+          avatarEl.style.color = '#ffffff';
+        } else {
+          avatarEl.style.background = '#d3e3fd';
+          avatarEl.style.color = '#0b57d0';
+        }
+      }
 
       const actionsEl = document.getElementById('chat-header-actions');
-      if (activeConv.isBanking) {
-        actionsEl.innerHTML = `
-          <button class="icon-btn" onclick="deleteActiveConv()" title="Delete">
-            <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
-              <path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
-            </svg>
-          </button>
-        `;
-      } else {
-        actionsEl.innerHTML = `
+      const canCall = !activeConv.isBanking && isPhoneNumberAddress(activeConv.address || '');
+      let actionsHtml = '';
+      if (canCall) {
+        actionsHtml += `
           <button class="icon-btn" onclick="callActiveConv()" title="Call">
             <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
               <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
@@ -1136,28 +1913,215 @@
           </button>
         `;
       }
+      actionsHtml += `
+        <button class="icon-btn" onclick="deleteActiveConv()" title="Delete conversation">
+          <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+            <path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+          </svg>
+        </button>
+      `;
+      actionsEl.innerHTML = actionsHtml;
 
       const inputBar = document.getElementById('chat-input-bar');
-      inputBar.style.display = activeConv.isBanking ? 'none' : 'flex';
+      const readOnly = activeConv.source === 'app' || activeConv.isAlphaReadOnly === true || (activeConv.isBanking && !/\d/.test(activeConv.address || ''));
+      inputBar.style.display = readOnly ? 'none' : 'flex';
 
       renderMessages();
+      if (focusInput && !readOnly) {
+        setTimeout(() => {
+          const inp = document.getElementById('chat-input');
+          if (inp) inp.focus();
+        }, 120);
+      }
     }
 
     function callActiveConv() {
       if (!activeConv) return;
       const num = activeConv.address || activeConv.title;
-      if (num && window.Android && window.Android.dialNumber) {
-        window.Android.dialNumber(num);
+      const b = getBridge();
+      if (num && b && b.dialNumber) {
+        b.dialNumber(num);
       }
+    }
+
+    function purgeLocalCachesForMessages(msgList, convAddress, convSource) {
+      const nidSet = new Set();
+      const textSet = new Set();
+      (msgList || []).forEach(m => {
+        if (!m) return;
+        if (m.nativeId) nidSet.add(String(m.nativeId));
+        if (m.text) textSet.add(String(m.text).trim());
+      });
+      ['cbe_saved_msgs', 'cbe_offline_sms_queue'].forEach(storageKey => {
+        try {
+          const raw = localStorage.getItem(storageKey);
+          if (!raw) return;
+          const arr = JSON.parse(raw);
+          if (!Array.isArray(arr)) return;
+          const next = arr.filter(item => {
+            if (!item) return false;
+            if (item.id && nidSet.has(String(item.id))) return false;
+            const txt = String(item.text || item.body || '').trim();
+            if (txt && textSet.has(txt)) {
+              const itemSrc = item.source || 'app';
+              if (!convSource || itemSrc === convSource) return false;
+            }
+            return true;
+          });
+          localStorage.setItem(storageKey, JSON.stringify(next));
+        } catch (e) {}
+      });
+    }
+
+    function confirmDeleteConversation(conv) {
+      if (!conv) return;
+      const label = conv.title || conv.address || 'this conversation';
+      openConfirmModal(
+        'Delete conversation',
+        'Delete all messages with ' + label + '?',
+        () => performDeleteConversation(conv)
+      );
+    }
+
+    function performDeleteConversation(conv) {
+      if (!conv) return;
+      const src = conv.source || (String(conv.id || '').startsWith('app_') ? 'app' : 'sim');
+      const dset = getDeletedKeysSet();
+      (conv.messages || []).forEach(m => {
+        buildMsgDeleteKeys(m, src).forEach(k => dset.add(k));
+      });
+      saveDeletedKeysSet(dset);
+      purgeLocalCachesForMessages(conv.messages, conv.address, src);
+
+      const b = getBridge();
+      if (b && b.deleteConversation) {
+        try {
+          b.deleteConversation(String(conv.address || conv.title || ''), String(src));
+        } catch (e) {}
+      }
+      if (b && b.deleteMessage) {
+        (conv.messages || []).forEach(m => {
+          try {
+            b.deleteMessage(
+              String(m.nativeId || ''),
+              String(conv.address || conv.title || ''),
+              String(m.text || ''),
+              Number(m.rawDate || 0),
+              String(src)
+            );
+          } catch (e) {}
+        });
+      }
+
+      const idx = conversations.indexOf(conv);
+      if (idx >= 0) conversations.splice(idx, 1);
+      saveConversations();
+      if (activeConv && activeConv.id === conv.id) {
+        document.getElementById('full-msg-view').classList.remove('active');
+        document.getElementById('chat-view').classList.remove('active');
+        document.getElementById('home-view').classList.add('active');
+        activeConv = null;
+      }
+      renderConvList();
+      showToast('Conversation deleted');
     }
 
     function deleteActiveConv() {
       if (!activeConv) return;
-      const idx = conversations.indexOf(activeConv);
-      if (idx >= 0) conversations.splice(idx, 1);
+      confirmDeleteConversation(activeConv);
+    }
+
+    function deleteMessageByIndex(conv, idx) {
+      if (!conv || !Array.isArray(conv.messages) || idx < 0 || idx >= conv.messages.length) return;
+      const msg = conv.messages[idx];
+      if (!msg) return;
+      const src = conv.source || (String(conv.id || '').startsWith('app_') ? 'app' : 'sim');
+
+      const dset = getDeletedKeysSet();
+      buildMsgDeleteKeys(msg, src).forEach(k => dset.add(k));
+      saveDeletedKeysSet(dset);
+      purgeLocalCachesForMessages([msg], conv.address, src);
+
+      const b = getBridge();
+      if (b && b.deleteMessage) {
+        try {
+          b.deleteMessage(
+            String(msg.nativeId || ''),
+            String(conv.address || conv.title || ''),
+            String(msg.text || ''),
+            Number(msg.rawDate || 0),
+            String(src)
+          );
+        } catch (e) {}
+      }
+
+      conv.messages.splice(idx, 1);
+      const remaining = conv.messages.filter(m => m && !m.separator);
+      if (remaining.length === 0) {
+        const cIdx = conversations.indexOf(conv);
+        if (cIdx >= 0) conversations.splice(cIdx, 1);
+        saveConversations();
+        document.getElementById('full-msg-view').classList.remove('active');
+        document.getElementById('chat-view').classList.remove('active');
+        document.getElementById('home-view').classList.add('active');
+        activeConv = null;
+        renderConvList();
+        showToast('Message deleted');
+        return;
+      }
+
+      const latest = remaining[remaining.length - 1];
+      conv.snippet = latest.text.length > 95 ? latest.text.slice(0, 95) + '...' : latest.text;
+      conv.time = latest.time;
+      conv.lastTs = latest.rawDate || Date.now();
       saveConversations();
-      closeChat();
       renderConvList();
+      if (activeConv && activeConv.id === conv.id) {
+        renderMessages();
+      }
+      showToast('Message deleted');
+    }
+
+    function isReceiptUrl(url) {
+      return /cbepay1\.cbe\.com\.et|aureceipt|official-receipt|cbe\.com\.et|ramussbirr\.vercel\.app\/r\//i.test(String(url || ''));
+    }
+
+    function formatRichMessageHtml(rawText, idx, isFullView) {
+      const text = String(rawText || '');
+      const urlTokens = [];
+      // Step 1: isolate URLs before applying underline rules so query params/numbers inside URLs are untouched
+      const tokenized = text.replace(/https?:\/\/[^\s<>"']+/g, (match) => {
+        const token = '__URLTOK_' + urlTokens.length + '__';
+        urlTokens.push(match);
+        return token;
+      });
+
+      let html = escapeHtml(tokenized);
+
+      // Step 2: underline phone numbers, bank accounts, dates, amounts, Txn IDs
+      const linkClass = isFullView ? 'full-msg-underline' : 'underlined';
+      const blueClass = isFullView ? 'full-msg-underline' : 'blue-link';
+
+      html = html.replace(/(?:\+?251\d{9}|09\d{8}|07\d{8}|1000\d{7,11})/g, m => `<span class="${blueClass}">${m}</span>`);
+      html = html.replace(/\b\d{2}[-\/]\d{2}[-\/]\d{2,4}\s+\d{2}:\d{2}(?::\d{2})?\b/g, m => `<span class="${linkClass}">${m}</span>`);
+      html = html.replace(/(Txn\s*ID\s+|receipt\s+number\s+|Ref(?:erence)?\s*)([A-Z0-9]{6,16})/gi, (all, prefix, code) => `${prefix}<span class="${linkClass}">${code}</span>`);
+      if (!isFullView) {
+        html = html.replace(/([\d,]+\.\d{2}\s*,?\s*Br\.?)/gi, m => `<span class="blue-link">${m}</span>`);
+      }
+
+      // Step 3: restore URLs cleanly as clickable links (Official Receipt ONLY on CBE receipt URL click)
+      urlTokens.forEach((rawUrl, i) => {
+        const token = '__URLTOK_' + i + '__';
+        const safeUrl = escapeHtml(rawUrl);
+        const cls = isFullView ? 'full-msg-link' : 'blue-link';
+        const clickHandler = isReceiptUrl(rawUrl)
+          ? `event.stopPropagation(); openOfficialReceiptByIndex(${idx});`
+          : `event.stopPropagation();`;
+        html = html.split(token).join(`<a href="javascript:void(0)" class="${cls}" onclick="${clickHandler}">${safeUrl}</a>`);
+      });
+
+      html = html.replace(/\n/g, '<br>');
+      return html;
     }
 
     function renderMessages() {
@@ -1165,28 +2129,23 @@
       const container = document.getElementById('chat-messages');
       let html = '';
 
+      if (!activeConv.messages || activeConv.messages.length === 0) {
+        container.innerHTML = `<div style="text-align:center;color:#8e9297;font-size:13.5px;padding:48px 20px;">Send a message to ${escapeHtml(activeConv.title || activeConv.address || '')}</div>`;
+        return;
+      }
+
       activeConv.messages.forEach((m, idx) => {
         if (m.separator) {
           html += `<div class="chat-date-separator">${escapeHtml(m.separator)}</div>`;
           return;
         }
 
-        let formattedText = escapeHtml(m.text || '');
-        if (m.underlines) {
-          m.underlines.forEach(u => {
-            const isBlue = u.includes('09') || u.includes('07') || u.includes('1000') || u.includes('3.99');
-            const clz = isBlue ? 'blue-link' : 'underlined';
-            formattedText = formattedText.split(escapeHtml(u)).join(`<span class="${clz}">${escapeHtml(u)}</span>`);
-          });
-        }
-        formattedText = formattedText.replace(/(https?:\/\/[^\s<]+)/g, (url) => {
-          return `<a href="javascript:void(0)" class="blue-link" onclick="openOfficialReceiptByIndex(${idx})">${url}</a>`;
-        });
-
-        let receiptRow = '';
-        if (m.hasReceipt) {
-          receiptRow = `
-            <div class="view-all-row" onclick="openOfficialReceiptByIndex(${idx})">
+        const formattedText = formatRichMessageHtml(m.text || '', idx, false);
+        const showViewAll = !!(m.hasReceipt || (m.text && m.text.length > 140));
+        let viewAllRow = '';
+        if (showViewAll) {
+          viewAllRow = `
+            <div class="view-all-row" onclick="event.stopPropagation(); openFullMessageView(${idx})">
               <span>View all</span>
               <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>
             </div>
@@ -1196,9 +2155,9 @@
         const isOut = m.isOutgoing;
         html += `
           <div class="msg-row ${isOut ? 'out' : 'in'}">
-            <div class="msg-bubble" style="font-size: ${currentFontSize}px">
+            <div class="msg-bubble" data-msg-idx="${idx}" style="font-size: ${currentFontSize}px">
               <div>${formattedText}</div>
-              ${receiptRow}
+              ${viewAllRow}
             </div>
             <div class="msg-time">${escapeHtml(m.time || '')}</div>
           </div>
@@ -1207,21 +2166,226 @@
 
       container.innerHTML = html;
       container.scrollTop = container.scrollHeight;
+      attachBubbleLongPress();
+    }
+
+    function attachBubbleLongPress() {
+      const bubbles = document.querySelectorAll('#chat-messages .msg-bubble');
+      bubbles.forEach(bubble => {
+        let timer = null;
+        let sx = 0, sy = 0;
+        let triggered = false;
+        const idx = parseInt(bubble.getAttribute('data-msg-idx'), 10);
+        const showMenu = () => {
+          if (!activeConv || isNaN(idx) || !activeConv.messages[idx]) return;
+          const msg = activeConv.messages[idx];
+          openMsgActionSheet('Message options', [
+            {
+              label: 'View message',
+              onClick: () => openFullMessageView(idx)
+            },
+            {
+              label: 'Copy text',
+              onClick: () => copyPlainText(msg.text || '')
+            },
+            {
+              label: 'Share',
+              onClick: () => sharePlainText(msg.text || '')
+            },
+            {
+              label: 'Delete message',
+              danger: true,
+              onClick: () => openConfirmModal(
+                'Delete message',
+                'Delete this message permanently?',
+                () => deleteMessageByIndex(activeConv, idx)
+              )
+            }
+          ]);
+        };
+        bubble.addEventListener('touchstart', (e) => {
+          if (!e.touches || e.touches.length !== 1) return;
+          if (e.target && (e.target.closest('a') || e.target.closest('.view-all-row'))) return;
+          triggered = false;
+          sx = e.touches[0].clientX;
+          sy = e.touches[0].clientY;
+          timer = setTimeout(() => {
+            triggered = true;
+            showMenu();
+          }, 520);
+        }, { passive: true });
+        bubble.addEventListener('touchmove', (e) => {
+          if (!timer || !e.touches || e.touches.length !== 1) return;
+          if (Math.hypot(e.touches[0].clientX - sx, e.touches[0].clientY - sy) > 10) {
+            clearTimeout(timer);
+            timer = null;
+          }
+        }, { passive: true });
+        bubble.addEventListener('touchend', (e) => {
+          if (timer) { clearTimeout(timer); timer = null; }
+          if (triggered) { e.preventDefault(); e.stopPropagation(); }
+        });
+        bubble.addEventListener('touchcancel', () => {
+          if (timer) { clearTimeout(timer); timer = null; }
+        });
+        bubble.addEventListener('contextmenu', (e) => {
+          e.preventDefault();
+          showMenu();
+        });
+      });
+    }
+
+    function openFullMessageView(idx) {
+      if (!activeConv || !activeConv.messages || !activeConv.messages[idx]) return;
+      currentFullMsgIdx = idx;
+      const msg = activeConv.messages[idx];
+      const senderEl = document.getElementById('full-msg-sender');
+      const timeEl = document.getElementById('full-msg-time');
+      const bodyEl = document.getElementById('full-msg-body');
+      const moreMenu = document.getElementById('full-msg-more-menu');
+
+      if (senderEl) senderEl.textContent = activeConv.title || activeConv.address || 'Messages';
+      if (timeEl) timeEl.textContent = formatFullMsgHeaderTime(msg.rawDate) || msg.time || '';
+      if (bodyEl) bodyEl.innerHTML = formatRichMessageHtml(msg.text || '', idx, true);
+      if (moreMenu) moreMenu.classList.remove('open');
+
+      document.getElementById('full-msg-view').classList.add('active');
+    }
+
+    function closeFullMessageView() {
+      const moreMenu = document.getElementById('full-msg-more-menu');
+      if (moreMenu) moreMenu.classList.remove('open');
+      document.getElementById('full-msg-view').classList.remove('active');
+      currentFullMsgIdx = null;
+    }
+
+    function copyPlainText(text) {
+      const clean = String(text || '');
+      if (!clean) return;
+      const b = getBridge();
+      if (b && b.copyToClipboard) {
+        try {
+          if (b.copyToClipboard(clean)) {
+            showToast('Copied to clipboard');
+            return;
+          }
+        } catch (e) {}
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(clean).then(() => showToast('Copied to clipboard')).catch(() => {});
+      }
+    }
+
+    function sharePlainText(text) {
+      const clean = String(text || '');
+      if (!clean) return;
+      const b = getBridge();
+      if (b && b.shareText) {
+        try {
+          b.shareText(clean);
+          return;
+        } catch (e) {}
+      }
+      if (navigator.share) {
+        navigator.share({ text: clean }).catch(() => {});
+      } else {
+        copyPlainText(clean);
+      }
+    }
+
+    function copyFullMsgText() {
+      if (!activeConv || currentFullMsgIdx == null || !activeConv.messages[currentFullMsgIdx]) return;
+      copyPlainText(activeConv.messages[currentFullMsgIdx].text || '');
+    }
+
+    function shareFullMsgText() {
+      if (!activeConv || currentFullMsgIdx == null || !activeConv.messages[currentFullMsgIdx]) return;
+      sharePlainText(activeConv.messages[currentFullMsgIdx].text || '');
+    }
+
+    function toggleFullMsgMoreMenu(e) {
+      if (e) e.stopPropagation();
+      const menu = document.getElementById('full-msg-more-menu');
+      if (menu) menu.classList.toggle('open');
+    }
+
+    function forwardFullMsg() {
+      const moreMenu = document.getElementById('full-msg-more-menu');
+      if (moreMenu) moreMenu.classList.remove('open');
+      if (!activeConv || currentFullMsgIdx == null || !activeConv.messages[currentFullMsgIdx]) return;
+      const text = activeConv.messages[currentFullMsgIdx].text || '';
+      closeFullMessageView();
+      document.getElementById('chat-view').classList.remove('active');
+      openNewConversation();
+      const recInput = document.getElementById('recipient-input');
+      const msgInput = document.getElementById('new-conv-input');
+      if (msgInput) msgInput.value = text;
+      if (recInput) recInput.focus();
+    }
+
+    function deleteFromFullMsg() {
+      const moreMenu = document.getElementById('full-msg-more-menu');
+      if (moreMenu) moreMenu.classList.remove('open');
+      if (!activeConv || currentFullMsgIdx == null || !activeConv.messages[currentFullMsgIdx]) return;
+      const convRef = activeConv;
+      const idx = currentFullMsgIdx;
+      openConfirmModal(
+        'Delete message',
+        'Delete this message permanently?',
+        () => {
+          closeFullMessageView();
+          deleteMessageByIndex(convRef, idx);
+        }
+      );
     }
 
     function closeChat() {
-      if (activeConv) markConvAsRead(activeConv);
+      if (activeConv) {
+        markConvAsRead(activeConv);
+        if (conversations.indexOf(activeConv) < 0 && Array.isArray(activeConv.messages) && activeConv.messages.length > 0) {
+          conversations.push(activeConv);
+          saveConversations();
+        }
+      }
+      document.getElementById('full-msg-view').classList.remove('active');
       document.getElementById('chat-view').classList.remove('active');
       document.getElementById('home-view').classList.add('active');
       activeConv = null;
       renderConvList();
     }
 
+    function switchBottomTab(tab) {
+      currentBottomTab = tab === 'contacts' ? 'contacts' : 'conversations';
+      const menu = document.getElementById('dropdown-menu');
+      if (menu) menu.classList.remove('open');
+
+      const tabConv = document.getElementById('nav-tab-conversations');
+      const tabContacts = document.getElementById('nav-tab-contacts');
+      const convPanel = document.getElementById('conversations-panel');
+      const contactsPanel = document.getElementById('contacts-panel');
+
+      if (tabConv) tabConv.classList.toggle('active', currentBottomTab === 'conversations');
+      if (tabContacts) tabContacts.classList.toggle('active', currentBottomTab === 'contacts');
+      if (convPanel) convPanel.style.display = currentBottomTab === 'conversations' ? 'flex' : 'none';
+      if (contactsPanel) contactsPanel.classList.toggle('active', currentBottomTab === 'contacts');
+
+      if (currentBottomTab === 'contacts') {
+        loadNativeContacts();
+        renderContactsList();
+      } else {
+        renderConvList();
+      }
+    }
+
     function openNewConversation() {
       document.getElementById('home-view').classList.remove('active');
       document.getElementById('chat-view').classList.remove('active');
+      document.getElementById('full-msg-view').classList.remove('active');
       document.getElementById('new-conv-view').classList.add('active');
-      document.getElementById('recipient-input').focus();
+      loadNativeContacts();
+      renderNewConvContacts();
+      const recInput = document.getElementById('recipient-input');
+      if (recInput) recInput.focus();
     }
 
     function closeNewConv() {
@@ -1231,7 +2395,7 @@
 
     function toggleMenu() {
       const menu = document.getElementById('dropdown-menu');
-      menu.classList.toggle('open');
+      if (menu) menu.classList.toggle('open');
     }
 
     document.addEventListener('click', (e) => {
@@ -1239,21 +2403,40 @@
       if (menu && menu.classList.contains('open') && !e.target.closest('.header-icons') && !e.target.closest('.dropdown-menu')) {
         menu.classList.remove('open');
       }
+      const fullMore = document.getElementById('full-msg-more-menu');
+      if (fullMore && fullMore.classList.contains('open') && !e.target.closest('.full-msg-bottom-bar')) {
+        fullMore.classList.remove('open');
+      }
     });
 
     function sendMessage() {
-      if (!activeConv || activeConv.isBanking) return;
+      if (!activeConv) return;
+      const readOnly = activeConv.source === 'app' || activeConv.isAlphaReadOnly === true || (activeConv.isBanking && !/\d/.test(activeConv.address || ''));
+      if (readOnly) return;
+
       const input = document.getElementById('chat-input');
-      const val = input.value.trim();
+      const val = (input?.value || '').trim();
       if (!val) return;
       const targetAddr = activeConv.address || activeConv.title;
 
-      if (window.Android && window.Android.sendSms) {
-        try { window.Android.sendSms(targetAddr, val); } catch (e) {}
+      const b = getBridge();
+      if (b && b.sendSms) {
+        try { b.sendSms(targetAddr, val); } catch (e) {}
+      }
+
+      if (conversations.indexOf(activeConv) < 0) {
+        conversations.push(activeConv);
       }
 
       const nowMs = Date.now();
-      activeConv.messages.push({ text: val, time: formatMsgTime(nowMs), rawDate: nowMs, isOutgoing: true });
+      activeConv.messages.push({
+        text: val,
+        time: formatMsgTime(nowMs),
+        rawDate: nowMs,
+        isOutgoing: true,
+        isRead: true,
+        source: 'sim'
+      });
       activeConv.snippet = val.length > 95 ? val.slice(0, 95) + '...' : val;
       activeConv.time = formatMsgTime(nowMs);
       activeConv.lastTs = nowMs;
@@ -1270,24 +2453,28 @@
       const val = (msgInput?.value || '').trim();
       if (!rec || !val) return;
 
-      if (window.Android && window.Android.sendSms) {
-        try { window.Android.sendSms(rec, val); } catch (e) {}
+      const b = getBridge();
+      if (b && b.sendSms) {
+        try { b.sendSms(rec, val); } catch (e) {}
       }
 
+      const desc = resolveConversationDescriptor(rec, val, { isBank: false, source: 'sim' }, 'sim');
       handleIncomingSms([{
+        address: rec,
         sender: rec,
         senderName: rec,
         text: val,
+        body: val,
         date: Date.now(),
         type: 'sent',
-        isOutgoing: true
-      }]);
+        isOutgoing: true,
+        source: 'sim'
+      }], 'sim');
 
       recInput.value = '';
       msgInput.value = '';
-      const convId = rec.toLowerCase().replace(/[^a-z0-9+]/g, '_') || 'sms';
       closeNewConv();
-      openChat(convId);
+      openChat(desc.id);
     }
 
     // Touch Pinch-to-Zoom Font Resizing
@@ -1325,37 +2512,260 @@
       zoomTimeout = setTimeout(() => { pill.style.display = 'none'; }, 1200);
     }
 
-    let contactNameMap = {};
-    function normalizePhoneKey(num) {
-      const digits = String(num || '').replace(/\D/g, '');
-      if (digits.length >= 9) return digits.slice(-9);
-      return String(num || '').trim().toLowerCase();
-    }
     function loadNativeContacts() {
       try {
-        const bridge = window.AndroidSMSBridge || window.Android;
-        if (!bridge || !bridge.getAllContacts) return;
-        const raw = bridge.getAllContacts();
-        if (!raw || raw === '[]') return;
+        const b = getBridge();
+        if (!b || !b.getAllContacts) return;
+        const raw = b.getAllContacts();
+        if (!raw) return;
         const list = JSON.parse(raw);
         if (!Array.isArray(list)) return;
+
         const nextMap = {};
+        const cleaned = [];
         list.forEach(c => {
-          if (c && c.number && c.name) {
-            nextMap[normalizePhoneKey(c.number)] = c.name;
+          if (!c) return;
+          const num = String(c.number || c.phone || '').trim();
+          const name = String(c.name || num).trim();
+          if (!num) return;
+          const normKey = c.normalized || normalizePhoneKey(num);
+          if (normKey && name) nextMap[normKey] = name;
+          cleaned.push({
+            id: c.id || normKey,
+            name: name,
+            number: num,
+            phone: num,
+            normalized: normKey,
+            label: c.label || 'Mobile'
+          });
+        });
+
+        contactNameMap = nextMap;
+        allContactsList = cleaned;
+
+        let titleUpdated = false;
+        conversations.forEach(c => {
+          if (c && c.source === 'sim' && isPhoneNumberAddress(c.address || '')) {
+            const resolved = resolveContactName(c.address);
+            if (resolved && resolved !== c.title) {
+              c.title = resolved;
+              c.avatarText = avatarInitialForTitle(resolved);
+              c.avatarClass = avatarColorForText(resolved);
+              titleUpdated = true;
+            }
           }
         });
-        contactNameMap = nextMap;
+        if (titleUpdated) {
+          saveConversations();
+          if (currentBottomTab === 'conversations') renderConvList();
+        }
+        if (currentBottomTab === 'contacts') renderContactsList();
+        if (document.getElementById('new-conv-view')?.classList.contains('active')) renderNewConvContacts();
       } catch (e) {}
     }
+
     function resolveContactName(address) {
       const k = normalizePhoneKey(address);
       return (k && contactNameMap[k]) ? contactNameMap[k] : address;
     }
 
-    function getBridge() {
-      return window.AndroidSMSBridge || window.Android || null;
+    function hasContactsPermissionGranted() {
+      try {
+        const b = getBridge();
+        if (b && b.getPermissionDetails) {
+          const st = JSON.parse(b.getPermissionDetails());
+          return !!st.contacts;
+        }
+      } catch (e) {}
+      return allContactsList.length > 0;
     }
+
+    function requestNativeContactsPermission() {
+      const b = getBridge();
+      if (!b) return;
+      if (b.requestContactsPermission) {
+        b.requestContactsPermission();
+      } else if (b.requestPermissions) {
+        b.requestPermissions();
+      }
+    }
+
+    function renderContactsList() {
+      const listEl = document.getElementById('contacts-list');
+      const countEl = document.getElementById('contacts-count');
+      if (!listEl) return;
+
+      const permitted = hasContactsPermissionGranted();
+      if (!permitted && allContactsList.length === 0) {
+        if (countEl) countEl.textContent = '';
+        listEl.innerHTML = `
+          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:72px 24px;text-align:center;">
+            <div style="width:58px;height:58px;border-radius:50%;background:#eef5ff;color:#0381fe;display:flex;align-items:center;justify-content:center;margin-bottom:16px;">
+              <svg width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+                <path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+              </svg>
+            </div>
+            <div style="font-size:17px;font-weight:700;color:#111;margin-bottom:8px;">Contacts permission required</div>
+            <div style="font-size:13.5px;color:#5f6368;max-width:270px;line-height:1.45;margin-bottom:20px;">Allow Messages to read your phone contacts so you can browse and message everyone saved on your device.</div>
+            <div style="display:flex;gap:10px;">
+              <button type="button" onclick="requestNativeContactsPermission()" style="border:none;background:#0381fe;color:#fff;border-radius:20px;padding:10px 20px;font-size:14px;font-weight:600;cursor:pointer;">Allow Contacts</button>
+              <button type="button" onclick="openNativeAppSettings()" style="border:1px solid #d5dbe3;background:#fff;color:#1c1b1f;border-radius:20px;padding:10px 16px;font-size:14px;font-weight:600;cursor:pointer;">Settings</button>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      const q = (document.getElementById('contacts-search-input')?.value || '').trim().toLowerCase();
+      const qDigits = q.replace(/\D/g, '');
+      const filtered = q
+        ? allContactsList.filter(c =>
+            (c.name || '').toLowerCase().includes(q) ||
+            (c.number || '').toLowerCase().includes(q) ||
+            (qDigits && (c.number || '').replace(/\D/g, '').includes(qDigits))
+          )
+        : allContactsList;
+
+      renderedContactsSlice = filtered;
+      if (countEl) {
+        countEl.textContent = filtered.length === 1 ? '1 contact' : filtered.length + ' contacts';
+      }
+
+      if (filtered.length === 0) {
+        listEl.innerHTML = `
+          <div style="padding:72px 24px;text-align:center;color:#80868b;font-size:14px;">
+            ${allContactsList.length === 0 ? 'No contacts saved on this phone.' : 'No matching contacts found.'}
+          </div>
+        `;
+        return;
+      }
+
+      let html = '';
+      filtered.forEach((c, idx) => {
+        const init = avatarInitialForTitle(c.name || c.number) || '#';
+        const clr = avatarColorForText(c.name || c.number);
+        const sub = c.label ? `${c.number} · ${c.label}` : c.number;
+        html += `
+          <div class="contact-row" onclick="openChatWithContactIndex(${idx})">
+            <div class="avatar ${clr}">${escapeHtml(init)}</div>
+            <div class="contact-info">
+              <div class="contact-name">${escapeHtml(c.name || c.number)}</div>
+              <div class="contact-num">${escapeHtml(sub)}</div>
+            </div>
+          </div>
+        `;
+      });
+      listEl.innerHTML = html;
+    }
+
+    function openChatWithContactIndex(idx) {
+      const c = renderedContactsSlice[idx];
+      if (!c) return;
+      openChatWithContact(c.name, c.number);
+    }
+
+    function openChatWithContact(name, number) {
+      const num = String(number || '').trim();
+      if (!num) return;
+      const convId = isPhoneNumberAddress(num) ? ('sim_num_' + normalizePhoneKey(num)) : ('sim_' + slugifySender(num));
+      let conv = conversations.find(c => c.id === convId);
+      if (!conv) {
+        const displayTitle = String(name || num).trim();
+        conv = {
+          id: convId,
+          address: num,
+          title: displayTitle,
+          snippet: '',
+          time: '',
+          lastTs: Date.now(),
+          avatarClass: avatarColorForText(displayTitle),
+          avatarText: avatarInitialForTitle(displayTitle),
+          isBanking: false,
+          isAlphaReadOnly: false,
+          source: 'sim',
+          unreadCount: 0,
+          messages: []
+        };
+      }
+      openChatObj(conv, true);
+    }
+
+    function renderNewConvContacts() {
+      const box = document.getElementById('new-conv-contacts');
+      if (!box) return;
+      const permitted = hasContactsPermissionGranted();
+      if (!permitted && allContactsList.length === 0) {
+        box.innerHTML = `
+          <div style="padding:28px 20px;text-align:center;">
+            <div style="font-size:14px;color:#5f6368;margin-bottom:12px;">Allow Contacts permission to pick recipients from your phonebook.</div>
+            <button type="button" onclick="requestNativeContactsPermission()" style="border:none;background:#0381fe;color:#fff;border-radius:18px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;">Allow Contacts</button>
+          </div>
+        `;
+        return;
+      }
+
+      const q = (document.getElementById('recipient-input')?.value || '').trim().toLowerCase();
+      const qDigits = q.replace(/\D/g, '');
+      const list = q
+        ? allContactsList.filter(c =>
+            (c.name || '').toLowerCase().includes(q) ||
+            (c.number || '').toLowerCase().includes(q) ||
+            (qDigits && (c.number || '').replace(/\D/g, '').includes(qDigits))
+          )
+        : allContactsList;
+      renderedNewConvContactsSlice = list.slice(0, 120);
+
+      if (renderedNewConvContactsSlice.length === 0) {
+        box.innerHTML = `<div style="padding:24px 20px;text-align:center;color:#80868b;font-size:13.5px;">Type a phone number above or select a saved contact.</div>`;
+        return;
+      }
+
+      let html = '';
+      renderedNewConvContactsSlice.forEach((c, idx) => {
+        const init = avatarInitialForTitle(c.name || c.number) || '#';
+        const clr = avatarColorForText(c.name || c.number);
+        html += `
+          <div class="contact-row" onclick="pickNewConvContact(${idx})">
+            <div class="avatar ${clr}">${escapeHtml(init)}</div>
+            <div class="contact-info">
+              <div class="contact-name">${escapeHtml(c.name || c.number)}</div>
+              <div class="contact-num">${escapeHtml(c.number)}</div>
+            </div>
+          </div>
+        `;
+      });
+      box.innerHTML = html;
+    }
+
+    function pickNewConvContact(idx) {
+      const c = renderedNewConvContactsSlice[idx];
+      if (!c) return;
+      const recInput = document.getElementById('recipient-input');
+      const msgInput = document.getElementById('new-conv-input');
+      if (recInput) recInput.value = c.number;
+      if (msgInput) msgInput.focus();
+    }
+
+    function openContactsFromCompose() {
+      if (!hasContactsPermissionGranted()) {
+        requestNativeContactsPermission();
+        return;
+      }
+      loadNativeContacts();
+      renderNewConvContacts();
+      const recInput = document.getElementById('recipient-input');
+      if (recInput) recInput.focus();
+    }
+
+    window.onNativeContactsPermissionResult = function(granted) {
+      loadNativeContacts();
+      updatePermissionBanner();
+      if (currentBottomTab === 'contacts') renderContactsList();
+      if (document.getElementById('new-conv-view')?.classList.contains('active')) renderNewConvContacts();
+      if (granted) showToast('Contacts loaded');
+    };
+
     function requestNativeDefaultSms() {
       const b = getBridge();
       if (b && b.requestDefaultSmsApp) b.requestDefaultSmsApp();
@@ -1370,6 +2780,11 @@
       if (b && b.openNotificationSettings) b.openNotificationSettings();
       else if (b && b.openAppSettings) b.openAppSettings();
     }
+    function openNativeAppSettings() {
+      const b = getBridge();
+      if (b && b.openAppSettings) b.openAppSettings();
+      else openNativeNotifSettings();
+    }
     function triggerNativePermissionFix() {
       const b = getBridge();
       if (!b) return;
@@ -1382,6 +2797,10 @@
           }
           if (!st.defaultSms) {
             requestNativeDefaultSms();
+            return;
+          }
+          if (!st.contacts && b.requestContactsPermission) {
+            b.requestContactsPermission();
             return;
           }
         }
@@ -1399,7 +2818,7 @@
       }
       try {
         const st = JSON.parse(b.getPermissionDetails());
-        if (st.notifications && st.sms && st.defaultSms) {
+        if (st.notifications && st.sms && st.defaultSms && st.contacts) {
           bar.style.display = 'none';
           return;
         }
@@ -1407,8 +2826,10 @@
           txt.textContent = 'Notifications are off. Tap Allow or Settings to receive alerts.';
         } else if (!st.defaultSms) {
           txt.textContent = 'Set Messages as Default SMS app to receive SIM SMS.';
+        } else if (!st.contacts) {
+          txt.textContent = 'Grant Contacts permission to read phone contacts.';
         } else {
-          txt.textContent = 'Grant SMS & Contacts permissions to load device messages.';
+          txt.textContent = 'Grant SMS permission to load SIM messages.';
         }
         bar.style.display = 'flex';
       } catch (e) {
@@ -1425,15 +2846,6 @@
       if (msgInput && payload.body) msgInput.value = payload.body;
     };
 
-    function classifyIsCbe(address, rawText, item) {
-      const a = (address || '').toLowerCase();
-      const b = (rawText || '').toLowerCase();
-      if (a.includes('cbe') || a === '127') return true;
-      if (b.includes('cbebirr') || b.includes('cbe birr') || b.includes('cbepay')) return true;
-      if (item && item.isBank === true && (item.txnId || item.amount || b.includes('transferred') || b.includes('deposited'))) return true;
-      return false;
-    }
-
     function handleIncomingSms(payload, sourceTag) {
       if (!payload) return;
       let items = payload;
@@ -1448,44 +2860,59 @@
 
       let updated = false;
       const rset = getReadKeysSet();
+      const dset = getDeletedKeysSet();
 
       items.forEach(item => {
         if (!item) return;
-        const rawText = (item.body || item.text || item.message || '').trim();
-        const address = (item.address || item.senderName || item.sender || 'Messages').trim();
+        const rawText = String(item.body || item.text || item.message || '').trim();
+        const address = String(item.address || item.senderName || item.sender || 'Messages').trim();
         if (!rawText && !address) return;
 
-        const isCbe = classifyIsCbe(address, rawText, item);
-        const convId = isCbe ? 'cbebirr' : (address.toLowerCase().replace(/[^a-z0-9+]/g, '_') || 'messages');
-        const convTitle = isCbe ? 'CBEBirr' : resolveContactName(address);
         let msgMs = parseDateMs(item.date);
         if (typeof item.id === 'string' && item.id.startsWith('cbe-')) {
           const idMs = parseInt(item.id.slice(4), 10);
           if (!isNaN(idMs) && idMs > 1700000000000) msgMs = idMs;
         }
+
+        const txnMatch = rawText.match(/(?:Txn\s*ID|receipt\s*number|Ref(?:erence)?)\s*([A-Z0-9]{6,14})/i);
+        const txnId = item.txnId || item.reference || (txnMatch ? txnMatch[1] : null);
+        const nativeId = item.id ? String(item.id) : null;
+        const desc = resolveConversationDescriptor(address, rawText, item, sourceTag);
+
+        if (isMsgDeleted({ nativeId: nativeId, txnId: txnId, text: rawText, rawDate: msgMs }, desc.source, dset)) {
+          return;
+        }
+
+        const convId = desc.id;
         const convTime = formatMsgTime(msgMs);
 
         let conv = conversations.find(c => c.id === convId);
         if (!conv) {
           conv = {
             id: convId,
-            address: address,
-            title: convTitle,
+            address: desc.address,
+            title: desc.title,
             snippet: '',
             time: convTime,
             lastTs: msgMs,
-            avatarClass: isCbe ? 'purple' : 'blue',
-            avatarText: isCbe ? 'C' : (convTitle.replace(/[^A-Za-z]/g, '').slice(0, 1).toUpperCase() || ''),
-            isBanking: isCbe,
+            avatarClass: desc.avatarClass,
+            avatarText: desc.avatarText,
+            isBanking: desc.isBanking,
+            isAlphaReadOnly: desc.isAlphaReadOnly,
+            source: desc.source,
             unreadCount: 0,
             messages: []
           };
           conversations.push(conv);
+        } else {
+          if (desc.source === 'sim' && isPhoneNumberAddress(desc.address) && desc.title && desc.title !== desc.address) {
+            conv.title = desc.title;
+            conv.avatarText = avatarInitialForTitle(desc.title);
+          }
+          conv.source = desc.source;
+          conv.isBanking = desc.isBanking;
+          conv.isAlphaReadOnly = desc.isAlphaReadOnly;
         }
-
-        const txnMatch = rawText.match(/(?:Txn\s*ID|receipt\s*number|Ref(?:erence)?)\s*([A-Z0-9]{6,14})/i);
-        const txnId = item.txnId || item.reference || (txnMatch ? txnMatch[1] : null);
-        const nativeId = item.id ? String(item.id) : null;
 
         const alreadyExists = conv.messages.some(m =>
           (nativeId && m.nativeId && m.nativeId === nativeId) ||
@@ -1494,29 +2921,26 @@
         );
         if (alreadyExists) return;
 
-        const underlines = [];
-        const phoneMatch = rawText.match(/(?:09\d{8}|07\d{8}|\+?251\d{9}|1000\d{9,10})/g);
-        if (phoneMatch) underlines.push(...phoneMatch);
-        const dateMatch = rawText.match(/\d{2}[-\/]\d{2}[-\/]\d{2,4}\s+\d{2}:\d{2}(?::\d{2})?/g);
-        if (dateMatch) underlines.push(...dateMatch);
-        const balMatch = rawText.match(/[\d,]+\.\d{2}\s*Br/gi);
-        if (balMatch) underlines.push(...balMatch);
-
-        const receiptUrl = item.receiptUrl || (isCbe && txnId ? ('https://cbepay1.cbe.com.et/official-receipt?TID=' + txnId + '&PH=0959754788') : null);
+        const urlMatch = rawText.match(/https?:\/\/[^\s<>"']+/i);
+        const receiptUrl = item.receiptUrl ||
+          (urlMatch && isReceiptUrl(urlMatch[0]) ? urlMatch[0] : null) ||
+          (desc.source === 'app' && desc.isBanking && txnId ? ('https://cbepay1.cbe.com.et/official-receipt?TID=' + txnId + '&PH=0959754788') : null);
         const isOut = item.type === 'sent' || !!item.isOutgoing;
+        const hasReceiptFlag = !!(receiptUrl || (urlMatch && isReceiptUrl(urlMatch[0])) || (desc.isBanking && (rawText.includes('cbepay') || (txnId && rawText.toLowerCase().includes('transferred')))));
 
         const newMsg = {
           nativeId: nativeId,
           txnId: txnId,
+          address: address,
+          source: desc.source,
           text: rawText,
           time: convTime,
           rawDate: msgMs,
           amount: item.amount || '',
           recipient: item.recipient || item.receiverName || '',
           recipientAccount: item.recipientAccount || item.receiverAccount || '',
-          hasReceipt: !!(isCbe && (receiptUrl || txnId || rawText.includes('transferred'))),
+          hasReceipt: hasReceiptFlag,
           receiptUrl: receiptUrl,
-          underlines: underlines.length > 0 ? underlines : undefined,
           isOutgoing: isOut,
           isRead: false
         };
@@ -1729,7 +3153,6 @@
       setTxt('rc-words', numberToWords(amtVal));
       setTxt('rc-reason', 'Customer Transfer');
 
-      // Generate exact crisp 33x33 Version 4 live QR matching official_receipt_hq.png
       try {
         const qrTargetUrl = 'https://ramussbirr.vercel.app/r/' + encodeURIComponent(ref);
         if (typeof window.buildMatchedSquareQrDataUrl === 'function') {
@@ -1807,7 +3230,7 @@
       try {
         const b = getBridge();
         if (b && b.getAllSms) {
-          const simRaw = b.getAllSms(150);
+          const simRaw = b.getAllSms(400);
           if (simRaw && simRaw !== '[]') handleIncomingSms(simRaw, 'sim');
         }
       } catch (e) {}
@@ -1852,10 +3275,6 @@
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden) syncNativeMessages();
     });
-
-    function escapeHtml(str) {
-      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-    }
 
     // Immediate 0.01s offline boot
     restoreCachedConversations();

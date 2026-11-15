@@ -3,7 +3,10 @@ package com.cbebirr.messages.cbe
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.role.RoleManager
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.ContentValues
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
@@ -58,6 +61,19 @@ class MainActivity : AppCompatActivity() {
         permissionFlowRunning = false
         refreshWebViewMessages()
         ensureBackgroundSyncService()
+    }
+
+    private val contactsPermLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        permissionFlowRunning = false
+        webView.post {
+            webView.evaluateJavascript(
+                "if(window.onNativeContactsPermissionResult){window.onNativeContactsPermissionResult(${if (granted) "true" else "false"});}",
+                null
+            )
+        }
+        refreshWebViewMessages()
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -117,7 +133,7 @@ class MainActivity : AppCompatActivity() {
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 webView.evaluateJavascript(
-                    "(function(){ if(document.getElementById('receipt-modal')?.classList.contains('open')){ closeReceiptModal(); return 'handled'; } if(document.getElementById('chat-view')?.classList.contains('active')){ closeChat(); return 'handled'; } if(document.getElementById('new-conv-view')?.classList.contains('active')){ closeNewConv(); return 'handled'; } return 'exit'; })()"
+                    "(function(){ if(document.getElementById('receipt-modal')?.classList.contains('open')){ closeReceiptModal(); return 'handled'; } if(document.getElementById('full-msg-view')?.classList.contains('active')){ closeFullMessageView(); return 'handled'; } if(document.getElementById('confirm-modal')?.classList.contains('open')){ closeConfirmModal(); return 'handled'; } if(document.getElementById('msg-action-sheet')?.classList.contains('open')){ closeMsgActionSheet(); return 'handled'; } if(document.getElementById('chat-view')?.classList.contains('active')){ closeChat(); return 'handled'; } if(document.getElementById('new-conv-view')?.classList.contains('active')){ closeNewConv(); return 'handled'; } if(typeof currentBottomTab !== 'undefined' && currentBottomTab === 'contacts'){ switchBottomTab('conversations'); return 'handled'; } return 'exit'; })()"
                 ) { res ->
                     if (res == "\"exit\"" || res == "null") {
                         finish()
@@ -303,7 +319,7 @@ class MainActivity : AppCompatActivity() {
 
         @JavascriptInterface
         fun getAllSms(limit: Int): String {
-            val maxItems = if (limit > 0) limit else 150
+            val maxItems = if (limit > 0) limit else 400
             val arr = JSONArray()
 
             if (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED) {
@@ -354,6 +370,7 @@ class MainActivity : AppCompatActivity() {
                             put("read", isRead)
                             put("status", if (isRead) "read" else "unread")
                             put("isOutgoing", typeStr == "sent")
+                            put("source", "sim")
                         }
                         arr.put(obj)
                     }
@@ -404,12 +421,18 @@ class MainActivity : AppCompatActivity() {
                     body = cleanBody,
                     dateMs = System.currentTimeMillis(),
                     type = "sent",
-                    isBank = false
+                    isBank = false,
+                    source = "sim"
                 )
                 true
             } catch (_: Throwable) {
                 false
             }
+        }
+
+        private fun normalizeContactNumber(raw: String): String {
+            val digits = raw.filter { it.isDigit() }
+            return if (digits.length >= 9) digits.takeLast(9) else raw.trim().lowercase()
         }
 
         @JavascriptInterface
@@ -419,37 +442,220 @@ class MainActivity : AppCompatActivity() {
                 return arr.toString()
             }
 
-            val seenNumbers = hashSetOf<String>()
+            val seenPairs = hashSetOf<String>()
             try {
                 val projection = arrayOf(
+                    ContactsContract.CommonDataKinds.Phone.CONTACT_ID,
                     ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
-                    ContactsContract.CommonDataKinds.Phone.NUMBER
+                    ContactsContract.CommonDataKinds.Phone.NUMBER,
+                    ContactsContract.CommonDataKinds.Phone.TYPE,
+                    ContactsContract.CommonDataKinds.Phone.LABEL
                 )
                 contentResolver.query(
                     ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
                     projection,
                     null,
                     null,
-                    "${ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME} ASC"
+                    "${ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME} COLLATE NOCASE ASC"
                 )?.use { cursor ->
+                    val idxContactId = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.CONTACT_ID)
                     val idxName = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)
                     val idxNum = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
+                    val idxType = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.TYPE)
+                    val idxLabel = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.LABEL)
                     while (cursor.moveToNext()) {
-                        val name = (if (idxName >= 0) cursor.getString(idxName) else "") ?: ""
+                        val contactId = if (idxContactId >= 0) cursor.getString(idxContactId) ?: "" else ""
+                        val name = (if (idxName >= 0) cursor.getString(idxName) else "")?.trim() ?: ""
                         val num = (if (idxNum >= 0) cursor.getString(idxNum) else "")?.trim() ?: ""
-                        if (num.isNotEmpty() && seenNumbers.add(num.replace(" ", ""))) {
-                            arr.put(JSONObject().apply {
-                                put("id", num)
-                                put("name", name.ifBlank { num })
-                                put("phone", num)
-                                put("number", num)
-                            })
+                        if (num.isEmpty()) continue
+                        val normKey = normalizeContactNumber(num)
+                        val dedupeKey = "${name.lowercase()}|$normKey"
+                        if (!seenPairs.add(dedupeKey)) continue
+
+                        val phoneType = if (idxType >= 0) cursor.getInt(idxType) else ContactsContract.CommonDataKinds.Phone.TYPE_MOBILE
+                        val customLabel = if (idxLabel >= 0) cursor.getString(idxLabel) else null
+                        val typeLabel = try {
+                            ContactsContract.CommonDataKinds.Phone.getTypeLabel(resources, phoneType, customLabel).toString()
+                        } catch (_: Throwable) {
+                            "Mobile"
                         }
+
+                        arr.put(JSONObject().apply {
+                            put("id", if (contactId.isNotEmpty()) "${contactId}_$normKey" else normKey)
+                            put("name", name.ifBlank { num })
+                            put("phone", num)
+                            put("number", num)
+                            put("normalized", normKey)
+                            put("label", typeLabel)
+                        })
                     }
                 }
             } catch (_: Throwable) {
             }
             return arr.toString()
+        }
+
+        @JavascriptInterface
+        fun requestContactsPermission() {
+            runOnUiThread {
+                if (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED) {
+                    webView.evaluateJavascript(
+                        "if(window.onNativeContactsPermissionResult){window.onNativeContactsPermissionResult(true);}",
+                        null
+                    )
+                    return@runOnUiThread
+                }
+                if (shouldShowRequestPermissionRationale(Manifest.permission.READ_CONTACTS) || !askedSmsPermsThisLaunch) {
+                    askedSmsPermsThisLaunch = true
+                    contactsPermLauncher.launch(Manifest.permission.READ_CONTACTS)
+                } else {
+                    contactsPermLauncher.launch(Manifest.permission.READ_CONTACTS)
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun deleteMessage(id: String, address: String, body: String, dateMs: Long, source: String): Boolean {
+            val cleanId = id.trim()
+            val cleanBody = body.trim()
+            val cleanSource = source.trim().ifBlank { "sim" }
+            val removedLocal = LocalMessageStore.deleteMessage(
+                context = this@MainActivity,
+                id = cleanId,
+                address = address,
+                body = cleanBody,
+                dateMs = dateMs,
+                source = cleanSource
+            )
+            var removedProvider = false
+            if (cleanSource != "app") {
+                try {
+                    val numericId = cleanId.toLongOrNull()
+                    if (numericId != null) {
+                        val rows = contentResolver.delete(
+                            Telephony.Sms.CONTENT_URI,
+                            "${Telephony.Sms._ID} = ?",
+                            arrayOf(cleanId)
+                        )
+                        if (rows > 0) removedProvider = true
+                    }
+                    if (!removedProvider && cleanBody.isNotEmpty() && dateMs > 0L) {
+                        val minDate = dateMs - 5000L
+                        val maxDate = dateMs + 5000L
+                        val toDeleteIds = mutableListOf<String>()
+                        contentResolver.query(
+                            Telephony.Sms.CONTENT_URI,
+                            arrayOf(Telephony.Sms._ID, Telephony.Sms.BODY),
+                            "${Telephony.Sms.DATE} >= ? AND ${Telephony.Sms.DATE} <= ?",
+                            arrayOf(minDate.toString(), maxDate.toString()),
+                            null
+                        )?.use { c ->
+                            val idxId = c.getColumnIndex(Telephony.Sms._ID)
+                            val idxBody = c.getColumnIndex(Telephony.Sms.BODY)
+                            while (c.moveToNext()) {
+                                val rowId = if (idxId >= 0) c.getString(idxId) else continue
+                                val rowBody = (if (idxBody >= 0) c.getString(idxBody) else "")?.trim() ?: ""
+                                if (rowBody == cleanBody) {
+                                    toDeleteIds.add(rowId)
+                                }
+                            }
+                        }
+                        for (rowId in toDeleteIds) {
+                            val rows = contentResolver.delete(
+                                Telephony.Sms.CONTENT_URI,
+                                "${Telephony.Sms._ID} = ?",
+                                arrayOf(rowId)
+                            )
+                            if (rows > 0) removedProvider = true
+                        }
+                    }
+                } catch (_: Throwable) {
+                }
+            }
+            return removedLocal || removedProvider
+        }
+
+        @JavascriptInterface
+        fun deleteConversation(address: String, source: String): Boolean {
+            val cleanAddr = address.trim()
+            val cleanSource = source.trim().ifBlank { "sim" }
+            val removedLocal = LocalMessageStore.deleteConversation(
+                context = this@MainActivity,
+                address = cleanAddr,
+                source = cleanSource
+            )
+            var removedProvider = false
+            if (cleanSource != "app" && cleanAddr.isNotEmpty()) {
+                try {
+                    val targetNorm = normalizeContactNumber(cleanAddr)
+                    val targetLower = cleanAddr.lowercase()
+                    val isPhoneNum = cleanAddr.count { it.isDigit() } >= 7
+                    val toDeleteIds = mutableListOf<String>()
+
+                    contentResolver.query(
+                        Telephony.Sms.CONTENT_URI,
+                        arrayOf(Telephony.Sms._ID, Telephony.Sms.ADDRESS),
+                        null,
+                        null,
+                        null
+                    )?.use { c ->
+                        val idxId = c.getColumnIndex(Telephony.Sms._ID)
+                        val idxAddr = c.getColumnIndex(Telephony.Sms.ADDRESS)
+                        while (c.moveToNext()) {
+                            val rowId = if (idxId >= 0) c.getString(idxId) else continue
+                            val rowAddr = (if (idxAddr >= 0) c.getString(idxAddr) else "")?.trim() ?: ""
+                            val matches = if (isPhoneNum) {
+                                rowAddr.equals(cleanAddr, ignoreCase = true) ||
+                                    (targetNorm.isNotEmpty() && normalizeContactNumber(rowAddr) == targetNorm)
+                            } else {
+                                rowAddr.lowercase() == targetLower
+                            }
+                            if (matches) {
+                                toDeleteIds.add(rowId)
+                            }
+                        }
+                    }
+                    for (rowId in toDeleteIds) {
+                        val rows = contentResolver.delete(
+                            Telephony.Sms.CONTENT_URI,
+                            "${Telephony.Sms._ID} = ?",
+                            arrayOf(rowId)
+                        )
+                        if (rows > 0) removedProvider = true
+                    }
+                } catch (_: Throwable) {
+                }
+            }
+            return removedLocal || removedProvider
+        }
+
+        @JavascriptInterface
+        fun shareText(text: String) {
+            val clean = text.trim()
+            if (clean.isEmpty()) return
+            runOnUiThread {
+                try {
+                    val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TEXT, clean)
+                    }
+                    val chooser = Intent.createChooser(sendIntent, "Share message")
+                    chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    startActivity(chooser)
+                } catch (_: Throwable) {
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun copyToClipboard(text: String): Boolean {
+            return try {
+                val cm = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return false
+                cm.setPrimaryClip(ClipData.newPlainText("Message", text))
+                true
+            } catch (_: Throwable) {
+                false
+            }
         }
 
         @JavascriptInterface

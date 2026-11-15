@@ -54,16 +54,13 @@ class CbeSmsReceiver : BroadcastReceiver() {
                 dateMs = dateMs,
                 type = "inbox",
                 isBank = true,
+                source = "app",
                 txnId = txnId,
                 amount = amount,
                 recipient = recipient,
                 recipientAccount = recipientAcc,
                 receiptUrl = receiptUrl
             )
-
-            if (LocalMessageStore.isDefaultSmsApp(context)) {
-                LocalMessageStore.tryInsertInboxSms(context, sender, body, dateMs)
-            }
 
             if (isNew) {
                 NotificationHelper.showIncomingMessageNotification(
@@ -85,6 +82,7 @@ class CbeSmsReceiver : BroadcastReceiver() {
                     put("type", "inbox")
                     put("status", "unread")
                     put("isBank", true)
+                    put("source", "app")
                 }
                 dispatchArray.put(out)
             }

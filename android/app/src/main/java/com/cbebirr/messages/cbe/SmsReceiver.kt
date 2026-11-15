@@ -67,7 +67,8 @@ class SmsReceiver : BroadcastReceiver() {
                 body = fullBody,
                 dateMs = nowMs,
                 type = "inbox",
-                isBank = isBank
+                isBank = isBank,
+                source = "sim"
             )
 
             // 2) Write to Telephony.Sms.Inbox.CONTENT_URI if Default SMS App (isolated try/catch)
@@ -96,6 +97,7 @@ class SmsReceiver : BroadcastReceiver() {
                     put("type", "inbox")
                     put("status", "unread")
                     put("isBank", isBank)
+                    put("source", "sim")
                 }
                 dispatchArray.put(itemJson)
             }

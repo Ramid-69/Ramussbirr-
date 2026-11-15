@@ -1,11 +1,38 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Download, MessageSquare, ShieldCheck, ArrowRight, Smartphone, Bell, CheckCircle2, Loader2 } from 'lucide-react';
+import { Download, MessageSquare, ShieldCheck, ArrowRight, Bell, CheckCircle2, Loader2 } from 'lucide-react';
+
+interface ApkVersionMeta {
+  cbeVersionCode?: number;
+  cbeVersionName?: string;
+  cbeApkSize?: number;
+  msgApkSize?: number;
+  updatedAt?: string;
+}
+
+function formatMb(bytes: number | undefined, fallback: string): string {
+  if (!bytes || !Number.isFinite(bytes)) return fallback;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB .apk`;
+}
 
 export default function DownloadPage() {
   const [downloadingFile, setDownloadingFile] = useState<string | null>(null);
+  const [apkMeta, setApkMeta] = useState<ApkVersionMeta | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    fetch(`/apk-version.json?t=${Date.now()}`, { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: ApkVersionMeta | null) => {
+        if (active && data) setApkMeta(data);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const triggerBlobDownload = async (filename: string, outputName: string) => {
     try {
@@ -81,8 +108,8 @@ export default function DownloadPage() {
                   </p>
                 </div>
               </div>
-              <span className="text-[11px] font-semibold text-blue-800 bg-blue-100 px-2 py-1 rounded-lg">
-                835 KB .apk
+              <span className="text-[11px] font-semibold text-blue-800 bg-blue-100 px-2 py-1 rounded-lg whitespace-nowrap">
+                {formatMb(apkMeta?.msgApkSize, '2.9 MB .apk')}
               </span>
             </div>
 
@@ -139,14 +166,21 @@ export default function DownloadPage() {
                   />
                 </div>
                 <div>
-                  <h2 className="text-sm font-bold text-slate-900">CBEBirr Plus Banking APK</h2>
+                  <h2 className="text-sm font-bold text-slate-900 flex items-center gap-1.5 flex-wrap">
+                    <span>CBEBirr Plus Banking APK</span>
+                    {apkMeta?.cbeVersionName && (
+                      <span className="text-[10px] bg-[#7a1c7d] text-white px-2 py-0.5 rounded-full font-bold">
+                        v{apkMeta.cbeVersionName}
+                      </span>
+                    )}
+                  </h2>
                   <p className="text-[11px] text-slate-600">
                     0.01s Full Offline / Airplane Mode &bull; USSD Auto Lookup &bull; PDF Receipts
                   </p>
                 </div>
               </div>
-              <span className="text-[11px] font-semibold text-purple-800 bg-purple-100 px-2 py-1 rounded-lg">
-                5.8 MB .apk
+              <span className="text-[11px] font-semibold text-purple-800 bg-purple-100 px-2 py-1 rounded-lg whitespace-nowrap">
+                {formatMb(apkMeta?.cbeApkSize, '7.5 MB .apk')}
               </span>
             </div>
 

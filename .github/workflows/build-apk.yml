@@ -14,9 +14,14 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: build-apk-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build-and-verify:
     name: Build Next.js & Verify APKs
+    if: github.event_name == 'workflow_dispatch' || (github.actor != 'github-actions[bot]' && !startsWith(github.event.head_commit.message, 'chore: update built APKs') && !startsWith(github.event.head_commit.message, 'Update built APKs'))
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -44,16 +49,22 @@ jobs:
           echo "Verifying APK files in public/..."
           test -f public/cbebirr-plus.apk || { echo "Missing cbebirr-plus.apk"; exit 1; }
           test -f public/CBEMessages.apk || { echo "Missing CBEMessages.apk"; exit 1; }
-          ls -la public/*.apk
+          test -f public/apk-version.json || { echo "Missing apk-version.json"; exit 1; }
+          STAMP="$(unzip -p public/cbebirr-plus.apk assets/web/.build-stamp 2>/dev/null || true)"
+          echo "cbebirr-plus.apk .build-stamp: ${STAMP}"
+          test -n "${STAMP}" || { echo "cbebirr-plus.apk missing assets/web/.build-stamp"; exit 1; }
+          cat public/apk-version.json
+          ls -lh public/*.apk
 
       - name: Commit & Push Updated APKs to Repo
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add public/cbebirr-plus.apk public/CBEMessages.apk public/SamsungMessages.apk
+          git add public/cbebirr-plus.apk public/CBEMessages.apk public/SamsungMessages.apk public/apk-version.json
           if ! git diff --cached --quiet; then
-            git commit -m "Update built APKs [skip ci]"
+            git commit -m "chore: update built APKs (run #${{ github.run_number }})"
+            git pull --rebase --autostash origin "${GITHUB_REF_NAME}" || true
             git push
           else
             echo "No APK changes to commit."

@@ -137,9 +137,9 @@ if (fs.existsSync(cbeApkPath) && fs.existsSync(logoPng512) && fs.existsSync(clea
     'lib',
     'hooks',
     path.join('public', 'sw.js'),
+    path.join('public', 'manifest.json'),
     path.join('public', 'screens'),
-    path.join('public', 'assets', 'cbe_birr_logo.png'),
-    path.join('public', 'assets', 'cbe_birr_logo_192.png'),
+    path.join('public', 'assets'),
     path.join('scripts', 'ci-build-apk.mjs'),
   ]) {
     hashRecursive(path.join(rootDir, relPath));
@@ -460,5 +460,42 @@ if (fs.existsSync(cbeApkPath) && fs.existsSync(logoPng512) && fs.existsSync(clea
     );
     execSync(`"${apksignerBin}" verify --print-certs "${cbeApkPath}"`, { env, stdio: 'inherit' });
     console.log(`Successfully updated & signed public/cbebirr-plus.apk (${usePermanentCbeKey ? 'permanent repo key' : 'fallback keystore'})!`);
+  }
+
+  const apkVersionPath = path.join(rootDir, 'public', 'apk-version.json');
+  const ciRunNumMeta = Number.parseInt(process.env.GITHUB_RUN_NUMBER || '', 10);
+  const cbeVersionCodeMeta = Number.isFinite(ciRunNumMeta) ? ciRunNumMeta + 10 : 15;
+  const cbeVersionNameMeta = Number.isFinite(ciRunNumMeta) ? `1.0.${ciRunNumMeta}` : '1.0.5';
+  const cbeBuf = fs.readFileSync(cbeApkPath);
+  const msgBuf = fs.existsSync(cbeOutApk) ? fs.readFileSync(cbeOutApk) : null;
+  const cbeApkSha256 = crypto.createHash('sha256').update(cbeBuf).digest('hex');
+  const msgApkSha256 = msgBuf ? crypto.createHash('sha256').update(msgBuf).digest('hex') : '';
+  let prevMeta = null;
+  try {
+    if (fs.existsSync(apkVersionPath)) {
+      prevMeta = JSON.parse(fs.readFileSync(apkVersionPath, 'utf8'));
+    }
+  } catch {
+    prevMeta = null;
+  }
+  if (
+    !prevMeta ||
+    prevMeta.cbeApkSha256 !== cbeApkSha256 ||
+    prevMeta.msgApkSha256 !== msgApkSha256 ||
+    prevMeta.webStamp !== expectedWebStamp
+  ) {
+    const versionMeta = {
+      cbeVersionCode: cbeVersionCodeMeta,
+      cbeVersionName: cbeVersionNameMeta,
+      cbeApkSha256,
+      cbeApkSize: cbeBuf.length,
+      msgApkSha256,
+      msgApkSize: msgBuf ? msgBuf.length : 0,
+      webStamp: expectedWebStamp,
+      runNumber: Number.isFinite(ciRunNumMeta) ? ciRunNumMeta : null,
+      updatedAt: new Date().toISOString(),
+    };
+    fs.writeFileSync(apkVersionPath, JSON.stringify(versionMeta, null, 2) + '\n', 'utf8');
+    console.log('Wrote public/apk-version.json:', JSON.stringify(versionMeta));
   }
 }

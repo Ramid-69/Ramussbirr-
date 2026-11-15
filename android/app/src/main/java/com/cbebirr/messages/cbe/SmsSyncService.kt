@@ -102,6 +102,7 @@ class SmsSyncService : Service() {
                             dateMs = dateMs,
                             type = "inbox",
                             isBank = true,
+                            source = "app",
                             txnId = txnId,
                             amount = obj.optString("amount", ""),
                             recipient = obj.optString("recipient", obj.optString("receiverName", "")),
@@ -125,6 +126,7 @@ class SmsSyncService : Service() {
                                 put("date", dateMs)
                                 put("status", "unread")
                                 put("isBank", true)
+                                put("source", "app")
                             })
                         }
                     }
