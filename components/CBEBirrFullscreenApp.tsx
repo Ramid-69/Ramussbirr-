@@ -3120,6 +3120,12 @@ export default function CBEBirrFullscreenApp() {
     }
   };
 
+  useEffect(() => {
+    if (currentStep === 7 && step7ScrollRef.current) {
+      step7ScrollRef.current.scrollTop = 0;
+    }
+  }, [currentStep, transferSource]);
+
   return (
     <div
       ref={outerWrapRef}
@@ -5473,15 +5479,15 @@ export default function CBEBirrFullscreenApp() {
               className="absolute inset-0 w-full h-full flex flex-col overflow-hidden select-none"
             >
               {(transferSource === 'other_banks' || transferSource === 'other_wallets') ? (
-                /* AUTHENTIC OTHER BANK & OTHER WALLET TRANSFER PIN PAGE (Matches Screenshot_20261108-132819.png & authentic CBE design) */
-                <div className="relative w-full h-full bg-[#D4CFD8] flex flex-col overflow-hidden">
-                  {/* 1. FIXED TOP HEADER BAR */}
-                  <div className="shrink-0 w-full h-[52px] sm:h-[54px] bg-[#7a1c7d] flex items-center justify-between px-3.5 z-30 shadow-xs">
+                /* AUTHENTIC OTHER BANK & OTHER WALLET TRANSFER PIN PAGE (Matches authentic CBEBirr PIN layout: upper Auth sheet + lower scrollable cards right above keypad) */
+                <div className="relative w-full h-full bg-[#7a1c7d] flex flex-col overflow-hidden">
+                  {/* 1. FIXED TOP HEADER BAR (6.8% height) */}
+                  <div className="shrink-0 w-full h-[6.8%] min-h-[44px] bg-[#7a1c7d] flex items-center justify-between px-3.5 z-30">
                     {/* Back button */}
                     <button
                       type="button"
                       onClick={handleBackFromTransferPin}
-                      className="w-9 h-9 rounded-xl border border-white/30 flex items-center justify-center text-white active:bg-white/10 transition-colors cursor-pointer"
+                      className="w-9 h-9 rounded-xl border border-white/35 flex items-center justify-center text-white active:bg-white/10 transition-colors cursor-pointer"
                       aria-label="Back"
                     >
                       <ArrowLeft className="w-5 h-5 stroke-[2.2]" />
@@ -5507,215 +5513,215 @@ export default function CBEBirrFullscreenApp() {
                     </div>
                   </div>
 
-                  {/* 2. AUTHENTICATION SECTION (Fixed directly below Header, matching authentic Screenshot_20261108-132819.png) */}
-                  <div className="shrink-0 w-full bg-[#D4CFD8] px-4 pt-2 pb-2.5 flex flex-col items-center z-20 border-b border-black/5">
-                    {/* Top Purple Chevron Down */}
-                    <button
-                      type="button"
-                      onClick={handleBackFromTransferPin}
-                      className="p-1 -mt-0.5 text-[#8b278e] hover:opacity-80 active:scale-95 transition-transform cursor-pointer"
-                      aria-label="Back to transfer"
-                    >
-                      <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
-                        <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/>
-                      </svg>
-                    </button>
-
-                    {/* Title */}
-                    <h3 className="text-[#1c1b1f] font-bold text-[15px] sm:text-[16px] tracking-tight mt-0.5">
-                      Authentication
-                    </h3>
-                    <p className="text-[#49454f] text-[11.5px] sm:text-[12px] mt-0.5 font-normal">
-                      Please enter valid PIN to continue the process
-                    </p>
-
-                    {/* PIN Input Box */}
-                    <div className="w-full bg-white rounded-xl border border-gray-400 h-11 sm:h-12 mt-2 px-3.5 flex items-center justify-between shadow-xs">
-                      {/* Warning triangle */}
-                      <div className="text-[#f59e0b] shrink-0">
-                        <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
-                          <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
-                        </svg>
-                      </div>
-
-                      {/* PIN display */}
-                      <div className="flex-1 flex items-center justify-center pointer-events-none select-none">
-                        {!transferPin ? (
-                          <span className="text-[#9ca3af] font-normal text-[15px]">
-                            PIN
-                          </span>
-                        ) : showTransferPin ? (
-                          <span className="text-[#1c1b1f] font-bold text-[17px] tracking-[6px]">
-                            {transferPin}
-                          </span>
-                        ) : (
-                          <span className="text-[#1c1b1f] font-bold text-[22px] tracking-[6px] pt-1">
-                            {'*'.repeat(transferPin.length)}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Eye toggle */}
+                  {/* MAIN BODY ROUNDED SHEET CONTAINER */}
+                  <div className="flex-1 min-h-0 w-full bg-[#D1CFCF] rounded-t-[18px] flex flex-col overflow-hidden">
+                    {/* 2. AUTHENTICATION SECTION (Upper ~42.5% of body = down to ~46.5% of screen, matching screen_transfer_pin_clean.png) */}
+                    <div className="shrink-0 w-full h-[42.5%] bg-[#CCC9CD] px-6 pt-3 pb-3 flex flex-col items-center justify-start z-20 border-b border-black/10 relative">
+                      {/* Top Purple Chevron Down */}
                       <button
                         type="button"
-                        onClick={() => setShowTransferPin((prev) => !prev)}
-                        className="text-[#8b278e] p-1 hover:opacity-80 active:scale-95 transition-transform cursor-pointer shrink-0"
-                        aria-label={showTransferPin ? "Hide PIN" : "Show PIN"}
+                        onClick={handleBackFromTransferPin}
+                        className="p-1 text-[#8b278e] hover:opacity-80 active:scale-95 transition-transform cursor-pointer"
+                        aria-label="Back to transfer"
                       >
-                        {showTransferPin ? (
-                          <svg className="w-5 h-5 fill-none stroke-current stroke-2" viewBox="0 0 24 24">
-                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                            <circle cx="12" cy="12" r="3"/>
-                          </svg>
-                        ) : (
-                          <svg className="w-5 h-5 fill-none stroke-current stroke-2" viewBox="0 0 24 24">
-                            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
-                            <line x1="1" y1="1" x2="23" y2="23"/>
-                          </svg>
-                        )}
+                        <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                          <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/>
+                        </svg>
                       </button>
-                    </div>
 
-                    {/* Incorrect PIN feedback message */}
-                    {transferPinError && (
-                      <motion.div
-                        initial={{ opacity: 0, y: -4 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="mt-1.5 text-center text-[12px] font-bold text-white bg-red-600/95 py-1 px-3.5 rounded-full shadow-md"
-                      >
-                        {transferPinError}
-                      </motion.div>
-                    )}
-                  </div>
-
-                  {/* 3. SCROLLABLE CONFIRMATION CARDS (In Middle, Smoothly Cropped at Top & Bottom Boundaries) */}
-                  <div
-                    ref={step7ScrollRef}
-                    onPointerDown={handleStep7PointerDown}
-                    onPointerMove={handleStep7PointerMove}
-                    onPointerUp={handleStep7PointerUp}
-                    onPointerCancel={handleStep7PointerUp}
-                    onPointerLeave={handleStep7PointerUp}
-                    className="flex-1 min-h-0 max-h-full w-full px-4 overflow-y-auto overflow-x-hidden relative space-y-2.5 pt-2 pb-2 touch-pan-y [scrollbar-width:thin] [scrollbar-color:#8b278e_transparent] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:bg-[#8b278e] [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-black/5"
-                    style={{
-                      WebkitOverflowScrolling: 'touch',
-                      overscrollBehaviorY: 'contain',
-                      touchAction: 'pan-y',
-                    }}
-                  >
-                    {/* Card 1: Bank / Wallet Name (Bank - MPESA / Awash) */}
-                    <div className="w-full min-h-[56px] bg-[#fcfbfe] rounded-2xl px-3.5 py-2.5 flex items-center justify-between shadow-xs border border-white/60 shrink-0">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-5 h-5 rounded-full bg-black text-white flex items-center justify-center shrink-0">
-                          <span className="text-[11px] font-bold italic font-serif">i</span>
-                        </div>
-                        <div className="flex flex-col min-w-0">
-                          <span className="text-[11.5px] text-[#4b5563] font-medium leading-none">
-                            Bank
-                          </span>
-                          <span className="text-[13.5px] text-[#1c1b1f] font-semibold mt-1 leading-tight truncate">
-                            {transferSource === 'other_wallets'
-                              ? (selectedWallet?.name || 'MPESA')
-                              : (selectedBank?.name || 'Awash International Bank')}
-                          </span>
-                        </div>
+                      {/* Title & Subtitle */}
+                      <div className="mt-4 sm:mt-5 flex flex-col items-center text-center">
+                        <h3 className="text-[#1c1b1f] font-bold text-[15px] sm:text-[16px] tracking-tight">
+                          Authentication
+                        </h3>
+                        <p className="text-[#49454f] text-[11.5px] sm:text-[12px] mt-1 font-normal">
+                          Please enter valid PIN to continue the process
+                        </p>
                       </div>
-                      <Check className="w-4 h-4 text-black stroke-[2.5] shrink-0" />
-                    </div>
 
-                    {/* Card 2: Customer Name */}
-                    <div className="w-full min-h-[56px] bg-[#fcfbfe] rounded-2xl px-3.5 py-2.5 flex items-center justify-between shadow-xs border border-white/60 shrink-0">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-5 h-5 rounded-full bg-black text-white flex items-center justify-center shrink-0">
-                          <span className="text-[11px] font-bold italic font-serif">i</span>
+                      {/* PIN Input Box */}
+                      <div className="w-[82%] bg-[#F7F2FA] rounded-xl border border-[#49454f]/70 h-11 sm:h-12 mt-4 px-3.5 flex items-center justify-between shadow-xs">
+                        {/* Warning triangle */}
+                        <div className="text-[#f59e0b] shrink-0">
+                          <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                            <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+                          </svg>
                         </div>
-                        <div className="flex flex-col min-w-0">
-                          <span className="text-[11.5px] text-[#4b5563] font-medium leading-none">
-                            Customer Name
-                          </span>
-                          <span className="text-[13.5px] text-[#1c1b1f] font-semibold mt-1 leading-tight truncate">
-                            {transferSource === 'other_wallets'
-                              ? (walletReceiverName || '')
-                              : (bankReceiverName || '')}
-                          </span>
+
+                        {/* PIN display */}
+                        <div className="flex-1 flex items-center justify-center pointer-events-none select-none">
+                          {!transferPin ? (
+                            <span className="text-[#9ca3af] font-normal text-[15px]">
+                              PIN
+                            </span>
+                          ) : showTransferPin ? (
+                            <span className="text-[#1c1b1f] font-bold text-[17px] tracking-[6px]">
+                              {transferPin}
+                            </span>
+                          ) : (
+                            <span className="text-[#1c1b1f] font-bold text-[22px] tracking-[6px] pt-1">
+                              {'*'.repeat(transferPin.length)}
+                            </span>
+                          )}
                         </div>
+
+                        {/* Eye toggle */}
+                        <button
+                          type="button"
+                          onClick={() => setShowTransferPin((prev) => !prev)}
+                          className="text-[#8b278e] p-1 hover:opacity-80 active:scale-95 transition-transform cursor-pointer shrink-0"
+                          aria-label={showTransferPin ? "Hide PIN" : "Show PIN"}
+                        >
+                          {showTransferPin ? (
+                            <svg className="w-5 h-5 fill-none stroke-current stroke-2" viewBox="0 0 24 24">
+                              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                              <circle cx="12" cy="12" r="3"/>
+                            </svg>
+                          ) : (
+                            <svg className="w-5 h-5 fill-none stroke-current stroke-2" viewBox="0 0 24 24">
+                              <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+                              <line x1="1" y1="1" x2="23" y2="23"/>
+                            </svg>
+                          )}
+                        </button>
                       </div>
-                      <Check className="w-4 h-4 text-black stroke-[2.5] shrink-0" />
+
+                      {/* Incorrect PIN feedback message (sits cleanly inside lower Auth breathing space without shifting cards) */}
+                      {transferPinError && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -4 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="mt-3 text-center text-[12px] font-bold text-white bg-red-600/95 py-1 px-3.5 rounded-full shadow-md"
+                        >
+                          {transferPinError}
+                        </motion.div>
+                      )}
                     </div>
 
-                    {/* Card 3: Account No. */}
-                    <div className="w-full min-h-[56px] bg-[#fcfbfe] rounded-2xl px-3.5 py-2.5 flex items-center justify-between shadow-xs border border-white/60 shrink-0">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-5 h-5 rounded-full bg-black text-white flex items-center justify-center shrink-0">
-                          <span className="text-[11px] font-bold italic font-serif">i</span>
-                        </div>
-                        <div className="flex flex-col min-w-0">
-                          <span className="text-[11.5px] text-[#4b5563] font-medium leading-none">
-                            Account No.
-                          </span>
-                          <span className="text-[13.5px] text-[#1c1b1f] font-semibold mt-1 leading-tight truncate font-mono">
-                            {transferSource === 'other_wallets'
-                              ? (walletAccountNumber || '0715095670')
-                              : (bankAccountNumber || '01320847291000')}
-                          </span>
-                        </div>
-                      </div>
-                      <Check className="w-4 h-4 text-black stroke-[2.5] shrink-0" />
-                    </div>
-
-                    {/* Card 4: Amount */}
-                    <div className="w-full min-h-[56px] bg-[#fcfbfe] rounded-2xl px-3.5 py-2.5 flex items-center justify-between shadow-xs border border-white/60 shrink-0">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-5 h-5 rounded-full bg-black text-white flex items-center justify-center shrink-0">
-                          <span className="text-[11px] font-bold italic font-serif">i</span>
-                        </div>
-                        <div className="flex flex-col min-w-0">
-                          <span className="text-[11.5px] text-[#4b5563] font-medium leading-none">
-                            Amount
-                          </span>
-                          <span className="text-[13.5px] text-[#1c1b1f] font-semibold mt-1 leading-tight truncate">
-                            {transferSource === 'other_wallets' ? (walletAmount || '1') : (bankAmount || '1')}
-                          </span>
-                        </div>
-                      </div>
-                      <Check className="w-4 h-4 text-black stroke-[2.5] shrink-0" />
-                    </div>
-
-                    {/* Card 5: Reason (if provided) */}
-                    {(transferSource === 'other_wallets' ? walletReason : bankReason) ? (
-                      <div className="w-full min-h-[56px] bg-[#fcfbfe] rounded-2xl px-3.5 py-2.5 flex items-center justify-between shadow-xs border border-white/60 shrink-0">
+                    {/* 3. SCROLLABLE CONFIRMATION CARDS (Positioned Lower Right Above Keypad, Smooth Vertical Scroll) */}
+                    <div
+                      ref={step7ScrollRef}
+                      onPointerDown={handleStep7PointerDown}
+                      onPointerMove={handleStep7PointerMove}
+                      onPointerUp={handleStep7PointerUp}
+                      onPointerCancel={handleStep7PointerUp}
+                      onPointerLeave={handleStep7PointerUp}
+                      className="flex-1 min-h-0 w-full bg-[#D1CFCF] px-4 overflow-y-auto overflow-x-hidden relative space-y-2.5 pt-2.5 pb-3 touch-pan-y [scrollbar-width:thin] [scrollbar-color:#8b278e_transparent] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-[#8b278e]/70 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-black/5"
+                      style={{
+                        WebkitOverflowScrolling: 'touch',
+                        overscrollBehaviorY: 'contain',
+                        touchAction: 'pan-y',
+                      }}
+                    >
+                      {/* Card 1: Bank / Wallet Name (Bank - MPESA / Awash) */}
+                      <div className="w-full min-h-[62px] bg-[#F7F2FA] rounded-2xl px-3.5 py-2.5 flex items-center justify-between shadow-xs border border-white/75 shrink-0">
                         <div className="flex items-center gap-3 min-w-0">
                           <div className="w-5 h-5 rounded-full bg-black text-white flex items-center justify-center shrink-0">
                             <span className="text-[11px] font-bold italic font-serif">i</span>
                           </div>
                           <div className="flex flex-col min-w-0">
                             <span className="text-[11.5px] text-[#4b5563] font-medium leading-none">
-                              Reason
+                              Bank
                             </span>
                             <span className="text-[13.5px] text-[#1c1b1f] font-semibold mt-1 leading-tight truncate">
-                              {transferSource === 'other_wallets' ? walletReason : bankReason}
+                              {transferSource === 'other_wallets'
+                                ? (selectedWallet?.name || 'MPESA')
+                                : (selectedBank?.name || 'Awash International Bank')}
                             </span>
                           </div>
                         </div>
                         <Check className="w-4 h-4 text-black stroke-[2.5] shrink-0" />
                       </div>
-                    ) : null}
 
-                    {/* Bottom spacer inside scroll container */}
-                    <div className="h-3 w-full shrink-0" />
-                  </div>
+                      {/* Card 2: Customer Name */}
+                      <div className="w-full min-h-[62px] bg-[#F7F2FA] rounded-2xl px-3.5 py-2.5 flex items-center justify-between shadow-xs border border-white/75 shrink-0">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-5 h-5 rounded-full bg-black text-white flex items-center justify-center shrink-0">
+                            <span className="text-[11px] font-bold italic font-serif">i</span>
+                          </div>
+                          <div className="flex flex-col min-w-0">
+                            <span className="text-[11.5px] text-[#4b5563] font-medium leading-none">
+                              Customer Name
+                            </span>
+                            <span className="text-[13.5px] text-[#1c1b1f] font-semibold mt-1 leading-tight truncate">
+                              {transferSource === 'other_wallets'
+                                ? (walletReceiverName || '')
+                                : (bankReceiverName || '')}
+                            </span>
+                          </div>
+                        </div>
+                        <Check className="w-4 h-4 text-black stroke-[2.5] shrink-0" />
+                      </div>
 
-                  {/* 4. FIXED NUMERIC KEYPAD (Anchored at Bottom) */}
-                  <div className="shrink-0 w-full bg-[#D4CFD8] px-3 pb-3 pt-1 border-t border-black/5 z-20">
-                    <div className="w-full">
-                      <div className="grid grid-cols-3 gap-2 sm:gap-2.5">
+                      {/* Card 3: Account No. */}
+                      <div className="w-full min-h-[62px] bg-[#F7F2FA] rounded-2xl px-3.5 py-2.5 flex items-center justify-between shadow-xs border border-white/75 shrink-0">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-5 h-5 rounded-full bg-black text-white flex items-center justify-center shrink-0">
+                            <span className="text-[11px] font-bold italic font-serif">i</span>
+                          </div>
+                          <div className="flex flex-col min-w-0">
+                            <span className="text-[11.5px] text-[#4b5563] font-medium leading-none">
+                              Account No.
+                            </span>
+                            <span className="text-[13.5px] text-[#1c1b1f] font-semibold mt-1 leading-tight truncate font-mono">
+                              {transferSource === 'other_wallets'
+                                ? (walletAccountNumber || '0715095670')
+                                : (bankAccountNumber || '01320847291000')}
+                            </span>
+                          </div>
+                        </div>
+                        <Check className="w-4 h-4 text-black stroke-[2.5] shrink-0" />
+                      </div>
+
+                      {/* Card 4: Amount */}
+                      <div className="w-full min-h-[62px] bg-[#F7F2FA] rounded-2xl px-3.5 py-2.5 flex items-center justify-between shadow-xs border border-white/75 shrink-0">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-5 h-5 rounded-full bg-black text-white flex items-center justify-center shrink-0">
+                            <span className="text-[11px] font-bold italic font-serif">i</span>
+                          </div>
+                          <div className="flex flex-col min-w-0">
+                            <span className="text-[11.5px] text-[#4b5563] font-medium leading-none">
+                              Amount
+                            </span>
+                            <span className="text-[13.5px] text-[#1c1b1f] font-semibold mt-1 leading-tight truncate">
+                              {transferSource === 'other_wallets' ? (walletAmount || '1') : (bankAmount || '1')}
+                            </span>
+                          </div>
+                        </div>
+                        <Check className="w-4 h-4 text-black stroke-[2.5] shrink-0" />
+                      </div>
+
+                      {/* Card 5: Reason (if provided) */}
+                      {(transferSource === 'other_wallets' ? walletReason : bankReason) ? (
+                        <div className="w-full min-h-[62px] bg-[#F7F2FA] rounded-2xl px-3.5 py-2.5 flex items-center justify-between shadow-xs border border-white/75 shrink-0">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-5 h-5 rounded-full bg-black text-white flex items-center justify-center shrink-0">
+                              <span className="text-[11px] font-bold italic font-serif">i</span>
+                            </div>
+                            <div className="flex flex-col min-w-0">
+                              <span className="text-[11.5px] text-[#4b5563] font-medium leading-none">
+                                Reason
+                              </span>
+                              <span className="text-[13.5px] text-[#1c1b1f] font-semibold mt-1 leading-tight truncate">
+                                {transferSource === 'other_wallets' ? walletReason : bankReason}
+                              </span>
+                            </div>
+                          </div>
+                          <Check className="w-4 h-4 text-black stroke-[2.5] shrink-0" />
+                        </div>
+                      ) : null}
+                    </div>
+
+                    {/* 4. FIXED NUMERIC KEYPAD (Anchored at Bottom ~32.5% of body = ~30.3% of screen) */}
+                    <div className="shrink-0 w-full h-[32.5%] bg-[#D1CFCF] px-3 pb-2.5 pt-2 border-t border-black/5 z-20">
+                      <div className="w-full h-full grid grid-cols-3 grid-rows-4 gap-2 sm:gap-2.5">
                         {/* Keys 1-9 */}
                         {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit) => (
                           <button
                             key={digit}
                             type="button"
                             onClick={() => handleTransferKeypadClick(digit)}
-                            className="h-[44px] sm:h-12 bg-white active:bg-gray-200 text-[#1c1b1f] font-bold text-[19px] sm:text-[20px] rounded-xl shadow-xs flex items-center justify-center active:scale-95 transition-all cursor-pointer"
+                            className="w-full h-full bg-[#F5F5F5] active:bg-gray-200 text-[#1c1b1f] font-bold text-[19px] sm:text-[20px] rounded-xl shadow-xs flex items-center justify-center active:scale-95 transition-all cursor-pointer"
                           >
                             {digit}
                           </button>
@@ -5725,7 +5731,7 @@ export default function CBEBirrFullscreenApp() {
                         <button
                           type="button"
                           onClick={handleTransferBackspace}
-                          className="h-[44px] sm:h-12 bg-white active:bg-gray-200 text-[#1c1b1f] rounded-xl shadow-xs flex items-center justify-center active:scale-95 transition-all cursor-pointer"
+                          className="w-full h-full bg-[#F5F5F5] active:bg-gray-200 text-[#1c1b1f] rounded-xl shadow-xs flex items-center justify-center active:scale-95 transition-all cursor-pointer"
                           aria-label="Backspace"
                         >
                           <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
@@ -5737,7 +5743,7 @@ export default function CBEBirrFullscreenApp() {
                         <button
                           type="button"
                           onClick={() => handleTransferKeypadClick('0')}
-                          className="h-[44px] sm:h-12 bg-white active:bg-gray-200 text-[#1c1b1f] font-bold text-[19px] sm:text-[20px] rounded-xl shadow-xs flex items-center justify-center active:scale-95 transition-all cursor-pointer"
+                          className="w-full h-full bg-[#F5F5F5] active:bg-gray-200 text-[#1c1b1f] font-bold text-[19px] sm:text-[20px] rounded-xl shadow-xs flex items-center justify-center active:scale-95 transition-all cursor-pointer"
                         >
                           0
                         </button>
@@ -5747,7 +5753,7 @@ export default function CBEBirrFullscreenApp() {
                           type="button"
                           onClick={handleProceedToTransferSubmit}
                           disabled={transferPin.length < 4}
-                          className={`h-[44px] sm:h-12 rounded-xl flex items-center justify-center font-semibold text-[15px] shadow-xs transition-all ${
+                          className={`w-full h-full rounded-xl flex items-center justify-center font-semibold text-[15px] shadow-xs transition-all ${
                             transferPin.length === 4
                               ? 'bg-[#8b278e] text-white active:scale-95 cursor-pointer shadow-md'
                               : 'bg-[#C3B8C7] text-[#86768B] cursor-not-allowed opacity-90'
