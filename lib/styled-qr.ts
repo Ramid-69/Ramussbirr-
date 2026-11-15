@@ -57,7 +57,7 @@ export function generateStyledQrSvg(url: string, options: StyledQrOptions = {}):
     return false;
   }
 
-  const centerRadius = withCenterLogo ? 2 : 0;
+  const centerRadius = withCenterLogo ? 3 : 0;
   const centerMid = Math.floor(count / 2);
   function isCenter(x: number, y: number): boolean {
     if (!withCenterLogo) return false;
@@ -155,16 +155,15 @@ export function generateStyledQrSvg(url: string, options: StyledQrOptions = {}):
     }
   }
 
-  // 3. Center badge matching receipt_page.png
+  // 3. Center badge matching receipt_page.png (clean transparent-corner badge without white border box)
   let centerLogoMarkup = '';
   if (withCenterLogo && resolvedLogoHref) {
-    const logoW = 6.6 * cell;
-    const logoH = 6.6 * cell;
+    const logoW = 6.5 * cell;
+    const logoH = 6.5 * cell;
     const logoX = (size - logoW) / 2;
     const logoY = (size - logoH) / 2;
 
     centerLogoMarkup = `
-      <rect x="${logoX}" y="${logoY}" width="${logoW}" height="${logoH}" rx="${cell * 1.1}" ry="${cell * 1.1}" fill="#ffffff" />
       <image href="${resolvedLogoHref}" x="${logoX}" y="${logoY}" width="${logoW}" height="${logoH}" preserveAspectRatio="xMidYMid meet" />
     `;
   }
