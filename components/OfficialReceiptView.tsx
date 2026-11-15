@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { X } from 'lucide-react';
 import { generateMatchedSquareQrDataUrl } from '@/lib/styled-qr';
 import { getShortQrBaseUrl } from '@/lib/sms-webhook';
+import PinchZoomContainer from './PinchZoomContainer';
 
 const ORIGINAL_QR_TID = 'DJM51SKYIQ3';
 
@@ -369,7 +370,7 @@ export function OfficialReceiptCore({
   }
 
   return (
-    <div className="w-full h-full min-h-screen flex flex-col items-center justify-center bg-[#f0f2f5] p-2 sm:p-4 text-slate-800 select-none overflow-y-auto relative">
+    <div className="w-full h-full min-h-screen bg-[#f0f2f5] text-slate-800 select-none relative">
       {/* If inside modal, minimal floating close button at top right */}
       {isModal && onClose && (
         <button
@@ -382,8 +383,12 @@ export function OfficialReceiptCore({
         </button>
       )}
 
-      {/* Main Official Receipt Document Container - Strictly standalone receipt view */}
-      <main className="w-full max-w-[440px] sm:max-w-[480px] bg-white shadow-2xl rounded-lg border border-slate-300/80 overflow-hidden font-sans relative my-auto">
+      {/* Main Official Receipt Document Container - Strictly standalone receipt view with pinch-to-zoom */}
+      <PinchZoomContainer
+        resetKey={activeRef}
+        className="w-full h-full min-h-screen flex flex-col items-center justify-center p-2 sm:p-4 overflow-y-auto overflow-x-hidden relative"
+        contentClassName="w-full max-w-[440px] sm:max-w-[480px] bg-white shadow-2xl rounded-lg border border-slate-300/80 overflow-hidden font-sans relative my-auto"
+      >
         <svg
           id="official-vat-receipt-svg"
           viewBox="0 0 665 912"
@@ -504,7 +509,7 @@ export function OfficialReceiptCore({
             )}
           </g>
         </svg>
-      </main>
+      </PinchZoomContainer>
     </div>
   );
 }

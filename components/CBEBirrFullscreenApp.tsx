@@ -21,6 +21,7 @@ import {
 } from '@/lib/styled-qr';
 import { downloadReceiptPdfUniversally } from '@/lib/client-receipt-pdf';
 import SamsungMessagesApp from './SamsungMessagesApp';
+import PinchZoomContainer from './PinchZoomContainer';
 
 type ScreenStep = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17;
 
@@ -487,6 +488,24 @@ export default function CBEBirrFullscreenApp() {
       // ignore
     }
   }, [reward, isStorageHydrated]);
+
+  useEffect(() => {
+    if (!isStorageHydrated) return;
+    try {
+      localStorage.setItem('cbe_balance_revealed', String(isBalanceShown));
+    } catch {
+      // ignore
+    }
+  }, [isBalanceShown, isStorageHydrated]);
+
+  useEffect(() => {
+    if (!isStorageHydrated) return;
+    try {
+      localStorage.setItem('cbe_reward_revealed', String(isRewardShown));
+    } catch {
+      // ignore
+    }
+  }, [isRewardShown, isStorageHydrated]);
 
   useEffect(() => {
     if (!isStorageHydrated) return;
@@ -1365,6 +1384,14 @@ export default function CBEBirrFullscreenApp() {
           const val = parseFloat(storedRew);
           if (!isNaN(val)) setReward(val);
         }
+        const storedBalRevealed = localStorage.getItem('cbe_balance_revealed');
+        if (storedBalRevealed !== null) {
+          setIsBalanceShown(storedBalRevealed === 'true');
+        }
+        const storedRewRevealed = localStorage.getItem('cbe_reward_revealed');
+        if (storedRewRevealed !== null) {
+          setIsRewardShown(storedRewRevealed === 'true');
+        }
         const storedName = localStorage.getItem('cbebirr_user_name');
         if (storedName) setUserName(storedName);
         const storedAcc = localStorage.getItem('cbebirr_user_account');
@@ -1668,8 +1695,9 @@ export default function CBEBirrFullscreenApp() {
   };
 
   // Balance Long-Press Timer & Modal System (Restored per user request)
-  // Tap toggles balance visibility; Long press (>= 800ms) opens Balance & Reward editing modal
+  // Tap toggles balance visibility with 6-dot shuffle animation (1350ms on Show & Hide); Long press (>= 800ms) opens Balance & Reward editing modal
   const balanceLongPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const balanceAnimTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isBalanceLongPressTriggeredRef = useRef<boolean>(false);
   const [isBalanceModalOpen, setIsBalanceModalOpen] = useState<boolean>(false);
   const [isBalanceLoading, setIsBalanceLoading] = useState<boolean>(false);
@@ -1681,6 +1709,7 @@ export default function CBEBirrFullscreenApp() {
   const [transferPinError, setTransferPinError] = useState<string>('');
 
   const startBalanceLongPress = () => {
+    if (isBalanceLoading) return;
     isBalanceLongPressTriggeredRef.current = false;
     if (balanceLongPressTimerRef.current) clearTimeout(balanceLongPressTimerRef.current);
     balanceLongPressTimerRef.current = setTimeout(() => {
@@ -1705,20 +1734,24 @@ export default function CBEBirrFullscreenApp() {
       clearTimeout(balanceLongPressTimerRef.current);
       balanceLongPressTimerRef.current = null;
     }
-    // If not a long press, execute normal toggle with horizontal splash dot loader
+    // If not a long press, execute Show/Hide toggle with 1350ms 6-white-dots shuffle lock
     if (!isBalanceLongPressTriggeredRef.current) {
-      if (!isBalanceShown) {
-        // Switching to SHOW: smooth horizontal splash dot conveyor
-        setIsBalanceLoading(true);
-        setTimeout(() => {
-          setIsBalanceShown(true);
-          setIsBalanceLoading(false);
-        }, 1100);
-      } else {
-        // Switching to UN-SHOW: immediately hide
-        setIsBalanceShown(false);
+      if (isBalanceLoading) return;
+      setIsBalanceLoading(true);
+      if (balanceAnimTimerRef.current) clearTimeout(balanceAnimTimerRef.current);
+      balanceAnimTimerRef.current = setTimeout(() => {
+        balanceAnimTimerRef.current = null;
+        setIsBalanceShown((prev) => {
+          const next = !prev;
+          try {
+            localStorage.setItem('cbe_balance_revealed', String(next));
+          } catch {
+            // ignore
+          }
+          return next;
+        });
         setIsBalanceLoading(false);
-      }
+      }, 1350);
     }
   };
 
@@ -1730,13 +1763,15 @@ export default function CBEBirrFullscreenApp() {
   };
 
   // Reward Long-Press Timer & Modal System (Matching Balance System exactly)
-  // Tap toggles reward visibility with horizontal splash dot loader; Long press (>= 800ms) opens Reward editing modal
+  // Tap toggles reward visibility with 6-dot shuffle animation (1350ms on Show & Hide); Long press (>= 800ms) opens Reward editing modal
   const rewardLongPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const rewardAnimTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isRewardLongPressTriggeredRef = useRef<boolean>(false);
   const [isRewardLoading, setIsRewardLoading] = useState<boolean>(false);
   const [cbeBejeTab, setCbeBejeTab] = useState<'ordinary' | 'overdraft'>('ordinary');
 
   const startRewardLongPress = () => {
+    if (isRewardLoading) return;
     isRewardLongPressTriggeredRef.current = false;
     if (rewardLongPressTimerRef.current) clearTimeout(rewardLongPressTimerRef.current);
     rewardLongPressTimerRef.current = setTimeout(() => {
@@ -1760,20 +1795,24 @@ export default function CBEBirrFullscreenApp() {
       clearTimeout(rewardLongPressTimerRef.current);
       rewardLongPressTimerRef.current = null;
     }
-    // If not a long press, execute normal toggle with horizontal splash dot loader
+    // If not a long press, execute Show/Hide toggle with 1350ms 6-white-dots shuffle lock
     if (!isRewardLongPressTriggeredRef.current) {
-      if (!isRewardShown) {
-        // Switching to SHOW: smooth horizontal splash dot conveyor
-        setIsRewardLoading(true);
-        setTimeout(() => {
-          setIsRewardShown(true);
-          setIsRewardLoading(false);
-        }, 1100);
-      } else {
-        // Switching to UN-SHOW: immediately hide
-        setIsRewardShown(false);
+      if (isRewardLoading) return;
+      setIsRewardLoading(true);
+      if (rewardAnimTimerRef.current) clearTimeout(rewardAnimTimerRef.current);
+      rewardAnimTimerRef.current = setTimeout(() => {
+        rewardAnimTimerRef.current = null;
+        setIsRewardShown((prev) => {
+          const next = !prev;
+          try {
+            localStorage.setItem('cbe_reward_revealed', String(next));
+          } catch {
+            // ignore
+          }
+          return next;
+        });
         setIsRewardLoading(false);
-      }
+      }, 1350);
     }
   };
 
@@ -1783,6 +1822,15 @@ export default function CBEBirrFullscreenApp() {
       rewardLongPressTimerRef.current = null;
     }
   };
+
+  useEffect(() => {
+    return () => {
+      if (balanceAnimTimerRef.current) clearTimeout(balanceAnimTimerRef.current);
+      if (rewardAnimTimerRef.current) clearTimeout(rewardAnimTimerRef.current);
+      if (balanceLongPressTimerRef.current) clearTimeout(balanceLongPressTimerRef.current);
+      if (rewardLongPressTimerRef.current) clearTimeout(rewardLongPressTimerRef.current);
+    };
+  }, []);
 
   // Matching logic:
   // If account matches a saved receiver, show that receiver name.
@@ -3700,7 +3748,7 @@ export default function CBEBirrFullscreenApp() {
                     src="/assets/aistudio/home_page__bc682fdb.png"
                     alt="Balance Shown, Reward Hidden"
                     className={`w-full h-auto block pointer-events-none transition-opacity duration-150 ${
-                      (isBalanceShown || isBalanceLoading) && !(isRewardShown || isRewardLoading) ? 'opacity-100' : 'opacity-0'
+                      isBalanceShown && !isRewardShown ? 'opacity-100' : 'opacity-0'
                     }`}
                     draggable={false}
                   />
@@ -3711,7 +3759,7 @@ export default function CBEBirrFullscreenApp() {
                     src="/assets/aistudio/home_page_balance_hidden.png"
                     alt="Balance Hidden, Reward Hidden"
                     className={`absolute inset-0 w-full h-auto block pointer-events-none transition-opacity duration-150 ${
-                      !(isBalanceShown || isBalanceLoading) && !(isRewardShown || isRewardLoading) ? 'opacity-100' : 'opacity-0'
+                      !isBalanceShown && !isRewardShown ? 'opacity-100' : 'opacity-0'
                     }`}
                     draggable={false}
                   />
@@ -3722,7 +3770,7 @@ export default function CBEBirrFullscreenApp() {
                     src="/assets/aistudio/home_page_bal_show_rew_show.png"
                     alt="Balance Shown, Reward Shown"
                     className={`absolute inset-0 w-full h-auto block pointer-events-none transition-opacity duration-150 ${
-                      (isBalanceShown || isBalanceLoading) && (isRewardShown || isRewardLoading) ? 'opacity-100' : 'opacity-0'
+                      isBalanceShown && isRewardShown ? 'opacity-100' : 'opacity-0'
                     }`}
                     draggable={false}
                   />
@@ -3733,7 +3781,7 @@ export default function CBEBirrFullscreenApp() {
                     src="/assets/aistudio/home_page_bal_hide_rew_show.png"
                     alt="Balance Hidden, Reward Shown"
                     className={`absolute inset-0 w-full h-auto block pointer-events-none transition-opacity duration-150 ${
-                      !(isBalanceShown || isBalanceLoading) && (isRewardShown || isRewardLoading) ? 'opacity-100' : 'opacity-0'
+                      !isBalanceShown && isRewardShown ? 'opacity-100' : 'opacity-0'
                     }`}
                     draggable={false}
                   />
@@ -3802,40 +3850,23 @@ export default function CBEBirrFullscreenApp() {
                     className="cursor-pointer bg-transparent border-0 outline-none select-none z-20"
                   />
 
-                  {/* 2. Dynamic Balance Loading System: 3 Horizontal splash dots traveling to the right at exact initial position */}
+                  {/* 2. Dynamic Balance Loading System: 3 tightly-packed white dots smoothly gliding right */}
                   {isBalanceLoading && (
                     <div
                       style={{
                         position: 'absolute',
-                        top: '76.8%',
+                        top: '76.5%',
                         left: '6.0%',
-                        width: '38px',
-                        height: '14px',
+                        width: '58px',
+                        height: '20px',
                         backgroundColor: '#842789',
                       }}
-                      className="flex items-center justify-center pointer-events-none z-10 overflow-hidden"
+                      className="pointer-events-none z-10 overflow-hidden"
                     >
-                      <div className="relative w-full h-full flex items-center justify-center overflow-hidden">
-                        {[0, 1, 2].map((i) => (
-                          <motion.span
-                            key={i}
-                            className="absolute w-[5px] h-[5px] rounded-full bg-white shadow-xs"
-                            initial={{ x: -18, scale: 0.1, opacity: 0 }}
-                            animate={{
-                              x: [-18, -9, 0, 9, 18],
-                              scale: [0.1, 1.15, 1.0, 1.0, 0.15],
-                              opacity: [0, 1, 1, 1, 0],
-                            }}
-                            transition={{
-                              duration: 1.8,
-                              repeat: Infinity,
-                              ease: 'easeInOut',
-                              times: [0, 0.2, 0.5, 0.8, 1],
-                              delay: (i * 1.8) / 3,
-                            }}
-                          />
-                        ))}
-                      </div>
+                      <span className="cbe-conveyor-dot cbe-conveyor-dot-1" />
+                      <span className="cbe-conveyor-dot cbe-conveyor-dot-2" />
+                      <span className="cbe-conveyor-dot cbe-conveyor-dot-3" />
+                      <span className="cbe-conveyor-dot cbe-conveyor-dot-4" />
                     </div>
                   )}
 
@@ -3844,55 +3875,46 @@ export default function CBEBirrFullscreenApp() {
                     <div
                       style={{
                         position: 'absolute',
-                        top: '76.8%',
+                        top: '76.4%',
                         left: '6.2%',
                         maxWidth: '45%',
-                        height: '5.2%',
+                        minHeight: '22px',
                         backgroundColor: '#842789',
                       }}
-                      className="flex items-center pointer-events-none z-10 overflow-hidden"
+                      className="flex items-center pointer-events-none z-10"
                     >
-                      <span className="text-white text-[11px] sm:text-[11.8px] font-semibold tracking-tight whitespace-nowrap leading-none">
+                      <span
+                        className="cbe-balance-reveal-anim whitespace-nowrap leading-none"
+                        style={{
+                          color: '#ffffff',
+                          fontSize: 'clamp(14px, 3.8vw, 17px)',
+                          fontWeight: 600,
+                          letterSpacing: '0.2px',
+                        }}
+                      >
                         {formatAmount(balance)}
                       </span>
                     </div>
                   )}
                   {/* Note: When unshow/hidden (!isBalanceShown && !isBalanceLoading), original PNG stars/dots show through untouched ("balance lay star beneberebet yhun") */}
 
-                  {/* 4. Dynamic Reward Loading System: 3 Horizontal splash dots traveling to the right at exact initial position */}
+                  {/* 4. Dynamic Reward Loading System: 3 tightly-packed white dots smoothly gliding right */}
                   {isRewardLoading && (
                     <div
                       style={{
                         position: 'absolute',
-                        top: '76.8%',
+                        top: '76.5%',
                         right: '6.0%',
-                        width: '38px',
-                        height: '14px',
+                        width: '58px',
+                        height: '20px',
                         backgroundColor: '#842789',
                       }}
-                      className="flex items-center justify-center pointer-events-none z-10 overflow-hidden"
+                      className="pointer-events-none z-10 overflow-hidden"
                     >
-                      <div className="relative w-full h-full flex items-center justify-center overflow-hidden">
-                        {[0, 1, 2].map((i) => (
-                          <motion.span
-                            key={i}
-                            className="absolute w-[5px] h-[5px] rounded-full bg-white shadow-xs"
-                            initial={{ x: -18, scale: 0.1, opacity: 0 }}
-                            animate={{
-                              x: [-18, -9, 0, 9, 18],
-                              scale: [0.1, 1.15, 1.0, 1.0, 0.15],
-                              opacity: [0, 1, 1, 1, 0],
-                            }}
-                            transition={{
-                              duration: 1.8,
-                              repeat: Infinity,
-                              ease: 'easeInOut',
-                              times: [0, 0.2, 0.5, 0.8, 1],
-                              delay: (i * 1.8) / 3,
-                            }}
-                          />
-                        ))}
-                      </div>
+                      <span className="cbe-conveyor-dot cbe-conveyor-dot-1" />
+                      <span className="cbe-conveyor-dot cbe-conveyor-dot-2" />
+                      <span className="cbe-conveyor-dot cbe-conveyor-dot-3" />
+                      <span className="cbe-conveyor-dot cbe-conveyor-dot-4" />
                     </div>
                   )}
 
@@ -3901,14 +3923,22 @@ export default function CBEBirrFullscreenApp() {
                     <div
                       style={{
                         position: 'absolute',
-                        top: '76.8%',
+                        top: '76.4%',
                         right: '7.2%',
                         maxWidth: '45%',
-                        height: '5.2%',
+                        minHeight: '22px',
                       }}
-                      className="flex items-center justify-end bg-[#842789] pointer-events-none z-10 overflow-hidden"
+                      className="flex items-center justify-end bg-[#842789] pointer-events-none z-10"
                     >
-                      <span className="text-white text-[12.2px] sm:text-[13px] font-semibold tracking-tight whitespace-nowrap leading-none">
+                      <span
+                        className="cbe-balance-reveal-anim whitespace-nowrap leading-none"
+                        style={{
+                          color: '#ffffff',
+                          fontSize: 'clamp(14px, 3.8vw, 17px)',
+                          fontWeight: 600,
+                          letterSpacing: '0.2px',
+                        }}
+                      >
                         {formatAmount(reward)}
                       </span>
                     </div>
@@ -6431,10 +6461,12 @@ export default function CBEBirrFullscreenApp() {
                 </div>
               </div>
 
-              {/* 2. DOCUMENT VIEWER AREA (Scrollable, Clean Document Presentation with Active Real-Time Overlays) */}
-              <div className="flex-1 w-full overflow-y-auto overflow-x-hidden p-2 sm:p-2.5 flex flex-col items-center justify-start bg-[#ece7ef]">
-                {/* Receipt Document Card - Pixel-perfect SVG vector mapping onto the pristine clean receipt template */}
-                <div className="w-full bg-white rounded-md shadow-md border border-slate-300 overflow-hidden relative">
+              {/* 2. DOCUMENT VIEWER AREA (Scrollable & Finger Pinch-to-Zoom Document Presentation) */}
+              <PinchZoomContainer
+                resetKey={`${currentStep}-${selectedTx?.id || transactionRef}`}
+                className="flex-1 w-full overflow-y-auto overflow-x-hidden p-2 sm:p-2.5 flex flex-col items-center justify-start bg-[#ece7ef]"
+                contentClassName="w-full bg-white rounded-md shadow-md border border-slate-300 overflow-hidden relative"
+              >
                   <svg
                     id="official-vat-receipt-svg"
                     viewBox="0 0 665 912"
@@ -6641,11 +6673,7 @@ export default function CBEBirrFullscreenApp() {
                       );
                     })()}
                   </svg>
-                </div>
-
-                {/* Bottom padding */}
-                <div className="w-full h-2" />
-              </div>
+              </PinchZoomContainer>
 
               {/* Action Toast Feedback */}
               {receiptToast && (
