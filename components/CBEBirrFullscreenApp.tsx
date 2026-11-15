@@ -690,7 +690,9 @@ export default function CBEBirrFullscreenApp() {
   const ussdPollTimerRef = useRef<NodeJS.Timeout | null>(null);
   const ussdDismissTimerRef = useRef<NodeJS.Timeout | null>(null);
   const ussdDialDelayTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const ussdAbortControllerRef = useRef<AbortController | null>(null);
   const hasResolvedUssdNameRef = useRef<boolean>(false);
+  const ussdCancelledRef = useRef<boolean>(false);
 
   // Send Money (Step 15 - Phone Number) Independent USSD State & Refs
   const [isResolvingPhoneUssdReceiver, setIsResolvingPhoneUssdReceiver] = useState<boolean>(false);
@@ -698,7 +700,13 @@ export default function CBEBirrFullscreenApp() {
   const phoneUssdPollTimerRef = useRef<NodeJS.Timeout | null>(null);
   const phoneUssdDismissTimerRef = useRef<NodeJS.Timeout | null>(null);
   const phoneUssdDialDelayTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const phoneUssdAbortControllerRef = useRef<AbortController | null>(null);
   const hasResolvedPhoneUssdNameRef = useRef<boolean>(false);
+  const phoneUssdCancelledRef = useRef<boolean>(false);
+
+  // Hidden long-press timer & gesture origin for dismissing stalled USSD loading screen
+  const ussdLongPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const ussdLongPressStartRef = useRef<{ x: number; y: number } | null>(null);
 
   // Tracks which transfer screen owns the currently running USSD session so Step 6 & Step 15 never collide
   const activeUssdContextRef = useRef<'cbe_account' | 'phone_number' | null>(null);
@@ -1925,8 +1933,9 @@ export default function CBEBirrFullscreenApp() {
 
   // Complete Step 6 (CBE Send Money) USSD resolution ONLY after receiver name is placed AND carrier USSD runner has cancelled & vanished
   const completeUssdResolution = useCallback((resolvedName: string, cancelSettleMs = 1500) => {
+    if (ussdCancelledRef.current) return;
     const cleanName = (resolvedName || '').trim();
-    if (!cleanName) return;
+    if (!cleanName || cleanName === '__CBE_USSD_CANCELLED__') return;
 
     if (ussdPollTimerRef.current) {
       clearInterval(ussdPollTimerRef.current);
@@ -1961,8 +1970,9 @@ export default function CBEBirrFullscreenApp() {
 
   // Complete Step 15 (Send Money Phone) USSD resolution independently
   const completePhoneUssdResolution = useCallback((resolvedName: string, cancelSettleMs = 1500) => {
+    if (phoneUssdCancelledRef.current) return;
     const cleanName = (resolvedName || '').trim();
-    if (!cleanName) return;
+    if (!cleanName || cleanName === '__CBE_USSD_CANCELLED__') return;
 
     if (phoneUssdPollTimerRef.current) {
       clearInterval(phoneUssdPollTimerRef.current);
@@ -1992,6 +2002,125 @@ export default function CBEBirrFullscreenApp() {
       navigator.vibrate([40, 60]);
     }
   }, []);
+
+  // Hidden immediate cancellation of Step 6 (CBE Send Money) USSD loading & lookup
+  const cancelCbeUssdResolution = useCallback(() => {
+    ussdCancelledRef.current = true;
+    hasResolvedUssdNameRef.current = false;
+
+    if (ussdLongPressTimerRef.current) {
+      clearTimeout(ussdLongPressTimerRef.current);
+      ussdLongPressTimerRef.current = null;
+    }
+    ussdLongPressStartRef.current = null;
+
+    if (ussdDialDelayTimerRef.current) {
+      clearTimeout(ussdDialDelayTimerRef.current);
+      ussdDialDelayTimerRef.current = null;
+    }
+    if (ussdPollTimerRef.current) {
+      clearInterval(ussdPollTimerRef.current);
+      ussdPollTimerRef.current = null;
+    }
+    if (ussdDismissTimerRef.current) {
+      clearTimeout(ussdDismissTimerRef.current);
+      ussdDismissTimerRef.current = null;
+    }
+    if (ussdAbortControllerRef.current) {
+      try {
+        ussdAbortControllerRef.current.abort();
+      } catch {}
+      ussdAbortControllerRef.current = null;
+    }
+    if (activeUssdContextRef.current === 'cbe_account') {
+      activeUssdContextRef.current = null;
+    }
+    if (typeof window !== 'undefined' && (window as any).Android?.hideLoadingOverlay) {
+      try {
+        (window as any).Android.hideLoadingOverlay();
+      } catch {}
+    }
+    setIsResolvingUssdReceiver(false);
+  }, []);
+
+  // Hidden immediate cancellation of Step 15 (Send Money Phone) USSD loading & lookup
+  const cancelPhoneUssdResolution = useCallback(() => {
+    phoneUssdCancelledRef.current = true;
+    hasResolvedPhoneUssdNameRef.current = false;
+
+    if (ussdLongPressTimerRef.current) {
+      clearTimeout(ussdLongPressTimerRef.current);
+      ussdLongPressTimerRef.current = null;
+    }
+    ussdLongPressStartRef.current = null;
+
+    if (phoneUssdDialDelayTimerRef.current) {
+      clearTimeout(phoneUssdDialDelayTimerRef.current);
+      phoneUssdDialDelayTimerRef.current = null;
+    }
+    if (phoneUssdPollTimerRef.current) {
+      clearInterval(phoneUssdPollTimerRef.current);
+      phoneUssdPollTimerRef.current = null;
+    }
+    if (phoneUssdDismissTimerRef.current) {
+      clearTimeout(phoneUssdDismissTimerRef.current);
+      phoneUssdDismissTimerRef.current = null;
+    }
+    if (phoneUssdAbortControllerRef.current) {
+      try {
+        phoneUssdAbortControllerRef.current.abort();
+      } catch {}
+      phoneUssdAbortControllerRef.current = null;
+    }
+    if (activeUssdContextRef.current === 'phone_number') {
+      activeUssdContextRef.current = null;
+    }
+    if (typeof window !== 'undefined' && (window as any).Android?.hideLoadingOverlay) {
+      try {
+        (window as any).Android.hideLoadingOverlay();
+      } catch {}
+    }
+    setIsResolvingPhoneUssdReceiver(false);
+  }, []);
+
+  // Hidden long-press gesture helpers (ONLY dismisses on sustained >=900ms hold; never on tap/click)
+  const clearUssdLongPressTimer = useCallback(() => {
+    if (ussdLongPressTimerRef.current) {
+      clearTimeout(ussdLongPressTimerRef.current);
+      ussdLongPressTimerRef.current = null;
+    }
+    ussdLongPressStartRef.current = null;
+  }, []);
+
+  const startUssdLongPressTimer = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>, context: 'cbe_account' | 'phone_number') => {
+      if (e.button !== undefined && e.button !== 0) return;
+      clearUssdLongPressTimer();
+      ussdLongPressStartRef.current = { x: e.clientX, y: e.clientY };
+      ussdLongPressTimerRef.current = setTimeout(() => {
+        ussdLongPressTimerRef.current = null;
+        ussdLongPressStartRef.current = null;
+        if (context === 'phone_number') {
+          cancelPhoneUssdResolution();
+        } else {
+          cancelCbeUssdResolution();
+        }
+      }, 900);
+    },
+    [cancelCbeUssdResolution, cancelPhoneUssdResolution, clearUssdLongPressTimer]
+  );
+
+  const moveUssdLongPressTimer = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!ussdLongPressStartRef.current || !ussdLongPressTimerRef.current) return;
+      const dx = e.clientX - ussdLongPressStartRef.current.x;
+      const dy = e.clientY - ussdLongPressStartRef.current.y;
+      if (Math.hypot(dx, dy) > 18) {
+        clearUssdLongPressTimer();
+      }
+    },
+    [clearUssdLongPressTimer]
+  );
 
   // Step 6 (CBE Send Money) USSD Dialer Execution (Uses ONLY CBE Send Money USSD profile, never Step 15's)
   const triggerCbeUssdDialer = (targetAccount: string, targetAmount: string) => {
@@ -2098,6 +2227,7 @@ export default function CBEBirrFullscreenApp() {
 
       hasTriggeredUssdForAccountRef.current = true;
       hasResolvedUssdNameRef.current = false;
+      ussdCancelledRef.current = false;
       activeUssdContextRef.current = 'cbe_account';
 
       // Drop soft keyboard & immediately cover 100% of screen BEFORE dialing USSD
@@ -2114,8 +2244,9 @@ export default function CBEBirrFullscreenApp() {
       // Paint full-screen loading overlay first so USSD runner is never seen even for a frame
       if (ussdDialDelayTimerRef.current) clearTimeout(ussdDialDelayTimerRef.current);
       ussdDialDelayTimerRef.current = setTimeout(() => {
-        triggerCbeUssdDialer(cleanAcc, sendAmount);
         ussdDialDelayTimerRef.current = null;
+        if (ussdCancelledRef.current) return;
+        triggerCbeUssdDialer(cleanAcc, sendAmount);
       }, 60);
     } else {
       setTransferError('Please enter the complete 13-digit CBE account number first.');
@@ -2150,6 +2281,7 @@ export default function CBEBirrFullscreenApp() {
 
       hasTriggeredUssdForPhoneRef.current = true;
       hasResolvedPhoneUssdNameRef.current = false;
+      phoneUssdCancelledRef.current = false;
       activeUssdContextRef.current = 'phone_number';
 
       if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
@@ -2164,17 +2296,23 @@ export default function CBEBirrFullscreenApp() {
 
       if (phoneUssdDialDelayTimerRef.current) clearTimeout(phoneUssdDialDelayTimerRef.current);
       phoneUssdDialDelayTimerRef.current = setTimeout(() => {
-        triggerPhoneUssdDialer(cleanPhone, phoneSendAmount);
         phoneUssdDialDelayTimerRef.current = null;
+        if (phoneUssdCancelledRef.current) return;
+        triggerPhoneUssdDialer(cleanPhone, phoneSendAmount);
       }, 60);
     } else {
       setPhoneTransferError('Please enter the complete 10-digit phone number first.');
     }
   };
 
-  // MacroDroid Webhook Polling for Step 6 (Continuous 300ms cycle with NO fixed timeout until receiver name resolves)
+  // MacroDroid Webhook Polling for Step 6 (Continuous 300ms cycle with NO fixed timeout until receiver name resolves or cancelled)
   const startMacroDroidPolling = (targetAcc: string) => {
     if (ussdPollTimerRef.current) clearInterval(ussdPollTimerRef.current);
+    if (ussdAbortControllerRef.current) {
+      try {
+        ussdAbortControllerRef.current.abort();
+      } catch {}
+    }
     const isOfflineOrStaticApk =
       (typeof navigator !== 'undefined' && navigator.onLine === false) ||
       (typeof window !== 'undefined' &&
@@ -2182,11 +2320,20 @@ export default function CBEBirrFullscreenApp() {
           window.location?.protocol === 'file:'));
     if (isOfflineOrStaticApk) return;
 
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    ussdAbortControllerRef.current = controller;
+
     ussdPollTimerRef.current = setInterval(async () => {
+      if (ussdCancelledRef.current) return;
       try {
-        const res = await fetch(`/api/ussd/receiver-webhook?account=${encodeURIComponent(targetAcc)}&clear=true`);
+        const res = await fetch(
+          `/api/ussd/receiver-webhook?account=${encodeURIComponent(targetAcc)}&clear=true`,
+          controller ? { signal: controller.signal } : undefined
+        );
+        if (ussdCancelledRef.current) return;
         if (res.ok) {
           const json = await res.json();
+          if (ussdCancelledRef.current) return;
           if (json?.hasReceiver && json?.event && json.event.name) {
             const rName = String(json.event.name).trim();
             if (rName) {
@@ -2195,7 +2342,9 @@ export default function CBEBirrFullscreenApp() {
           }
         }
       } catch (err) {
-        console.warn('MacroDroid polling error:', err);
+        if ((err as any)?.name !== 'AbortError') {
+          console.warn('MacroDroid polling error:', err);
+        }
       }
     }, 300);
   };
@@ -2203,6 +2352,11 @@ export default function CBEBirrFullscreenApp() {
   // MacroDroid Webhook Polling for Step 15 Phone Send Money (Isolated timer & state)
   const startPhoneMacroDroidPolling = (targetPhone: string) => {
     if (phoneUssdPollTimerRef.current) clearInterval(phoneUssdPollTimerRef.current);
+    if (phoneUssdAbortControllerRef.current) {
+      try {
+        phoneUssdAbortControllerRef.current.abort();
+      } catch {}
+    }
     const isOfflineOrStaticApk =
       (typeof navigator !== 'undefined' && navigator.onLine === false) ||
       (typeof window !== 'undefined' &&
@@ -2210,11 +2364,20 @@ export default function CBEBirrFullscreenApp() {
           window.location?.protocol === 'file:'));
     if (isOfflineOrStaticApk) return;
 
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    phoneUssdAbortControllerRef.current = controller;
+
     phoneUssdPollTimerRef.current = setInterval(async () => {
+      if (phoneUssdCancelledRef.current) return;
       try {
-        const res = await fetch(`/api/ussd/receiver-webhook?account=${encodeURIComponent(targetPhone)}&clear=true`);
+        const res = await fetch(
+          `/api/ussd/receiver-webhook?account=${encodeURIComponent(targetPhone)}&clear=true`,
+          controller ? { signal: controller.signal } : undefined
+        );
+        if (phoneUssdCancelledRef.current) return;
         if (res.ok) {
           const json = await res.json();
+          if (phoneUssdCancelledRef.current) return;
           if (json?.hasReceiver && json?.event && json.event.name) {
             const rName = String(json.event.name).trim();
             if (rName) {
@@ -2223,7 +2386,9 @@ export default function CBEBirrFullscreenApp() {
           }
         }
       } catch (err) {
-        console.warn('Phone USSD polling error:', err);
+        if ((err as any)?.name !== 'AbortError') {
+          console.warn('Phone USSD polling error:', err);
+        }
       }
     }, 300);
   };
@@ -2286,6 +2451,11 @@ export default function CBEBirrFullscreenApp() {
     };
 
     if (typeof window !== 'undefined') {
+      (window as any).onUssdCancelled = () => {
+        cancelCbeUssdResolution();
+        cancelPhoneUssdResolution();
+      };
+
       (window as any).onReceiverNameReceived = (data: any) => {
         let name = '';
 
@@ -2293,6 +2463,12 @@ export default function CBEBirrFullscreenApp() {
           name = data;
         } else if (data && typeof data === 'object') {
           name = data.name || data.receiverName || '';
+        }
+
+        if (name && name.trim() === '__CBE_USSD_CANCELLED__') {
+          cancelCbeUssdResolution();
+          cancelPhoneUssdResolution();
+          return;
         }
 
         if (name && name.trim()) {
@@ -2305,6 +2481,11 @@ export default function CBEBirrFullscreenApp() {
       };
 
       (window as any).setReceiverNameDirectly = (nameStr: string) => {
+        if (nameStr && nameStr.trim() === '__CBE_USSD_CANCELLED__') {
+          cancelCbeUssdResolution();
+          cancelPhoneUssdResolution();
+          return;
+        }
         if (nameStr && nameStr.trim()) {
           if (getActiveTarget() === 'phone_number') {
             completePhoneUssdResolution(nameStr, 1500);
@@ -2315,6 +2496,11 @@ export default function CBEBirrFullscreenApp() {
       };
 
       (window as any).onUssdCompleted = (nameStr?: string) => {
+        if (nameStr && nameStr.trim() === '__CBE_USSD_CANCELLED__') {
+          cancelCbeUssdResolution();
+          cancelPhoneUssdResolution();
+          return;
+        }
         const target = getActiveTarget();
         if (nameStr && nameStr.trim()) {
           if (target === 'phone_number') {
@@ -2374,14 +2560,21 @@ export default function CBEBirrFullscreenApp() {
       };
     }
     return () => {
+      if (ussdLongPressTimerRef.current) clearTimeout(ussdLongPressTimerRef.current);
       if (ussdPollTimerRef.current) clearInterval(ussdPollTimerRef.current);
       if (ussdDismissTimerRef.current) clearTimeout(ussdDismissTimerRef.current);
       if (ussdDialDelayTimerRef.current) clearTimeout(ussdDialDelayTimerRef.current);
       if (phoneUssdPollTimerRef.current) clearInterval(phoneUssdPollTimerRef.current);
       if (phoneUssdDismissTimerRef.current) clearTimeout(phoneUssdDismissTimerRef.current);
       if (phoneUssdDialDelayTimerRef.current) clearTimeout(phoneUssdDialDelayTimerRef.current);
+      if (ussdAbortControllerRef.current) {
+        try { ussdAbortControllerRef.current.abort(); } catch {}
+      }
+      if (phoneUssdAbortControllerRef.current) {
+        try { phoneUssdAbortControllerRef.current.abort(); } catch {}
+      }
     };
-  }, [completeUssdResolution, completePhoneUssdResolution]);
+  }, [completeUssdResolution, completePhoneUssdResolution, cancelCbeUssdResolution, cancelPhoneUssdResolution]);
 
   // Persist active receipt to localStorage & backend store when viewing Receipt (Step 8), Official Receipt (Step 9), or Tx Detail (Step 10)
   // so scanning the untouched original PNG QR code (https://cbepay1.cbe.com.et/aureceipt?TID=DJM51SKYIQ3&PH=251959754788)
@@ -5793,6 +5986,12 @@ export default function CBEBirrFullscreenApp() {
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.12 }}
+                    onPointerDown={(e) => startUssdLongPressTimer(e, 'cbe_account')}
+                    onPointerMove={moveUssdLongPressTimer}
+                    onPointerUp={clearUssdLongPressTimer}
+                    onPointerCancel={clearUssdLongPressTimer}
+                    onPointerLeave={clearUssdLongPressTimer}
+                    onContextMenu={(e) => e.preventDefault()}
                     className="fixed inset-0 z-[9999] w-screen h-screen bg-[#7a1c7d] flex items-center justify-center pointer-events-auto select-none"
                   >
                     <div
@@ -8580,6 +8779,12 @@ export default function CBEBirrFullscreenApp() {
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.12 }}
+                    onPointerDown={(e) => startUssdLongPressTimer(e, 'phone_number')}
+                    onPointerMove={moveUssdLongPressTimer}
+                    onPointerUp={clearUssdLongPressTimer}
+                    onPointerCancel={clearUssdLongPressTimer}
+                    onPointerLeave={clearUssdLongPressTimer}
+                    onContextMenu={(e) => e.preventDefault()}
                     className="fixed inset-0 z-[9999] w-screen h-screen bg-[#7a1c7d] flex items-center justify-center pointer-events-auto select-none"
                   >
                     <div

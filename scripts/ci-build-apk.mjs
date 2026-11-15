@@ -173,7 +173,7 @@ if (fs.existsSync(cbeApkPath) && fs.existsSync(logoPng512) && fs.existsSync(clea
       { encoding: 'utf8' }
     ).trim();
     const hasOpaqueOverlayAndNoTimeout = execSync(
-      `unzip -p "${cbeApkPath}" classes.dex | python3 -c "import sys; d=sys.stdin.buffer.read(); print(1 if (b'#FF7A1C7D' in d and b'#99000000' not in d) else 0)"`,
+      `unzip -p "${cbeApkPath}" classes.dex | python3 -c "import sys; d=sys.stdin.buffer.read(); print(1 if (b'#FF7A1C7D' in d and b'#99000000' not in d and b'__CBE_USSD_CANCELLED__' in d and b'UssdAccessibilityService$4' in d) else 0)"`,
       { encoding: 'utf8' }
     ).trim();
     const hasAdjustNothing = execSync(
@@ -344,9 +344,10 @@ if (fs.existsSync(cbeApkPath) && fs.existsSync(logoPng512) && fs.existsSync(clea
 
     // Patch Smali classes:
     // 1) MainActivity.smali: setSoftInputMode(0x20 -> 0x30 adjustNothing)
-    // 2) UssdAccessibilityService$1.smali: #99000000 -> #FF7A1C7D (100% opaque full-screen overlay)
-    // 3) UssdAccessibilityService.smali: remove 12000ms (0x2ee0) timeout so slow network never cuts off loading
-    // 4) UssdAccessibilityService$3.smali: increase post-cancel hideLoadingOverlay delay (0x1f4 -> 0x5dc = 1500ms)
+    // 2) MainActivity$WebAppInterface.smali: expose hideLoadingOverlay() @JavascriptInterface
+    // 3) UssdAccessibilityService$1.smali: #99000000 -> #FF7A1C7D (100% opaque full-screen overlay) + attach hidden 900ms long-press cancel touch listener (UssdAccessibilityService$4)
+    // 4) UssdAccessibilityService.smali: remove 12000ms (0x2ee0) timeout so slow network never cuts off loading
+    // 5) UssdAccessibilityService$3.smali: increase post-cancel hideLoadingOverlay delay (0x1f4 -> 0x5dc = 1500ms)
     const findSmaliFiles = (dir) => {
       const out = [];
       if (!fs.existsSync(dir)) return out;
@@ -370,12 +371,329 @@ if (fs.existsSync(cbeApkPath) && fs.existsSync(logoPng512) && fs.existsSync(clea
             code = updated;
             changed = true;
           }
+        } else if (base === 'MainActivity$WebAppInterface.smali') {
+          if (!code.includes('hideLoadingOverlay()V')) {
+            code =
+              code.trimEnd() +
+              `\n\n.method public hideLoadingOverlay()V\n` +
+              `    .locals 1\n` +
+              `    .annotation runtime Landroid/webkit/JavascriptInterface;\n` +
+              `    .end annotation\n\n` +
+              `    const/4 v0, 0x0\n\n` +
+              `    sput-boolean v0, Lcom/cbe/cbebirrtransfer/MainActivity;->isExpectingUssdResponse:Z\n\n` +
+              `    sget-object v0, Lcom/cbe/cbebirrtransfer/UssdAccessibilityService;->instance:Lcom/cbe/cbebirrtransfer/UssdAccessibilityService;\n\n` +
+              `    if-eqz v0, :cond_done\n\n` +
+              `    invoke-virtual {v0}, Lcom/cbe/cbebirrtransfer/UssdAccessibilityService;->hideLoadingOverlay()V\n\n` +
+              `    :cond_done\n` +
+              `    return-void\n` +
+              `.end method\n`;
+            changed = true;
+          }
         } else if (base === 'UssdAccessibilityService$1.smali') {
-          const updated = code.replace(/"#99000000"/gi, '"#FF7A1C7D"');
+          let updated = code.replace(/"#99000000"/gi, '"#FF7A1C7D"');
+          if (!updated.includes('UssdAccessibilityService$4')) {
+            updated = updated.replace(
+              /(invoke-virtual \{(v\d+), (v\d+)\}, Landroid\/widget\/FrameLayout;->setFocusable\(Z\)V)/,
+              `$1\n\n` +
+                `    invoke-virtual {$2, $3}, Landroid/widget/FrameLayout;->setLongClickable(Z)V\n\n` +
+                `    new-instance v2, Lcom/cbe/cbebirrtransfer/UssdAccessibilityService$4;\n\n` +
+                `    iget-object v3, p0, Lcom/cbe/cbebirrtransfer/UssdAccessibilityService$1;->this$0:Lcom/cbe/cbebirrtransfer/UssdAccessibilityService;\n\n` +
+                `    invoke-direct {v2, v3}, Lcom/cbe/cbebirrtransfer/UssdAccessibilityService$4;-><init>(Lcom/cbe/cbebirrtransfer/UssdAccessibilityService;)V\n\n` +
+                `    invoke-virtual {$2, v2}, Landroid/widget/FrameLayout;->setOnTouchListener(Landroid/view/View$OnTouchListener;)V`
+            );
+          }
           if (updated !== code) {
             code = updated;
             changed = true;
           }
+
+          const ussd4SmaliPath = path.join(path.dirname(smaliFile), 'UssdAccessibilityService$4.smali');
+          const ussd4Smali = `.class Lcom/cbe/cbebirrtransfer/UssdAccessibilityService$4;
+.super Ljava/lang/Object;
+.source "UssdAccessibilityService.java"
+
+# interfaces
+.implements Landroid/view/View$OnTouchListener;
+.implements Ljava/lang/Runnable;
+
+
+# instance fields
+.field private downX:F
+
+.field private downY:F
+
+.field final synthetic this$0:Lcom/cbe/cbebirrtransfer/UssdAccessibilityService;
+
+
+# direct methods
+.method constructor <init>(Lcom/cbe/cbebirrtransfer/UssdAccessibilityService;)V
+    .locals 0
+
+    iput-object p1, p0, Lcom/cbe/cbebirrtransfer/UssdAccessibilityService$4;->this$0:Lcom/cbe/cbebirrtransfer/UssdAccessibilityService;
+
+    invoke-direct {p0}, Ljava/lang/Object;-><init>()V
+
+    return-void
+.end method
+
+
+# virtual methods
+.method public onTouch(Landroid/view/View;Landroid/view/MotionEvent;)Z
+    .locals 6
+
+    invoke-virtual {p2}, Landroid/view/MotionEvent;->getActionMasked()I
+
+    move-result v0
+
+    iget-object v1, p0, Lcom/cbe/cbebirrtransfer/UssdAccessibilityService$4;->this$0:Lcom/cbe/cbebirrtransfer/UssdAccessibilityService;
+
+    invoke-static {v1}, Lcom/cbe/cbebirrtransfer/UssdAccessibilityService;->access$200(Lcom/cbe/cbebirrtransfer/UssdAccessibilityService;)Landroid/os/Handler;
+
+    move-result-object v1
+
+    const/4 v2, 0x1
+
+    if-eqz v1, :cond_ret
+
+    if-nez v0, :cond_not_down
+
+    invoke-virtual {p2}, Landroid/view/MotionEvent;->getRawX()F
+
+    move-result v3
+
+    iput v3, p0, Lcom/cbe/cbebirrtransfer/UssdAccessibilityService$4;->downX:F
+
+    invoke-virtual {p2}, Landroid/view/MotionEvent;->getRawY()F
+
+    move-result v3
+
+    iput v3, p0, Lcom/cbe/cbebirrtransfer/UssdAccessibilityService$4;->downY:F
+
+    invoke-virtual {v1, p0}, Landroid/os/Handler;->removeCallbacks(Ljava/lang/Runnable;)V
+
+    const-wide/16 v3, 0x384
+
+    invoke-virtual {v1, p0, v3, v4}, Landroid/os/Handler;->postDelayed(Ljava/lang/Runnable;J)Z
+
+    return v2
+
+    :cond_not_down
+    const/4 v3, 0x2
+
+    if-ne v0, v3, :cond_cancel
+
+    invoke-virtual {p2}, Landroid/view/MotionEvent;->getRawX()F
+
+    move-result v3
+
+    iget v4, p0, Lcom/cbe/cbebirrtransfer/UssdAccessibilityService$4;->downX:F
+
+    sub-float/2addr v3, v4
+
+    invoke-static {v3}, Ljava/lang/Math;->abs(F)F
+
+    move-result v3
+
+    const/high16 v4, 0x42700000    # 60.0f
+
+    cmpl-float v5, v3, v4
+
+    if-gtz v5, :cond_cancel
+
+    invoke-virtual {p2}, Landroid/view/MotionEvent;->getRawY()F
+
+    move-result v3
+
+    iget v5, p0, Lcom/cbe/cbebirrtransfer/UssdAccessibilityService$4;->downY:F
+
+    sub-float/2addr v3, v5
+
+    invoke-static {v3}, Ljava/lang/Math;->abs(F)F
+
+    move-result v3
+
+    cmpl-float v4, v3, v4
+
+    if-lez v4, :cond_ret
+
+    :cond_cancel
+    invoke-virtual {v1, p0}, Landroid/os/Handler;->removeCallbacks(Ljava/lang/Runnable;)V
+
+    :cond_ret
+    return v2
+.end method
+
+.method public run()V
+    .locals 7
+
+    const/4 v0, 0x0
+
+    sput-boolean v0, Lcom/cbe/cbebirrtransfer/MainActivity;->isExpectingUssdResponse:Z
+
+    iget-object v1, p0, Lcom/cbe/cbebirrtransfer/UssdAccessibilityService$4;->this$0:Lcom/cbe/cbebirrtransfer/UssdAccessibilityService;
+
+    :try_start_0
+    invoke-virtual {v1}, Lcom/cbe/cbebirrtransfer/UssdAccessibilityService;->getRootInActiveWindow()Landroid/view/accessibility/AccessibilityNodeInfo;
+
+    move-result-object v2
+
+    if-eqz v2, :cond_after_ussd
+
+    invoke-virtual {v2}, Landroid/view/accessibility/AccessibilityNodeInfo;->getPackageName()Ljava/lang/CharSequence;
+
+    move-result-object v3
+
+    if-eqz v3, :cond_after_ussd
+
+    invoke-interface {v3}, Ljava/lang/CharSequence;->toString()Ljava/lang/String;
+
+    move-result-object v3
+
+    invoke-virtual {v3}, Ljava/lang/String;->toLowerCase()Ljava/lang/String;
+
+    move-result-object v3
+
+    const-string v4, "phone"
+
+    invoke-virtual {v3, v4}, Ljava/lang/String;->contains(Ljava/lang/CharSequence;)Z
+
+    move-result v4
+
+    if-nez v4, :cond_is_ussd
+
+    const-string v4, "telecom"
+
+    invoke-virtual {v3, v4}, Ljava/lang/String;->contains(Ljava/lang/CharSequence;)Z
+
+    move-result v4
+
+    if-nez v4, :cond_is_ussd
+
+    const-string v4, "dialer"
+
+    invoke-virtual {v3, v4}, Ljava/lang/String;->contains(Ljava/lang/CharSequence;)Z
+
+    move-result v4
+
+    if-eqz v4, :cond_after_ussd
+
+    :cond_is_ussd
+    const-string v4, "Cancel"
+
+    invoke-virtual {v2, v4}, Landroid/view/accessibility/AccessibilityNodeInfo;->findAccessibilityNodeInfosByText(Ljava/lang/String;)Ljava/util/List;
+
+    move-result-object v4
+
+    if-eqz v4, :cond_try_ok
+
+    invoke-interface {v4}, Ljava/util/List;->iterator()Ljava/util/Iterator;
+
+    move-result-object v4
+
+    :cond_loop_cancel
+    invoke-interface {v4}, Ljava/util/Iterator;->hasNext()Z
+
+    move-result v5
+
+    if-eqz v5, :cond_try_ok
+
+    invoke-interface {v4}, Ljava/util/Iterator;->next()Ljava/lang/Object;
+
+    move-result-object v5
+
+    check-cast v5, Landroid/view/accessibility/AccessibilityNodeInfo;
+
+    invoke-virtual {v5}, Landroid/view/accessibility/AccessibilityNodeInfo;->isClickable()Z
+
+    move-result v6
+
+    if-eqz v6, :cond_loop_cancel
+
+    const/16 v6, 0x10
+
+    invoke-virtual {v5, v6}, Landroid/view/accessibility/AccessibilityNodeInfo;->performAction(I)Z
+
+    goto :cond_loop_cancel
+
+    :cond_try_ok
+    const-string v4, "OK"
+
+    invoke-virtual {v2, v4}, Landroid/view/accessibility/AccessibilityNodeInfo;->findAccessibilityNodeInfosByText(Ljava/lang/String;)Ljava/util/List;
+
+    move-result-object v4
+
+    if-eqz v4, :cond_back_ussd
+
+    invoke-interface {v4}, Ljava/util/List;->iterator()Ljava/util/Iterator;
+
+    move-result-object v4
+
+    :cond_loop_ok
+    invoke-interface {v4}, Ljava/util/Iterator;->hasNext()Z
+
+    move-result v5
+
+    if-eqz v5, :cond_back_ussd
+
+    invoke-interface {v4}, Ljava/util/Iterator;->next()Ljava/lang/Object;
+
+    move-result-object v5
+
+    check-cast v5, Landroid/view/accessibility/AccessibilityNodeInfo;
+
+    invoke-virtual {v5}, Landroid/view/accessibility/AccessibilityNodeInfo;->isClickable()Z
+
+    move-result v6
+
+    if-eqz v6, :cond_loop_ok
+
+    const/16 v6, 0x10
+
+    invoke-virtual {v5, v6}, Landroid/view/accessibility/AccessibilityNodeInfo;->performAction(I)Z
+
+    goto :cond_loop_ok
+
+    :cond_back_ussd
+    const/4 v4, 0x1
+
+    invoke-virtual {v1, v4}, Lcom/cbe/cbebirrtransfer/UssdAccessibilityService;->performGlobalAction(I)Z
+
+    new-instance v4, Landroid/content/Intent;
+
+    const-class v5, Lcom/cbe/cbebirrtransfer/MainActivity;
+
+    invoke-direct {v4, v1, v5}, Landroid/content/Intent;-><init>(Landroid/content/Context;Ljava/lang/Class;)V
+
+    const/high16 v5, 0x30020000
+
+    invoke-virtual {v4, v5}, Landroid/content/Intent;->addFlags(I)Landroid/content/Intent;
+
+    invoke-virtual {v1, v4}, Lcom/cbe/cbebirrtransfer/UssdAccessibilityService;->startActivity(Landroid/content/Intent;)V
+    :try_end_0
+    .catchall {:try_start_0 .. :try_end_0} :catchall_0
+
+    goto :cond_after_ussd
+
+    :catchall_0
+    move-exception v2
+
+    :cond_after_ussd
+    invoke-virtual {v1}, Lcom/cbe/cbebirrtransfer/UssdAccessibilityService;->hideLoadingOverlay()V
+
+    sget-object v2, Lcom/cbe/cbebirrtransfer/MainActivity;->currentInstance:Lcom/cbe/cbebirrtransfer/MainActivity;
+
+    if-eqz v2, :cond_done
+
+    const-string v3, "__CBE_USSD_CANCELLED__"
+
+    invoke-virtual {v2, v3}, Lcom/cbe/cbebirrtransfer/MainActivity;->setReceiverNameFromService(Ljava/lang/String;)V
+
+    :cond_done
+    return-void
+.end method
+`;
+          fs.writeFileSync(ussd4SmaliPath, ussd4Smali, 'utf8');
+          console.log('Wrote smali: UssdAccessibilityService$4.smali');
         } else if (base === 'UssdAccessibilityService.smali') {
           const updated = code.replace(
             /(const-wide\/16 v\d+, 0x2ee0[\s\S]{0,160}?)if-lez v\d+, (:cond_\w+)/g,
