@@ -32,6 +32,8 @@ export async function POST(req: NextRequest) {
       body.account ||
       body.accountNumber ||
       body.receiverAccount ||
+      body.phone ||
+      body.phoneNumber ||
       body.acc ||
       ''
     ).replace(/\D/g, '');
@@ -63,7 +65,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (!account && rawText) {
-      const accMatch = rawText.match(/Bank\s*Account\s*:\s*(\d{10,16})/i);
+      const accMatch = rawText.match(/(?:Bank\s*Account|Mobile\s*No|Phone)\s*:\s*(\d{9,16})/i);
       if (accMatch && accMatch[1]) {
         account = accMatch[1];
       }
@@ -105,7 +107,17 @@ export async function GET(req: NextRequest) {
   if (account && receiverStore.has(account)) {
     found = receiverStore.get(account)!;
     if (clear) receiverStore.delete(account);
-  } else if (latestEvent && Date.now() - latestEvent.timestamp < 300000) {
+  } else if (account && account.length >= 9) {
+    const tail9 = account.slice(-9);
+    for (const [k, ev] of receiverStore.entries()) {
+      if (k.length >= 9 && k.slice(-9) === tail9) {
+        found = ev;
+        if (clear) receiverStore.delete(k);
+        break;
+      }
+    }
+  }
+  if (!found && latestEvent && Date.now() - latestEvent.timestamp < 300000) {
     found = latestEvent;
     if (clear) latestEvent = null;
   }

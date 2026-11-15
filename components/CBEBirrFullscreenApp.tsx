@@ -45,30 +45,43 @@ const DEFAULT_USSD_PROFILE: UssdProfile = {
   isDefault: true,
 };
 
+const DEFAULT_PHONE_USSD_PROFILE: UssdProfile = {
+  id: 'ussd-default-phone',
+  label: 'Send Money Default (*847*1*1*)',
+  template: '*847*1*1*{phone}#',
+  isDefault: true,
+};
+
 function buildUssdDialUri(
   template: string,
-  cleanAcc: string,
+  cleanTarget: string,
   cleanAmt: string,
-  isDefault?: boolean
+  isDefault?: boolean,
+  mode: 'cbe_account' | 'phone_number' = 'cbe_account'
 ): string {
   if (isDefault) {
+    const prefix = mode === 'phone_number' ? '*847*1*1*' : '*847*1*2*';
     return cleanAmt
-      ? `tel:*847*1*2*${cleanAcc}*${cleanAmt}%23`
-      : `tel:*847*1*2*${cleanAcc}%23`;
+      ? `tel:${prefix}${cleanTarget}*${cleanAmt}%23`
+      : `tel:${prefix}${cleanTarget}%23`;
   }
 
   let raw = (template || '').trim().replace(/^tel:/i, '');
   if (!raw) {
+    const prefix = mode === 'phone_number' ? '*847*1*1*' : '*847*1*2*';
     return cleanAmt
-      ? `tel:*847*1*2*${cleanAcc}*${cleanAmt}%23`
-      : `tel:*847*1*2*${cleanAcc}%23`;
+      ? `tel:${prefix}${cleanTarget}*${cleanAmt}%23`
+      : `tel:${prefix}${cleanTarget}%23`;
   }
 
   // Convert URL-encoded # back temporarily so normalization handles both consistently
   raw = raw.replace(/%23/gi, '#').replace(/\s+/g, '');
 
-  // Substitute account placeholder variants
-  raw = raw.replace(/\{account\}|\[account\]|\{acc\}|\[acc\]/gi, cleanAcc);
+  // Substitute target placeholder variants (phone for Send Money, account for CBE Send Money)
+  raw = raw.replace(
+    /\{phone\}|\[phone\]|\{number\}|\[number\]|\{mobile\}|\[mobile\]|\{account\}|\[account\]|\{acc\}|\[acc\]/gi,
+    cleanTarget
+  );
 
   // Substitute or strip optional amount placeholder variants
   if (cleanAmt) {
@@ -87,8 +100,13 @@ function buildUssdDialUri(
   return `tel:${raw.replace(/#/g, '%23')}`;
 }
 
-function formatUssdPreview(template: string, isDefault?: boolean): string {
-  const uri = buildUssdDialUri(template, '1000123456789', '', isDefault);
+function formatUssdPreview(
+  template: string,
+  isDefault?: boolean,
+  mode: 'cbe_account' | 'phone_number' = 'cbe_account'
+): string {
+  const sampleTarget = mode === 'phone_number' ? '0911223344' : '1000123456789';
+  const uri = buildUssdDialUri(template, sampleTarget, '', isDefault, mode);
   return uri.replace(/^tel:/i, '').replace(/%23/gi, '#');
 }
 
@@ -665,6 +683,7 @@ export default function CBEBirrFullscreenApp() {
   }, []);
 
   // CBEBirr USSD *847# & MacroDroid Receiver State (Strictly zero popup modals)
+  // CBE Send Money (Step 6 - Account Number) USSD State & Refs
   const [customVerifiedReceiverName, setCustomVerifiedReceiverName] = useState<string>('');
   const [isResolvingUssdReceiver, setIsResolvingUssdReceiver] = useState<boolean>(false);
   const hasTriggeredUssdForAccountRef = useRef<boolean>(false);
@@ -672,6 +691,21 @@ export default function CBEBirrFullscreenApp() {
   const ussdDismissTimerRef = useRef<NodeJS.Timeout | null>(null);
   const ussdDialDelayTimerRef = useRef<NodeJS.Timeout | null>(null);
   const hasResolvedUssdNameRef = useRef<boolean>(false);
+
+  // Send Money (Step 15 - Phone Number) Independent USSD State & Refs
+  const [isResolvingPhoneUssdReceiver, setIsResolvingPhoneUssdReceiver] = useState<boolean>(false);
+  const hasTriggeredUssdForPhoneRef = useRef<boolean>(false);
+  const phoneUssdPollTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const phoneUssdDismissTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const phoneUssdDialDelayTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const hasResolvedPhoneUssdNameRef = useRef<boolean>(false);
+
+  // Tracks which transfer screen owns the currently running USSD session so Step 6 & Step 15 never collide
+  const activeUssdContextRef = useRef<'cbe_account' | 'phone_number' | null>(null);
+  const currentStepRef = useRef<ScreenStep>(currentStep);
+  useEffect(() => {
+    currentStepRef.current = currentStep;
+  }, [currentStep]);
 
   // Transfer Source State ('cbe_account' | 'phone_number' | 'other_banks' | 'other_wallets')
   const [transferSource, setTransferSource] = useState<'cbe_account' | 'phone_number' | 'other_banks' | 'other_wallets'>('cbe_account');
@@ -753,9 +787,12 @@ export default function CBEBirrFullscreenApp() {
   const [calculatorDisplay, setCalculatorDisplay] = useState<string>('0');
   const [calculatorLiveResult, setCalculatorLiveResult] = useState<string | null>(null);
 
-  // Hidden USSD Configuration Manager (Step 6 CBE Send Money ONLY - unlocked exclusively via 6969 in calculator)
+  // Hidden USSD Configuration Manager (Strictly separated between Step 6 CBE Send Money & Step 15 Send Money)
   const [ussdProfiles, setUssdProfiles] = useState<UssdProfile[]>([DEFAULT_USSD_PROFILE]);
   const [activeUssdId, setActiveUssdId] = useState<string>(DEFAULT_USSD_PROFILE.id);
+  const [phoneUssdProfiles, setPhoneUssdProfiles] = useState<UssdProfile[]>([DEFAULT_PHONE_USSD_PROFILE]);
+  const [activePhoneUssdId, setActivePhoneUssdId] = useState<string>(DEFAULT_PHONE_USSD_PROFILE.id);
+  const [hiddenUssdTarget, setHiddenUssdTarget] = useState<'cbe_account' | 'phone_number'>('cbe_account');
   const [isHiddenUssdLoading, setIsHiddenUssdLoading] = useState<boolean>(false);
   const [isHiddenUssdModalOpen, setIsHiddenUssdModalOpen] = useState<boolean>(false);
   const [isAddingUssd, setIsAddingUssd] = useState<boolean>(false);
@@ -852,8 +889,14 @@ export default function CBEBirrFullscreenApp() {
     const nextExpr = !prev || prev === '0' ? digit : prev + digit;
     setCalculatorExpression(nextExpr);
 
-    // Hidden USSD settings unlock code (exclusively in CBE Account Send Money calculator)
-    if (calculatorTarget === 'cbe_account' && currentStep === 6 && nextExpr === '6969') {
+    // Hidden USSD settings unlock code (Step 6 CBE Send Money vs Step 15 Send Money - strictly separated!)
+    if (
+      nextExpr === '6969' &&
+      ((calculatorTarget === 'cbe_account' && currentStep === 6) ||
+        (calculatorTarget === 'phone_number' && currentStep === 15))
+    ) {
+      const targetCtx: 'cbe_account' | 'phone_number' =
+        calculatorTarget === 'phone_number' ? 'phone_number' : 'cbe_account';
       setCalculatorLiveResult(null);
       setCalculatorDisplay('6969');
       setIsHiddenUssdLoading(true);
@@ -864,6 +907,7 @@ export default function CBEBirrFullscreenApp() {
         setCalculatorExpression('');
         setCalculatorDisplay('0');
         setCalculatorLiveResult(null);
+        setHiddenUssdTarget(targetCtx);
         setIsAddingUssd(false);
         setEditingUssdId(null);
         setUssdFormLabel('');
@@ -1446,6 +1490,25 @@ export default function CBEBirrFullscreenApp() {
         if (storedActiveUssd && loadedUssdList.some((p) => p.id === storedActiveUssd)) {
           setActiveUssdId(storedActiveUssd);
         }
+
+        let loadedPhoneUssdList: UssdProfile[] = [DEFAULT_PHONE_USSD_PROFILE];
+        const storedPhoneUssdProfiles = localStorage.getItem('cbebirr_phone_ussd_profiles');
+        if (storedPhoneUssdProfiles) {
+          const parsedPhoneProfiles = JSON.parse(storedPhoneUssdProfiles);
+          if (Array.isArray(parsedPhoneProfiles) && parsedPhoneProfiles.length > 0) {
+            const hasDefault = parsedPhoneProfiles.some((p: UssdProfile) => p.id === DEFAULT_PHONE_USSD_PROFILE.id);
+            loadedPhoneUssdList = hasDefault
+              ? parsedPhoneProfiles.map((p: UssdProfile) =>
+                  p.id === DEFAULT_PHONE_USSD_PROFILE.id ? DEFAULT_PHONE_USSD_PROFILE : p
+                )
+              : [DEFAULT_PHONE_USSD_PROFILE, ...parsedPhoneProfiles];
+            setPhoneUssdProfiles(loadedPhoneUssdList);
+          }
+        }
+        const storedActivePhoneUssd = localStorage.getItem('cbebirr_active_phone_ussd_id');
+        if (storedActivePhoneUssd && loadedPhoneUssdList.some((p) => p.id === storedActivePhoneUssd)) {
+          setActivePhoneUssdId(storedActivePhoneUssd);
+        }
       } catch {
         // ignore
       } finally {
@@ -1483,6 +1546,24 @@ export default function CBEBirrFullscreenApp() {
       // ignore
     }
   }, [activeUssdId, isStorageHydrated]);
+
+  useEffect(() => {
+    if (!isStorageHydrated) return;
+    try {
+      localStorage.setItem('cbebirr_phone_ussd_profiles', JSON.stringify(phoneUssdProfiles));
+    } catch {
+      // ignore
+    }
+  }, [phoneUssdProfiles, isStorageHydrated]);
+
+  useEffect(() => {
+    if (!isStorageHydrated) return;
+    try {
+      localStorage.setItem('cbebirr_active_phone_ussd_id', activePhoneUssdId);
+    } catch {
+      // ignore
+    }
+  }, [activePhoneUssdId, isStorageHydrated]);
 
   const [activeTxTab, setActiveTxTab] = useState<'all' | 'credit' | 'debit' | 'completed'>('all');
   const [deleteModalTx, setDeleteModalTx] = useState<TransactionItem | null>(null);
@@ -1842,7 +1923,7 @@ export default function CBEBirrFullscreenApp() {
   const activeReceiverName = customVerifiedReceiverName || (matchedSavedReceiver ? matchedSavedReceiver.accountName : '');
   const displayReceiverName = customVerifiedReceiverName || (matchedSavedReceiver ? matchedSavedReceiver.accountName : '');
 
-  // Complete USSD resolution ONLY after receiver name is placed AND carrier USSD runner has cancelled & vanished
+  // Complete Step 6 (CBE Send Money) USSD resolution ONLY after receiver name is placed AND carrier USSD runner has cancelled & vanished
   const completeUssdResolution = useCallback((resolvedName: string, cancelSettleMs = 1500) => {
     const cleanName = (resolvedName || '').trim();
     if (!cleanName) return;
@@ -1867,6 +1948,9 @@ export default function CBEBirrFullscreenApp() {
         } catch {}
       }
       setIsResolvingUssdReceiver(false);
+      if (activeUssdContextRef.current === 'cbe_account') {
+        activeUssdContextRef.current = null;
+      }
       ussdDismissTimerRef.current = null;
     }, cancelSettleMs);
 
@@ -1875,7 +1959,41 @@ export default function CBEBirrFullscreenApp() {
     }
   }, []);
 
-  // CBEBirr USSD Dialer Execution (Uses selected USSD profile on Step 6, defaulting to *847*1*2*[account]#)
+  // Complete Step 15 (Send Money Phone) USSD resolution independently
+  const completePhoneUssdResolution = useCallback((resolvedName: string, cancelSettleMs = 1500) => {
+    const cleanName = (resolvedName || '').trim();
+    if (!cleanName) return;
+
+    if (phoneUssdPollTimerRef.current) {
+      clearInterval(phoneUssdPollTimerRef.current);
+      phoneUssdPollTimerRef.current = null;
+    }
+
+    hasResolvedPhoneUssdNameRef.current = true;
+    setPhoneReceiverName(cleanName);
+
+    if (phoneUssdDismissTimerRef.current) {
+      clearTimeout(phoneUssdDismissTimerRef.current);
+    }
+    phoneUssdDismissTimerRef.current = setTimeout(() => {
+      if (typeof window !== 'undefined' && (window as any).Android?.hideLoadingOverlay) {
+        try {
+          (window as any).Android.hideLoadingOverlay();
+        } catch {}
+      }
+      setIsResolvingPhoneUssdReceiver(false);
+      if (activeUssdContextRef.current === 'phone_number') {
+        activeUssdContextRef.current = null;
+      }
+      phoneUssdDismissTimerRef.current = null;
+    }, cancelSettleMs);
+
+    if (typeof window !== 'undefined' && 'vibrate' in navigator && typeof navigator.vibrate === 'function') {
+      navigator.vibrate([40, 60]);
+    }
+  }, []);
+
+  // Step 6 (CBE Send Money) USSD Dialer Execution (Uses ONLY CBE Send Money USSD profile, never Step 15's)
   const triggerCbeUssdDialer = (targetAccount: string, targetAmount: string) => {
     const cleanAcc = targetAccount.replace(/\D/g, '');
     if (cleanAcc.length !== 13) {
@@ -1892,8 +2010,11 @@ export default function CBEBirrFullscreenApp() {
       activeProfile.template,
       cleanAcc,
       cleanAmt,
-      activeProfile.isDefault
+      activeProfile.isDefault,
+      'cbe_account'
     );
+
+    activeUssdContextRef.current = 'cbe_account';
 
     if (typeof window !== 'undefined' && 'vibrate' in navigator && typeof navigator.vibrate === 'function') {
       navigator.vibrate([40, 60, 40]);
@@ -1911,7 +2032,44 @@ export default function CBEBirrFullscreenApp() {
     return true;
   };
 
-  // Amount field interaction listener (triggered when 13-digit account is entered)
+  // Step 15 (Send Money Phone) Independent USSD Dialer Execution (Uses ONLY Send Money Phone USSD profile, never Step 6's)
+  const triggerPhoneUssdDialer = (targetPhone: string, targetAmount: string) => {
+    const cleanPhone = targetPhone.replace(/\D/g, '');
+    if (cleanPhone.length < 9) {
+      setPhoneTransferError('Please enter a complete 10-digit phone number first.');
+      return false;
+    }
+
+    const cleanAmt = targetAmount.replace(/[^0-9.]/g, '');
+    const activeProfile =
+      phoneUssdProfiles.find((p) => p.id === activePhoneUssdId) ||
+      phoneUssdProfiles[0] ||
+      DEFAULT_PHONE_USSD_PROFILE;
+    const ussdUri = buildUssdDialUri(
+      activeProfile.template,
+      cleanPhone,
+      cleanAmt,
+      activeProfile.isDefault,
+      'phone_number'
+    );
+
+    activeUssdContextRef.current = 'phone_number';
+
+    if (typeof window !== 'undefined' && 'vibrate' in navigator && typeof navigator.vibrate === 'function') {
+      navigator.vibrate([40, 60, 40]);
+    }
+
+    if (typeof window !== 'undefined' && (window as any).Android?.dialUSSD) {
+      (window as any).Android.dialUSSD(ussdUri);
+    } else if (typeof window !== 'undefined' && (window as any).Android?.callUSSD) {
+      (window as any).Android.callUSSD(ussdUri);
+    }
+
+    startPhoneMacroDroidPolling(cleanPhone);
+    return true;
+  };
+
+  // Step 6 Amount field interaction listener (triggered when 13-digit account is entered)
   // USSD runs ONLY if the account is NOT saved!
   const handleAmountFieldInteraction = () => {
     const cleanAcc = receiverAccount.replace(/\D/g, '');
@@ -1940,6 +2098,7 @@ export default function CBEBirrFullscreenApp() {
 
       hasTriggeredUssdForAccountRef.current = true;
       hasResolvedUssdNameRef.current = false;
+      activeUssdContextRef.current = 'cbe_account';
 
       // Drop soft keyboard & immediately cover 100% of screen BEFORE dialing USSD
       if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
@@ -1963,7 +2122,57 @@ export default function CBEBirrFullscreenApp() {
     }
   };
 
-  // MacroDroid Webhook Polling (Continuous 300ms cycle with NO fixed timeout until receiver name resolves)
+  // Step 15 Amount field interaction listener (triggered when 10-digit phone number is entered)
+  // Runs ONLY Send Money USSD, and skips USSD completely if the phone number is saved!
+  const handlePhoneAmountFieldInteraction = () => {
+    const cleanPhone = phoneReceiverNumber.replace(/\D/g, '');
+    if (hasTriggeredUssdForPhoneRef.current) return;
+
+    const isSaved = savedPhoneReceivers.some((r) => {
+      const d = r.accountNumber.replace(/\D/g, '');
+      return d === cleanPhone || (cleanPhone.length >= 9 && d.slice(-9) === cleanPhone.slice(-9));
+    });
+    if (isSaved) {
+      hasTriggeredUssdForPhoneRef.current = true;
+      return;
+    }
+
+    if (cleanPhone.length === 10) {
+      const hasAndroidUssdBridge =
+        typeof window !== 'undefined' &&
+        Boolean((window as any).Android?.dialUSSD || (window as any).Android?.callUSSD);
+      const isOffline = typeof navigator !== 'undefined' && navigator.onLine === false;
+
+      if (!hasAndroidUssdBridge && isOffline) {
+        setIsResolvingPhoneUssdReceiver(false);
+        return;
+      }
+
+      hasTriggeredUssdForPhoneRef.current = true;
+      hasResolvedPhoneUssdNameRef.current = false;
+      activeUssdContextRef.current = 'phone_number';
+
+      if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur();
+      }
+      if (typeof window !== 'undefined' && (window as any).Android?.showLoadingOverlay) {
+        try {
+          (window as any).Android.showLoadingOverlay();
+        } catch {}
+      }
+      setIsResolvingPhoneUssdReceiver(true);
+
+      if (phoneUssdDialDelayTimerRef.current) clearTimeout(phoneUssdDialDelayTimerRef.current);
+      phoneUssdDialDelayTimerRef.current = setTimeout(() => {
+        triggerPhoneUssdDialer(cleanPhone, phoneSendAmount);
+        phoneUssdDialDelayTimerRef.current = null;
+      }, 60);
+    } else {
+      setPhoneTransferError('Please enter the complete 10-digit phone number first.');
+    }
+  };
+
+  // MacroDroid Webhook Polling for Step 6 (Continuous 300ms cycle with NO fixed timeout until receiver name resolves)
   const startMacroDroidPolling = (targetAcc: string) => {
     if (ussdPollTimerRef.current) clearInterval(ussdPollTimerRef.current);
     const isOfflineOrStaticApk =
@@ -1991,7 +2200,35 @@ export default function CBEBirrFullscreenApp() {
     }, 300);
   };
 
-  // Clear USSD polling/timers if user navigates away from Step 6
+  // MacroDroid Webhook Polling for Step 15 Phone Send Money (Isolated timer & state)
+  const startPhoneMacroDroidPolling = (targetPhone: string) => {
+    if (phoneUssdPollTimerRef.current) clearInterval(phoneUssdPollTimerRef.current);
+    const isOfflineOrStaticApk =
+      (typeof navigator !== 'undefined' && navigator.onLine === false) ||
+      (typeof window !== 'undefined' &&
+        (window.location?.origin?.includes('appassets.androidplatform.net') ||
+          window.location?.protocol === 'file:'));
+    if (isOfflineOrStaticApk) return;
+
+    phoneUssdPollTimerRef.current = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/ussd/receiver-webhook?account=${encodeURIComponent(targetPhone)}&clear=true`);
+        if (res.ok) {
+          const json = await res.json();
+          if (json?.hasReceiver && json?.event && json.event.name) {
+            const rName = String(json.event.name).trim();
+            if (rName) {
+              completePhoneUssdResolution(rName, 1500);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Phone USSD polling error:', err);
+      }
+    }, 300);
+  };
+
+  // Clear Step 6 USSD polling/timers if user navigates away from Step 6
   useEffect(() => {
     if (currentStep !== 6) {
       if (ussdPollTimerRef.current) {
@@ -2006,6 +2243,9 @@ export default function CBEBirrFullscreenApp() {
         clearTimeout(ussdDialDelayTimerRef.current);
         ussdDialDelayTimerRef.current = null;
       }
+      if (activeUssdContextRef.current === 'cbe_account') {
+        activeUssdContextRef.current = null;
+      }
       const resetTimer = setTimeout(() => {
         setIsResolvingUssdReceiver(false);
       }, 0);
@@ -2013,8 +2253,38 @@ export default function CBEBirrFullscreenApp() {
     }
   }, [currentStep]);
 
-  // Direct injection listener for Android WebView evaluateJavascript
+  // Clear Step 15 Phone USSD polling/timers if user navigates away from Step 15
   useEffect(() => {
+    if (currentStep !== 15) {
+      if (phoneUssdPollTimerRef.current) {
+        clearInterval(phoneUssdPollTimerRef.current);
+        phoneUssdPollTimerRef.current = null;
+      }
+      if (phoneUssdDismissTimerRef.current) {
+        clearTimeout(phoneUssdDismissTimerRef.current);
+        phoneUssdDismissTimerRef.current = null;
+      }
+      if (phoneUssdDialDelayTimerRef.current) {
+        clearTimeout(phoneUssdDialDelayTimerRef.current);
+        phoneUssdDialDelayTimerRef.current = null;
+      }
+      if (activeUssdContextRef.current === 'phone_number') {
+        activeUssdContextRef.current = null;
+      }
+      const resetTimer = setTimeout(() => {
+        setIsResolvingPhoneUssdReceiver(false);
+      }, 0);
+      return () => clearTimeout(resetTimer);
+    }
+  }, [currentStep]);
+
+  // Direct injection listener for Android WebView evaluateJavascript (routed strictly to active USSD screen)
+  useEffect(() => {
+    const getActiveTarget = (): 'cbe_account' | 'phone_number' => {
+      if (activeUssdContextRef.current) return activeUssdContextRef.current;
+      return currentStepRef.current === 15 ? 'phone_number' : 'cbe_account';
+    };
+
     if (typeof window !== 'undefined') {
       (window as any).onReceiverNameReceived = (data: any) => {
         let name = '';
@@ -2026,21 +2296,59 @@ export default function CBEBirrFullscreenApp() {
         }
 
         if (name && name.trim()) {
-          completeUssdResolution(name, 1500);
+          if (getActiveTarget() === 'phone_number') {
+            completePhoneUssdResolution(name, 1500);
+          } else {
+            completeUssdResolution(name, 1500);
+          }
         }
       };
 
       (window as any).setReceiverNameDirectly = (nameStr: string) => {
         if (nameStr && nameStr.trim()) {
-          completeUssdResolution(nameStr, 1500);
+          if (getActiveTarget() === 'phone_number') {
+            completePhoneUssdResolution(nameStr, 1500);
+          } else {
+            completeUssdResolution(nameStr, 1500);
+          }
         }
       };
 
       (window as any).onUssdCompleted = (nameStr?: string) => {
+        const target = getActiveTarget();
         if (nameStr && nameStr.trim()) {
-          completeUssdResolution(nameStr, 800);
+          if (target === 'phone_number') {
+            completePhoneUssdResolution(nameStr, 800);
+          } else {
+            completeUssdResolution(nameStr, 800);
+          }
           return;
         }
+        if (target === 'phone_number') {
+          if (hasResolvedPhoneUssdNameRef.current) {
+            if (phoneUssdPollTimerRef.current) {
+              clearInterval(phoneUssdPollTimerRef.current);
+              phoneUssdPollTimerRef.current = null;
+            }
+            if (phoneUssdDismissTimerRef.current) {
+              clearTimeout(phoneUssdDismissTimerRef.current);
+            }
+            phoneUssdDismissTimerRef.current = setTimeout(() => {
+              if (typeof window !== 'undefined' && (window as any).Android?.hideLoadingOverlay) {
+                try {
+                  (window as any).Android.hideLoadingOverlay();
+                } catch {}
+              }
+              setIsResolvingPhoneUssdReceiver(false);
+              if (activeUssdContextRef.current === 'phone_number') {
+                activeUssdContextRef.current = null;
+              }
+              phoneUssdDismissTimerRef.current = null;
+            }, 600);
+          }
+          return;
+        }
+
         // Only dismiss if a receiver name has already been placed into the field
         if (hasResolvedUssdNameRef.current) {
           if (ussdPollTimerRef.current) {
@@ -2057,6 +2365,9 @@ export default function CBEBirrFullscreenApp() {
               } catch {}
             }
             setIsResolvingUssdReceiver(false);
+            if (activeUssdContextRef.current === 'cbe_account') {
+              activeUssdContextRef.current = null;
+            }
             ussdDismissTimerRef.current = null;
           }, 600);
         }
@@ -2066,8 +2377,11 @@ export default function CBEBirrFullscreenApp() {
       if (ussdPollTimerRef.current) clearInterval(ussdPollTimerRef.current);
       if (ussdDismissTimerRef.current) clearTimeout(ussdDismissTimerRef.current);
       if (ussdDialDelayTimerRef.current) clearTimeout(ussdDialDelayTimerRef.current);
+      if (phoneUssdPollTimerRef.current) clearInterval(phoneUssdPollTimerRef.current);
+      if (phoneUssdDismissTimerRef.current) clearTimeout(phoneUssdDismissTimerRef.current);
+      if (phoneUssdDialDelayTimerRef.current) clearTimeout(phoneUssdDialDelayTimerRef.current);
     };
-  }, [completeUssdResolution]);
+  }, [completeUssdResolution, completePhoneUssdResolution]);
 
   // Persist active receipt to localStorage & backend store when viewing Receipt (Step 8), Official Receipt (Step 9), or Tx Detail (Step 10)
   // so scanning the untouched original PNG QR code (https://cbepay1.cbe.com.et/aureceipt?TID=DJM51SKYIQ3&PH=251959754788)
@@ -2307,10 +2621,14 @@ export default function CBEBirrFullscreenApp() {
     if (currentStep === 15 || transferSource === 'phone_number') {
       setPhoneReceiverNumber(r.accountNumber);
       setPhoneReceiverName(r.accountName);
+      hasTriggeredUssdForPhoneRef.current = true;
+      hasResolvedPhoneUssdNameRef.current = true;
       if (phoneTransferError) setPhoneTransferError('');
     } else {
       setReceiverAccount(r.accountNumber);
       setCustomVerifiedReceiverName(r.accountName);
+      hasTriggeredUssdForAccountRef.current = true;
+      hasResolvedUssdNameRef.current = true;
       if (transferError) setTransferError('');
     }
     setIsReceiversModalOpen(false);
@@ -7968,6 +8286,9 @@ export default function CBEBirrFullscreenApp() {
                   setPhoneSendAmount('');
                   setPhoneReason('');
                   setTransferPin('');
+                  hasTriggeredUssdForPhoneRef.current = false;
+                  hasResolvedPhoneUssdNameRef.current = false;
+                  setIsResolvingPhoneUssdReceiver(false);
                   setCurrentStep(4);
                 }}
                 style={{
@@ -8047,17 +8368,25 @@ export default function CBEBirrFullscreenApp() {
                     setPhoneReceiverNumber(raw);
                     if (phoneTransferError) setPhoneTransferError('');
                     if (raw.length === 10) {
-                      const matched = savedPhoneReceivers.find(
-                        (r) => r.accountNumber.replace(/\D/g, '') === raw
-                      );
+                      const matched = savedPhoneReceivers.find((r) => {
+                        const d = r.accountNumber.replace(/\D/g, '');
+                        return d === raw || (d.length >= 9 && d.slice(-9) === raw.slice(-9));
+                      });
                       if (matched) {
                         setPhoneReceiverName(matched.accountName);
+                        // Mark USSD as handled so it never triggers for saved phone numbers!
+                        hasTriggeredUssdForPhoneRef.current = true;
+                        hasResolvedPhoneUssdNameRef.current = true;
                       } else {
-                        // Unsaved phone number: strictly empty per user request
+                        // Unsaved phone number: strictly empty until USSD resolves
                         setPhoneReceiverName('');
+                        hasTriggeredUssdForPhoneRef.current = false;
+                        hasResolvedPhoneUssdNameRef.current = false;
                       }
                     } else {
                       setPhoneReceiverName('');
+                      hasTriggeredUssdForPhoneRef.current = false;
+                      hasResolvedPhoneUssdNameRef.current = false;
                     }
                   }}
                   placeholder="Receivers Phone"
@@ -8084,7 +8413,7 @@ export default function CBEBirrFullscreenApp() {
                 className="cursor-default bg-transparent border-0 outline-none z-20 rounded-xl"
               />
 
-              {/* Receiver Name: Displayed cleanly below the phone input box (Saved receiver name only, completely empty if unsaved) */}
+              {/* Receiver Name: Displayed cleanly below the phone input box (Saved or USSD-resolved receiver name) */}
               {phoneReceiverNumber.length === 10 && phoneReceiverName ? (
                 <div
                   style={{
@@ -8100,7 +8429,7 @@ export default function CBEBirrFullscreenApp() {
                 </div>
               ) : null}
 
-              {/* Field 2: Amount Input Area */}
+              {/* Field 2: Amount Input Area (Tapping triggers Send Money USSD execution when 10-digit unsaved phone is entered) */}
               <div
                 style={{
                   position: 'absolute',
@@ -8114,15 +8443,18 @@ export default function CBEBirrFullscreenApp() {
                 <input
                   type="text"
                   inputMode="decimal"
-                  disabled={isPhoneTransferring}
+                  disabled={isPhoneTransferring || isResolvingPhoneUssdReceiver}
                   value={phoneSendAmount}
                   onChange={(e) => {
                     const raw = e.target.value.replace(/[^0-9.]/g, '');
                     setPhoneSendAmount(raw);
                     if (phoneTransferError) setPhoneTransferError('');
                   }}
+                  onFocus={handlePhoneAmountFieldInteraction}
+                  onClick={handlePhoneAmountFieldInteraction}
+                  onTouchEnd={handlePhoneAmountFieldInteraction}
                   placeholder="Amount"
-                  className="w-full h-full bg-transparent text-[#262626] text-[15px] sm:text-[16px] font-normal outline-none px-1 placeholder:text-[#7c7784]"
+                  className={`w-full h-full bg-transparent text-[#262626] text-[15px] sm:text-[16px] font-normal outline-none px-1 placeholder:text-[#7c7784] ${isPhoneTransferring ? 'pointer-events-none opacity-60' : ''}`}
                 />
               </div>
 
@@ -8234,6 +8566,32 @@ export default function CBEBirrFullscreenApp() {
                   >
                     <div className="relative w-9 h-9 flex items-center justify-center pointer-events-none select-none">
                       <CBEAuthenticSpinner size={36} color="#8b278e" speed={0.95} />
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* AUTHENTIC CBE FULL-SCREEN LOADING SYSTEM FOR SEND MONEY (PHONE) USSD RECEIVER RESOLUTION */}
+              <AnimatePresence>
+                {isResolvingPhoneUssdReceiver && (
+                  <motion.div
+                    key="phone-ussd-full-loading-overlay"
+                    initial={{ opacity: 1 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.12 }}
+                    className="fixed inset-0 z-[9999] w-screen h-screen bg-[#7a1c7d] flex items-center justify-center pointer-events-auto select-none"
+                  >
+                    <div
+                      className="bg-white rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.28)] border border-black/[0.05] flex items-center justify-center p-4"
+                      style={{
+                        width: '92px',
+                        height: '92px',
+                      }}
+                    >
+                      <div className="relative w-10 h-10 flex items-center justify-center pointer-events-none select-none">
+                        <CBEAuthenticSpinner size={40} color="#8b278e" speed={0.95} />
+                      </div>
                     </div>
                   </motion.div>
                 )}
@@ -9773,393 +10131,84 @@ export default function CBEBirrFullscreenApp() {
                     </div>
                   ) : (
                     /* List of Saved Receivers (Strictly separated per page: Step 15 = Phone Contacts, Step 6 = CBE Accounts) */
-                    (() => {
-                      const isPhoneContext = currentStep === 15 || transferSource === 'phone_number';
-                      const currentList = isPhoneContext ? savedPhoneReceivers : savedAccountReceivers;
-                      return (
-                        <>
-                          <div className="flex items-center justify-between pb-1 border-b border-slate-100">
-                            <span className="text-[11px] font-bold text-slate-600">
-                              {isPhoneContext
-                                ? `የተቀመጡ ስልኮች (${currentList.length})`
-                                : `የተቀመጡ የCBE ሂሳቦች (${currentList.length})`}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={handleStartAddReceiver}
-                              className="inline-flex items-center space-x-1 text-[11px] font-bold text-[#7a1c7d] hover:underline cursor-pointer bg-purple-50 hover:bg-purple-100 px-2.5 py-1 rounded-lg transition-colors"
-                            >
-                              <Plus className="w-3.5 h-3.5" />
-                              <span>{isPhoneContext ? 'አዲስ ስልክ መዝግብ' : 'አዲስ ሂሳብ መዝግብ'}</span>
-                            </button>
-                          </div>
-
-                          <div className="space-y-2 max-h-64 overflow-y-auto pr-0.5">
-                            {currentList.length === 0 ? (
-                              <div className="text-center py-6 text-xs text-slate-400">
-                                {isPhoneContext
-                                  ? 'ምንም የተቀመጠ ስልክ ቁጥር የለም (No saved contacts)'
-                                  : 'ምንም የተቀመጠ የሂሳብ ቁጥር የለም (No saved accounts)'}
-                              </div>
-                            ) : (
-                              currentList.map((r) => (
-                                <div
-                                  key={r.id}
-                                  className="group flex items-center justify-between p-2.5 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-purple-50/40 hover:border-purple-300 transition-all cursor-pointer"
-                                  onClick={() => handleSelectReceiver(r)}
-                                >
-                                  <div className="flex items-center space-x-2.5 min-w-0 flex-1 pr-2">
-                                    <div className="w-8 h-8 rounded-full bg-[#7a1c7d]/10 text-[#7a1c7d] flex items-center justify-center font-bold text-xs shrink-0">
-                                      {r.accountName.charAt(0).toUpperCase()}
-                                    </div>
-                                    <div className="min-w-0 flex-1">
-                                      <div className="text-xs font-bold text-slate-800 truncate">
-                                        {r.accountName}
-                                      </div>
-                                      <div className="text-[11px] font-mono text-slate-500 truncate">
-                                        {r.accountNumber}
-                                      </div>
-                                    </div>
-                                  </div>
-                                  <div
-                                    className="flex items-center space-x-1 shrink-0"
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    <button
-                                      type="button"
-                                      onClick={() => handleStartEditReceiver(r)}
-                                      className="p-1.5 text-slate-400 hover:text-[#7a1c7d] hover:bg-purple-100 rounded-lg transition-colors cursor-pointer"
-                                      aria-label="Edit receiver"
-                                    >
-                                      <Edit2 className="w-3.5 h-3.5" />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleDeleteReceiver(r.id)}
-                                      className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-                                      aria-label="Delete receiver"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
-                                  </div>
-                                </div>
-                              ))
-                            )}
-                          </div>
-                        </>
-                      );
-                    })()
-                  )}
-                </div>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* HIDDEN USSD CONFIGURATION MODAL (Step 6 CBE Account Send Money ONLY - unlocked via 6969 in Calculator) */}
-        <AnimatePresence>
-          {isHiddenUssdModalOpen && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 z-50 bg-black/65 backdrop-blur-[2px] flex items-center justify-center p-3 sm:p-4 select-none"
-            >
-              <motion.div
-                initial={{ scale: 0.94, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.94, opacity: 0 }}
-                className="w-full max-w-xs bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[88%]"
-              >
-                {/* Modal Header */}
-                <div className="bg-[#7a1c7d] px-4 py-3 text-white flex items-center justify-between shrink-0">
-                  <div className="flex items-center space-x-2">
-                    <Phone className="w-4 h-4 text-[#f2bf9d]" />
-                    <h3 className="font-bold text-sm tracking-wide">
-                      USSD Settings (CBE Send Money)
-                    </h3>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsHiddenUssdModalOpen(false);
-                      setIsAddingUssd(false);
-                      setEditingUssdId(null);
-                      setUssdFormError('');
-                    }}
-                    className="text-white/80 hover:text-white text-lg font-bold p-1 cursor-pointer"
-                    aria-label="Close USSD Settings"
-                  >
-                    ×
-                  </button>
-                </div>
-
-                {/* Modal Content */}
-                <div className="p-3.5 overflow-y-auto flex-1 space-y-3">
-                  {isAddingUssd || editingUssdId ? (
-                    <div className="space-y-3">
-                      <div className="text-xs font-bold text-[#7a1c7d] border-b pb-1">
-                        {editingUssdId ? 'USSD አስተካክል (Edit USSD)' : 'አዲስ USSD ጨምር (Add New USSD)'}
-                      </div>
-
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                          ስም / መለያ (Label)
-                        </label>
-                        <input
-                          type="text"
-                          value={ussdFormLabel}
-                          onChange={(e) => {
-                            setUssdFormLabel(e.target.value);
-                            if (ussdFormError) setUssdFormError('');
-                          }}
-                          placeholder="ለምሳሌ: USSD 2 (*847*1*1*)"
-                          className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold focus:outline-none focus:border-[#7a1c7d] text-slate-800"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                          USSD Template
-                        </label>
-                        <input
-                          type="text"
-                          value={ussdFormTemplate}
-                          onChange={(e) => {
-                            setUssdFormTemplate(e.target.value);
-                            if (ussdFormError) setUssdFormError('');
-                          }}
-                          placeholder="*847*1*2*{account}#"
-                          className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-mono font-semibold focus:outline-none focus:border-[#7a1c7d] text-slate-800"
-                        />
-                        <div className="flex items-center gap-1.5 mt-1.5">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const trimmed = ussdFormTemplate.trim();
-                              if (trimmed.toLowerCase().includes('{account}')) return;
-                              if (trimmed.endsWith('#')) {
-                                const base = trimmed.slice(0, -1);
-                                const sep = base.endsWith('*') ? '' : '*';
-                                setUssdFormTemplate(`${base}${sep}{account}#`);
-                              } else {
-                                const sep = !trimmed || trimmed.endsWith('*') ? '' : '*';
-                                setUssdFormTemplate(`${trimmed}${sep}{account}#`);
-                              }
-                            }}
-                            className="px-2 py-1 text-[10px] font-bold bg-purple-50 hover:bg-purple-100 text-[#7a1c7d] rounded-lg border border-purple-200 cursor-pointer transition-colors"
-                          >
-                            + {'{account}'}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const trimmed = ussdFormTemplate.trim();
-                              if (trimmed.toLowerCase().includes('{amount}')) return;
-                              if (trimmed.endsWith('#')) {
-                                const base = trimmed.slice(0, -1);
-                                const sep = base.endsWith('*') ? '' : '*';
-                                setUssdFormTemplate(`${base}${sep}{amount}#`);
-                              } else {
-                                const sep = !trimmed || trimmed.endsWith('*') ? '' : '*';
-                                setUssdFormTemplate(`${trimmed}${sep}{amount}#`);
-                              }
-                            }}
-                            className="px-2 py-1 text-[10px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg border border-slate-200 cursor-pointer transition-colors"
-                          >
-                            + {'{amount}'}
-                          </button>
-                        </div>
-                      </div>
-
-                      {ussdFormTemplate.trim() && (
-                        <div className="bg-slate-50 border border-slate-200 rounded-xl p-2 text-[10.5px] text-slate-600">
-                          <div className="font-bold text-slate-700 mb-0.5">Preview (በጀርባ የሚደወለው):</div>
-                          <div className="font-mono text-[#7a1c7d] break-all">
-                            {formatUssdPreview(ussdFormTemplate)}
-                          </div>
-                        </div>
-                      )}
-
-                      {ussdFormError && (
-                        <div className="text-[11px] font-medium text-red-600 bg-red-50 p-2 rounded-lg">
-                          {ussdFormError}
-                        </div>
-                      )}
-
-                      <div className="flex items-center space-x-2 pt-1">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const cleanLabel = ussdFormLabel.trim() || `Custom USSD ${ussdProfiles.length}`;
-                            const cleanTpl = ussdFormTemplate.trim();
-                            if (!cleanTpl || !/[\d*#]/.test(cleanTpl)) {
-                              setUssdFormError('እባክዎ ትክክለኛ USSD ያስገቡ (ለምሳሌ: *847*1*2*{account}#)');
-                              return;
-                            }
-                            if (editingUssdId) {
-                              setUssdProfiles((prev) =>
-                                prev.map((item) =>
-                                  item.id === editingUssdId
-                                    ? { ...item, label: cleanLabel, template: cleanTpl }
-                                    : item
-                                )
-                              );
-                              setEditingUssdId(null);
-                              hasTriggeredUssdForAccountRef.current = false;
-                            } else {
-                              const newId = `ussd-${Date.now()}`;
-                              const newItem: UssdProfile = {
-                                id: newId,
-                                label: cleanLabel,
-                                template: cleanTpl,
-                              };
-                              setUssdProfiles((prev) => [...prev, newItem]);
-                              setActiveUssdId(newId);
-                              hasTriggeredUssdForAccountRef.current = false;
-                              setIsAddingUssd(false);
-                            }
-                            setUssdFormLabel('');
-                            setUssdFormTemplate('');
-                            setUssdFormError('');
-                          }}
-                          className="flex-1 bg-[#7a1c7d] hover:bg-[#68176b] text-white py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer shadow-sm"
-                        >
-                          አስቀምጥ (Save)
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsAddingUssd(false);
-                            setEditingUssdId(null);
-                            setUssdFormError('');
-                          }}
-                          className="px-3 py-2 border border-slate-300 text-slate-700 hover:bg-slate-100 rounded-xl text-xs font-bold transition-colors cursor-pointer"
-                        >
-                          ተመለስ (Cancel)
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
                     <>
                       <div className="flex items-center justify-between pb-1 border-b border-slate-100">
                         <span className="text-[11px] font-bold text-slate-600">
-                          የተቀመጡ USSDs ({ussdProfiles.length})
+                          {currentStep === 15 || transferSource === 'phone_number'
+                            ? `የተቀመጡ ስልኮች (${savedPhoneReceivers.length})`
+                            : `የተቀመጡ የCBE ሂሳቦች (${savedAccountReceivers.length})`}
                         </span>
                         <button
                           type="button"
-                          onClick={() => {
-                            setEditingUssdId(null);
-                            setUssdFormLabel('');
-                            setUssdFormTemplate('*847*1*2*{account}#');
-                            setUssdFormError('');
-                            setIsAddingUssd(true);
-                          }}
+                          onClick={handleStartAddReceiver}
                           className="inline-flex items-center space-x-1 text-[11px] font-bold text-[#7a1c7d] hover:underline cursor-pointer bg-purple-50 hover:bg-purple-100 px-2.5 py-1 rounded-lg transition-colors"
                         >
                           <Plus className="w-3.5 h-3.5" />
-                          <span>አዲስ USSD ጨምር</span>
+                          <span>
+                            {currentStep === 15 || transferSource === 'phone_number'
+                              ? 'አዲስ ስልክ መዝግብ'
+                              : 'አዲስ ሂሳብ መዝግብ'}
+                          </span>
                         </button>
                       </div>
 
                       <div className="space-y-2 max-h-64 overflow-y-auto pr-0.5">
-                        {ussdProfiles.map((u) => {
-                          const isSelected = u.id === activeUssdId;
-                          return (
+                        {(currentStep === 15 || transferSource === 'phone_number'
+                          ? savedPhoneReceivers
+                          : savedAccountReceivers
+                        ).length === 0 ? (
+                          <div className="text-center py-6 text-xs text-slate-400">
+                            {currentStep === 15 || transferSource === 'phone_number'
+                              ? 'ምንም የተቀመጠ ስልክ ቁጥር የለም (No saved contacts)'
+                              : 'ምንም የተቀመጠ የሂሳብ ቁጥር የለም (No saved accounts)'}
+                          </div>
+                        ) : (
+                          (currentStep === 15 || transferSource === 'phone_number'
+                            ? savedPhoneReceivers
+                            : savedAccountReceivers
+                          ).map((r) => (
                             <div
-                              key={u.id}
-                              onClick={() => {
-                                setActiveUssdId(u.id);
-                                hasTriggeredUssdForAccountRef.current = false;
-                              }}
-                              className={`flex items-center justify-between p-2.5 rounded-xl border transition-all cursor-pointer ${
-                                isSelected
-                                  ? 'border-[#7a1c7d] bg-purple-50/70 shadow-xs'
-                                  : 'border-slate-200 bg-slate-50/70 hover:bg-purple-50/40 hover:border-purple-300'
-                              }`}
+                              key={r.id}
+                              className="group flex items-center justify-between p-2.5 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-purple-50/40 hover:border-purple-300 transition-all cursor-pointer"
+                              onClick={() => handleSelectReceiver(r)}
                             >
                               <div className="flex items-center space-x-2.5 min-w-0 flex-1 pr-2">
-                                <div
-                                  className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${
-                                    isSelected
-                                      ? 'bg-[#7a1c7d] text-white'
-                                      : 'bg-slate-200 text-slate-500'
-                                  }`}
-                                >
-                                  {isSelected ? (
-                                    <Check className="w-3.5 h-3.5" />
-                                  ) : (
-                                    <Phone className="w-3 h-3" />
-                                  )}
+                                <div className="w-8 h-8 rounded-full bg-[#7a1c7d]/10 text-[#7a1c7d] flex items-center justify-center font-bold text-xs shrink-0">
+                                  {r.accountName.charAt(0).toUpperCase()}
                                 </div>
                                 <div className="min-w-0 flex-1">
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="text-xs font-bold text-slate-800 truncate">
-                                      {u.label}
-                                    </span>
-                                    {isSelected && (
-                                      <span className="text-[9px] font-bold uppercase tracking-wider bg-[#7a1c7d] text-white px-1.5 py-0.5 rounded-md shrink-0">
-                                        Active
-                                      </span>
-                                    )}
+                                  <div className="text-xs font-bold text-slate-800 truncate">
+                                    {r.accountName}
                                   </div>
-                                  <div className="text-[11px] font-mono text-slate-500 truncate mt-0.5">
-                                    {u.template}
+                                  <div className="text-[11px] font-mono text-slate-500 truncate">
+                                    {r.accountNumber}
                                   </div>
                                 </div>
                               </div>
-
-                              {!u.isDefault && (
-                                <div
-                                  className="flex items-center space-x-1 shrink-0"
-                                  onClick={(e) => e.stopPropagation()}
+                              <div
+                                className="flex items-center space-x-1 shrink-0"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() => handleStartEditReceiver(r)}
+                                  className="p-1.5 text-slate-400 hover:text-[#7a1c7d] hover:bg-purple-100 rounded-lg transition-colors cursor-pointer"
+                                  aria-label="Edit receiver"
                                 >
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setIsAddingUssd(false);
-                                      setEditingUssdId(u.id);
-                                      setUssdFormLabel(u.label);
-                                      setUssdFormTemplate(u.template);
-                                      setUssdFormError('');
-                                    }}
-                                    className="p-1.5 text-slate-400 hover:text-[#7a1c7d] hover:bg-purple-100 rounded-lg transition-colors cursor-pointer"
-                                    aria-label="Edit USSD"
-                                  >
-                                    <Edit2 className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setUssdProfiles((prev) => prev.filter((item) => item.id !== u.id));
-                                      if (activeUssdId === u.id) {
-                                        setActiveUssdId(DEFAULT_USSD_PROFILE.id);
-                                        hasTriggeredUssdForAccountRef.current = false;
-                                      }
-                                    }}
-                                    className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-                                    aria-label="Delete USSD"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
-                              )}
+                                  <Edit2 className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteReceiver(r.id)}
+                                  className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                                  aria-label="Delete receiver"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
                             </div>
-                          );
-                        })}
-                      </div>
-
-                      <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-2 text-[10.5px] text-slate-600">
-                        <span className="font-bold text-slate-700">Active Dial: </span>
-                        <span className="font-mono text-[#7a1c7d] break-all">
-                          {(() => {
-                            const cur =
-                              ussdProfiles.find((p) => p.id === activeUssdId) ||
-                              ussdProfiles[0] ||
-                              DEFAULT_USSD_PROFILE;
-                            return formatUssdPreview(cur.template, cur.isDefault);
-                          })()}
-                        </span>
+                          ))
+                        )}
                       </div>
                     </>
                   )}
@@ -10167,6 +10216,371 @@ export default function CBEBirrFullscreenApp() {
               </motion.div>
             </motion.div>
           )}
+        </AnimatePresence>
+
+        {/* HIDDEN USSD CONFIGURATION MODAL (Strictly separated between CBE Send Money Step 6 & Send Money Step 15 - unlocked via 6969 in Calculator) */}
+        <AnimatePresence>
+          {isHiddenUssdModalOpen && (() => {
+            const isPhoneUssdModal = hiddenUssdTarget === 'phone_number';
+            const modalProfiles = isPhoneUssdModal ? phoneUssdProfiles : ussdProfiles;
+            const modalActiveId = isPhoneUssdModal ? activePhoneUssdId : activeUssdId;
+            const modalDefaultProfile = isPhoneUssdModal ? DEFAULT_PHONE_USSD_PROFILE : DEFAULT_USSD_PROFILE;
+            const targetToken = isPhoneUssdModal ? '{phone}' : '{account}';
+            const targetRegex = isPhoneUssdModal ? /\{phone\}|\{number\}|\{mobile\}/i : /\{account\}/i;
+            const modalMode: 'cbe_account' | 'phone_number' = isPhoneUssdModal ? 'phone_number' : 'cbe_account';
+
+            return (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 z-50 bg-black/65 backdrop-blur-[2px] flex items-center justify-center p-3 sm:p-4 select-none"
+              >
+                <motion.div
+                  initial={{ scale: 0.94, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.94, opacity: 0 }}
+                  className="w-full max-w-xs bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[88%]"
+                >
+                  {/* Modal Header */}
+                  <div className="bg-[#7a1c7d] px-4 py-3 text-white flex items-center justify-between shrink-0">
+                    <div className="flex items-center space-x-2">
+                      <Phone className="w-4 h-4 text-[#f2bf9d]" />
+                      <h3 className="font-bold text-sm tracking-wide">
+                        {isPhoneUssdModal ? 'USSD Settings (Send Money)' : 'USSD Settings (CBE Send Money)'}
+                      </h3>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsHiddenUssdModalOpen(false);
+                        setIsAddingUssd(false);
+                        setEditingUssdId(null);
+                        setUssdFormError('');
+                      }}
+                      className="text-white/80 hover:text-white text-lg font-bold p-1 cursor-pointer"
+                      aria-label="Close USSD Settings"
+                    >
+                      ×
+                    </button>
+                  </div>
+
+                  {/* Modal Content */}
+                  <div className="p-3.5 overflow-y-auto flex-1 space-y-3">
+                    {isAddingUssd || editingUssdId ? (
+                      <div className="space-y-3">
+                        <div className="text-xs font-bold text-[#7a1c7d] border-b pb-1">
+                          {editingUssdId ? 'USSD አስተካክል (Edit USSD)' : 'አዲስ USSD ጨምር (Add New USSD)'}
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                            ስም / መለያ (Label)
+                          </label>
+                          <input
+                            type="text"
+                            value={ussdFormLabel}
+                            onChange={(e) => {
+                              setUssdFormLabel(e.target.value);
+                              if (ussdFormError) setUssdFormError('');
+                            }}
+                            placeholder={isPhoneUssdModal ? 'ለምሳሌ: Send Money (*847*1*1*)' : 'ለምሳሌ: USSD 2 (*847*1*1*)'}
+                            className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold focus:outline-none focus:border-[#7a1c7d] text-slate-800"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                            USSD Template
+                          </label>
+                          <input
+                            type="text"
+                            value={ussdFormTemplate}
+                            onChange={(e) => {
+                              setUssdFormTemplate(e.target.value);
+                              if (ussdFormError) setUssdFormError('');
+                            }}
+                            placeholder={modalDefaultProfile.template}
+                            className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-mono font-semibold focus:outline-none focus:border-[#7a1c7d] text-slate-800"
+                          />
+                          <div className="flex items-center gap-1.5 mt-1.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const trimmed = ussdFormTemplate.trim();
+                                if (targetRegex.test(trimmed)) return;
+                                if (trimmed.endsWith('#')) {
+                                  const base = trimmed.slice(0, -1);
+                                  const sep = base.endsWith('*') ? '' : '*';
+                                  setUssdFormTemplate(`${base}${sep}${targetToken}#`);
+                                } else {
+                                  const sep = !trimmed || trimmed.endsWith('*') ? '' : '*';
+                                  setUssdFormTemplate(`${trimmed}${sep}${targetToken}#`);
+                                }
+                              }}
+                              className="px-2 py-1 text-[10px] font-bold bg-purple-50 hover:bg-purple-100 text-[#7a1c7d] rounded-lg border border-purple-200 cursor-pointer transition-colors"
+                            >
+                              + {targetToken}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const trimmed = ussdFormTemplate.trim();
+                                if (trimmed.toLowerCase().includes('{amount}')) return;
+                                if (trimmed.endsWith('#')) {
+                                  const base = trimmed.slice(0, -1);
+                                  const sep = base.endsWith('*') ? '' : '*';
+                                  setUssdFormTemplate(`${base}${sep}{amount}#`);
+                                } else {
+                                  const sep = !trimmed || trimmed.endsWith('*') ? '' : '*';
+                                  setUssdFormTemplate(`${trimmed}${sep}{amount}#`);
+                                }
+                              }}
+                              className="px-2 py-1 text-[10px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg border border-slate-200 cursor-pointer transition-colors"
+                            >
+                              + {'{amount}'}
+                            </button>
+                          </div>
+                        </div>
+
+                        {ussdFormTemplate.trim() && (
+                          <div className="bg-slate-50 border border-slate-200 rounded-xl p-2 text-[10.5px] text-slate-600">
+                            <div className="font-bold text-slate-700 mb-0.5">Preview (በጀርባ የሚደወለው):</div>
+                            <div className="font-mono text-[#7a1c7d] break-all">
+                              {formatUssdPreview(ussdFormTemplate, false, modalMode)}
+                            </div>
+                          </div>
+                        )}
+
+                        {ussdFormError && (
+                          <div className="text-[11px] font-medium text-red-600 bg-red-50 p-2 rounded-lg">
+                            {ussdFormError}
+                          </div>
+                        )}
+
+                        <div className="flex items-center space-x-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const cleanLabel = ussdFormLabel.trim() || `Custom USSD ${modalProfiles.length}`;
+                              const cleanTpl = ussdFormTemplate.trim();
+                              if (!cleanTpl || !/[\d*#]/.test(cleanTpl)) {
+                                setUssdFormError(
+                                  isPhoneUssdModal
+                                    ? 'እባክዎ ትክክለኛ USSD ያስገቡ (ለምሳሌ: *847*1*1*{phone}#)'
+                                    : 'እባክዎ ትክክለኛ USSD ያስገቡ (ለምሳሌ: *847*1*2*{account}#)'
+                                );
+                                return;
+                              }
+                              if (isPhoneUssdModal) {
+                                if (editingUssdId) {
+                                  setPhoneUssdProfiles((prev) =>
+                                    prev.map((item) =>
+                                      item.id === editingUssdId
+                                        ? { ...item, label: cleanLabel, template: cleanTpl }
+                                        : item
+                                    )
+                                  );
+                                  setEditingUssdId(null);
+                                  hasTriggeredUssdForPhoneRef.current = false;
+                                } else {
+                                  const newId = `phone-ussd-${Date.now()}`;
+                                  const newItem: UssdProfile = {
+                                    id: newId,
+                                    label: cleanLabel,
+                                    template: cleanTpl,
+                                  };
+                                  setPhoneUssdProfiles((prev) => [...prev, newItem]);
+                                  setActivePhoneUssdId(newId);
+                                  hasTriggeredUssdForPhoneRef.current = false;
+                                  setIsAddingUssd(false);
+                                }
+                              } else {
+                                if (editingUssdId) {
+                                  setUssdProfiles((prev) =>
+                                    prev.map((item) =>
+                                      item.id === editingUssdId
+                                        ? { ...item, label: cleanLabel, template: cleanTpl }
+                                        : item
+                                    )
+                                  );
+                                  setEditingUssdId(null);
+                                  hasTriggeredUssdForAccountRef.current = false;
+                                } else {
+                                  const newId = `ussd-${Date.now()}`;
+                                  const newItem: UssdProfile = {
+                                    id: newId,
+                                    label: cleanLabel,
+                                    template: cleanTpl,
+                                  };
+                                  setUssdProfiles((prev) => [...prev, newItem]);
+                                  setActiveUssdId(newId);
+                                  hasTriggeredUssdForAccountRef.current = false;
+                                  setIsAddingUssd(false);
+                                }
+                              }
+                              setUssdFormLabel('');
+                              setUssdFormTemplate('');
+                              setUssdFormError('');
+                            }}
+                            className="flex-1 bg-[#7a1c7d] hover:bg-[#68176b] text-white py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer shadow-sm"
+                          >
+                            አስቀምጥ (Save)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsAddingUssd(false);
+                              setEditingUssdId(null);
+                              setUssdFormError('');
+                            }}
+                            className="px-3 py-2 border border-slate-300 text-slate-700 hover:bg-slate-100 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                          >
+                            ተመለስ (Cancel)
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-center justify-between pb-1 border-b border-slate-100">
+                          <span className="text-[11px] font-bold text-slate-600">
+                            የተቀመጡ USSDs ({modalProfiles.length})
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingUssdId(null);
+                              setUssdFormLabel('');
+                              setUssdFormTemplate(modalDefaultProfile.template);
+                              setUssdFormError('');
+                              setIsAddingUssd(true);
+                            }}
+                            className="inline-flex items-center space-x-1 text-[11px] font-bold text-[#7a1c7d] hover:underline cursor-pointer bg-purple-50 hover:bg-purple-100 px-2.5 py-1 rounded-lg transition-colors"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>አዲስ USSD ጨምር</span>
+                          </button>
+                        </div>
+
+                        <div className="space-y-2 max-h-64 overflow-y-auto pr-0.5">
+                          {modalProfiles.map((u) => {
+                            const isSelected = u.id === modalActiveId;
+                            return (
+                              <div
+                                key={u.id}
+                                onClick={() => {
+                                  if (isPhoneUssdModal) {
+                                    setActivePhoneUssdId(u.id);
+                                    hasTriggeredUssdForPhoneRef.current = false;
+                                  } else {
+                                    setActiveUssdId(u.id);
+                                    hasTriggeredUssdForAccountRef.current = false;
+                                  }
+                                }}
+                                className={`flex items-center justify-between p-2.5 rounded-xl border transition-all cursor-pointer ${
+                                  isSelected
+                                    ? 'border-[#7a1c7d] bg-purple-50/70 shadow-xs'
+                                    : 'border-slate-200 bg-slate-50/70 hover:bg-purple-50/40 hover:border-purple-300'
+                                }`}
+                              >
+                                <div className="flex items-center space-x-2.5 min-w-0 flex-1 pr-2">
+                                  <div
+                                    className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${
+                                      isSelected
+                                        ? 'bg-[#7a1c7d] text-white'
+                                        : 'bg-slate-200 text-slate-500'
+                                    }`}
+                                  >
+                                    {isSelected ? (
+                                      <Check className="w-3.5 h-3.5" />
+                                    ) : (
+                                      <Phone className="w-3 h-3" />
+                                    )}
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-xs font-bold text-slate-800 truncate">
+                                        {u.label}
+                                      </span>
+                                      {isSelected && (
+                                        <span className="text-[9px] font-bold uppercase tracking-wider bg-[#7a1c7d] text-white px-1.5 py-0.5 rounded-md shrink-0">
+                                          Active
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="text-[11px] font-mono text-slate-500 truncate mt-0.5">
+                                      {u.template}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {!u.isDefault && (
+                                  <div
+                                    className="flex items-center space-x-1 shrink-0"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setIsAddingUssd(false);
+                                        setEditingUssdId(u.id);
+                                        setUssdFormLabel(u.label);
+                                        setUssdFormTemplate(u.template);
+                                        setUssdFormError('');
+                                      }}
+                                      className="p-1.5 text-slate-400 hover:text-[#7a1c7d] hover:bg-purple-100 rounded-lg transition-colors cursor-pointer"
+                                      aria-label="Edit USSD"
+                                    >
+                                      <Edit2 className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (isPhoneUssdModal) {
+                                          setPhoneUssdProfiles((prev) => prev.filter((item) => item.id !== u.id));
+                                          if (activePhoneUssdId === u.id) {
+                                            setActivePhoneUssdId(DEFAULT_PHONE_USSD_PROFILE.id);
+                                            hasTriggeredUssdForPhoneRef.current = false;
+                                          }
+                                        } else {
+                                          setUssdProfiles((prev) => prev.filter((item) => item.id !== u.id));
+                                          if (activeUssdId === u.id) {
+                                            setActiveUssdId(DEFAULT_USSD_PROFILE.id);
+                                            hasTriggeredUssdForAccountRef.current = false;
+                                          }
+                                        }
+                                      }}
+                                      className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                                      aria-label="Delete USSD"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-2 text-[10.5px] text-slate-600">
+                          <span className="font-bold text-slate-700">Active Dial: </span>
+                          <span className="font-mono text-[#7a1c7d] break-all">
+                            {(() => {
+                              const cur =
+                                modalProfiles.find((p) => p.id === modalActiveId) ||
+                                modalProfiles[0] ||
+                                modalDefaultProfile;
+                              return formatUssdPreview(cur.template, cur.isDefault, modalMode);
+                            })()}
+                          </span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </motion.div>
+              </motion.div>
+            );
+          })()}
         </AnimatePresence>
 
         {/* UNIVERSAL PROFILE & ACCOUNT DETAILS EDIT MODAL (Real-time synchronization across all screens) */}
