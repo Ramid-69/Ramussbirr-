@@ -138,6 +138,8 @@ if (fs.existsSync(cbeApkPath) && fs.existsSync(logoPng512) && fs.existsSync(clea
     'hooks',
     path.join('public', 'sw.js'),
     path.join('public', 'screens'),
+    path.join('public', 'assets', 'cbe_birr_logo.png'),
+    path.join('public', 'assets', 'cbe_birr_logo_192.png'),
     path.join('scripts', 'ci-build-apk.mjs'),
   ]) {
     hashRecursive(path.join(rootDir, relPath));
