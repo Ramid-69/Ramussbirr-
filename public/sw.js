@@ -1,16 +1,11 @@
-// CBEBirr Service Worker for Instant Offline PWA Support & Live Updates
-const CACHE_NAME = 'cbebirr-cache-v11';
+// CBEBirr Service Worker for Instant Offline PWA Support & Automatic Live OTA Updates
+const CACHE_NAME = 'cbebirr-cache-v12';
 const IS_DEV_HOST =
   self.location.hostname.startsWith('ais-dev-') ||
   self.location.hostname === 'localhost' ||
   self.location.hostname === '127.0.0.1';
 
 const STATIC_ASSETS = [
-  '/',
-  '/messages',
-  '/download',
-  '/official-receipt',
-  '/aureceipt',
   '/manifest.json',
   '/screens/official_receipt_hq.png',
   '/assets/cbe_qr_center_badge_crisp.png',
@@ -31,7 +26,7 @@ const STATIC_ASSETS = [
   '/screens/receipt_page.png',
   '/screens/confirm_pin_page.png',
   '/screens/screen_transfer_pin_clean.png',
-  '/screens/transaction_detail.png'
+  '/screens/transaction_detail.png',
 ];
 
 self.addEventListener('install', (event) => {
@@ -61,9 +56,22 @@ self.addEventListener('activate', (event) => {
           }
         })
       );
-    })
+    }).then(() => self.clients.claim())
   );
-  self.clients.claim();
+});
+
+self.addEventListener('message', (event) => {
+  const data = event.data;
+  if (!data) return;
+  if (data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+    return;
+  }
+  if (data.type === 'CLEAR_ALL_CACHES') {
+    event.waitUntil(
+      caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k))))
+    );
+  }
 });
 
 self.addEventListener('fetch', (event) => {
@@ -74,9 +82,10 @@ self.addEventListener('fetch', (event) => {
   const req = event.request;
   const url = new URL(req.url);
 
-  // Skip non-GET requests, dynamic API endpoints, or APK binaries
+  // Skip non-GET requests, dynamic API endpoints, SW script itself, or APK binaries
   if (
     req.method !== 'GET' ||
+    url.pathname === '/sw.js' ||
     url.pathname.startsWith('/api/') ||
     url.pathname.startsWith('/download/') ||
     url.pathname.endsWith('.apk')
@@ -84,7 +93,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Immutable hashed Next.js JS/CSS chunks: Cache-First ONLY when content-hashed (never unhashed dev chunks)
+  // Immutable hashed Next.js JS/CSS chunks: Cache-First ONLY when content-hashed
   if (url.pathname.startsWith('/_next/static/')) {
     const isContentHashed =
       /[.-][0-9a-f]{8,}\.(js|css|woff2?|png|svg|ico)$/i.test(url.pathname) ||
@@ -92,7 +101,7 @@ self.addEventListener('fetch', (event) => {
 
     if (!isContentHashed || url.searchParams.has('v')) {
       event.respondWith(
-        fetch(req)
+        fetch(new Request(req.url, { cache: 'no-store', credentials: 'same-origin' }))
           .then((networkResponse) => {
             if (networkResponse && networkResponse.status === 200) {
               const copy = networkResponse.clone();
@@ -122,7 +131,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Static images/screens: Stale-While-Revalidate (instant display + automatic background update)
+  // Static images/screens: Stale-While-Revalidate
   if (url.pathname.startsWith('/assets/') || url.pathname.startsWith('/screens/')) {
     event.respondWith(
       caches.match(req).then((cachedResponse) => {
@@ -141,34 +150,45 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Network-First for HTML pages & navigation (ensures APK always gets newest UI when online, falls back to cache offline)
+  // Network-First (with cache: 'no-store') for HTML pages & navigation so APK always loads latest Vercel deploy when online
+  const isNavigation =
+    req.mode === 'navigate' || (req.headers.get('accept') || '').includes('text/html');
+
   event.respondWith(
-    fetch(req)
+    fetch(
+      isNavigation
+        ? new Request(req.url, { cache: 'no-store', credentials: 'same-origin' })
+        : req
+    )
       .then((networkResponse) => {
         if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
           const responseToCache = networkResponse.clone();
+          const cacheKey = isNavigation ? url.pathname : req;
           caches.open(CACHE_NAME).then((cache) => {
-            cache.put(req, responseToCache);
+            cache.put(cacheKey, responseToCache);
           });
         }
         return networkResponse;
       })
       .catch(() => {
-        return caches.match(req, { ignoreSearch: true }).then((cachedResponse) => {
-          if (cachedResponse) return cachedResponse;
-          if (req.mode === 'navigate') {
-            if (url.pathname.startsWith('/messages')) {
-              return caches.match('/messages', { ignoreSearch: true }) || caches.match('/');
+        return caches.match(url.pathname, { ignoreSearch: true }).then((cachedByPath) => {
+          if (cachedByPath) return cachedByPath;
+          return caches.match(req, { ignoreSearch: true }).then((cachedResponse) => {
+            if (cachedResponse) return cachedResponse;
+            if (isNavigation) {
+              if (url.pathname.startsWith('/messages')) {
+                return caches.match('/messages', { ignoreSearch: true }) || caches.match('/');
+              }
+              if (url.pathname.startsWith('/official-receipt')) {
+                return caches.match('/official-receipt', { ignoreSearch: true }) || caches.match('/');
+              }
+              if (url.pathname.startsWith('/aureceipt')) {
+                return caches.match('/aureceipt', { ignoreSearch: true }) || caches.match('/');
+              }
+              return caches.match('/');
             }
-            if (url.pathname.startsWith('/official-receipt')) {
-              return caches.match('/official-receipt', { ignoreSearch: true }) || caches.match('/');
-            }
-            if (url.pathname.startsWith('/aureceipt')) {
-              return caches.match('/aureceipt', { ignoreSearch: true }) || caches.match('/');
-            }
-            return caches.match('/');
-          }
-          return undefined;
+            return undefined;
+          });
         });
       })
   );

@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import OtaAutoUpdater from '@/components/OtaAutoUpdater';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -43,8 +44,23 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     ? `
         if ('serviceWorker' in navigator) {
           window.addEventListener('load', function() {
-            navigator.serviceWorker.register('/sw.js').then(function(reg) {
+            navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).then(function(reg) {
               reg.update().catch(function() {});
+              document.addEventListener('visibilitychange', function() {
+                if (document.visibilityState === 'visible') {
+                  reg.update().catch(function() {});
+                }
+              });
+              reg.addEventListener('updatefound', function() {
+                var nw = reg.installing;
+                if (nw) {
+                  nw.addEventListener('statechange', function() {
+                    if (nw.state === 'installed' && navigator.serviceWorker.controller) {
+                      nw.postMessage({ type: 'SKIP_WAITING' });
+                    }
+                  });
+                }
+              });
             }).catch(function(err) {
               console.log('SW registration failed:', err);
             });
@@ -77,6 +93,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className="h-full w-full" suppressHydrationWarning>
       <body className="h-full w-full overflow-hidden" suppressHydrationWarning>
         {children}
+        <OtaAutoUpdater />
         <script
           suppressHydrationWarning
           dangerouslySetInnerHTML={{
