@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { smsStore, MASTER_API_KEY } from '@/lib/sms-store';
-import { buildOfficialReceiptUrl } from '@/lib/sms-webhook';
+import { buildOfficialReceiptUrl, repairTransferLabelInSmsText, resolveDestBankName } from '@/lib/sms-webhook';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,17 +26,38 @@ export async function GET(req: NextRequest) {
       const remoteData = await remoteRes.json();
       if (remoteData && Array.isArray(remoteData.messages) && remoteData.messages.length > 0) {
         for (const rm of remoteData.messages) {
-          const text = rm.text || rm.message || '';
-          if (!text) continue;
-          const exists = messages.some(
-            (m) => m.text === text || (m.txnId && rm.reference && m.txnId === rm.reference)
+          const rawText = rm.text || rm.message || '';
+          if (!rawText) continue;
+          let urlBank: string | undefined;
+          let urlReason: string | undefined;
+          if (rm.receiptUrl) {
+            try {
+              const ru = new URL(rm.receiptUrl);
+              urlBank = resolveDestBankName(ru.searchParams.get('bank') || ru.searchParams.get('destBank') || '');
+              urlReason = ru.searchParams.get('reason') || undefined;
+            } catch {}
+          }
+          const destBank = resolveDestBankName(rm.destBank) || urlBank;
+          const repairedText = repairTransferLabelInSmsText(rawText, {
+            transferLabel: rm.transferLabel,
+            destBank,
+            receiptUrl: rm.receiptUrl,
+            recipientAccount: rm.recipientAccount,
+          });
+          const existsWithoutTransfer = messages.some(
+            (m) =>
+              m.text === repairedText ||
+              (m.txnId &&
+                rm.reference &&
+                m.txnId === rm.reference &&
+                (!/\(\s*Transfer\s*\)/i.test(m.text) || /\(\s*Transfer\s*\)/i.test(repairedText)))
           );
-          if (!exists) {
-            const added = smsStore.addMessage({
+          if (!existsWithoutTransfer) {
+            smsStore.addMessage({
               sender: rm.bank || rm.senderName || 'CBEBirr',
               senderName: rm.senderName || 'CBEBirr',
               conversationId: 'CBEBirr',
-              text: text,
+              text: repairedText,
               amount: rm.amount,
               balance: rm.balance,
               recipient: rm.recipient,
@@ -45,6 +66,8 @@ export async function GET(req: NextRequest) {
               txnId: rm.reference,
               reference: rm.reference,
               receiptUrl: rm.receiptUrl,
+              destBank,
+              reason: rm.reason || urlReason,
               date: rm.dateTime || rm.date,
               createdAt: rm.receivedAt || Date.now(),
               deviceId: 'all',
@@ -53,7 +76,7 @@ export async function GET(req: NextRequest) {
               isBank: true,
               bankName: 'CBEBirr',
             });
-            messages.unshift(added);
+            messages = smsStore.getAllMessages(deviceId, unsyncedOnly);
           }
         }
       }

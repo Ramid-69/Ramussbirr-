@@ -2,6 +2,7 @@ package com.cbebirr.messages.cbe
 
 import android.content.ContentValues
 import android.content.Context
+import android.net.Uri
 import android.provider.Telephony
 import org.json.JSONArray
 import org.json.JSONObject
@@ -66,6 +67,49 @@ object LocalMessageStore {
         return false
     }
 
+    private fun isGenericBankLabel(v: String): Boolean {
+        val c = v.trim()
+        return c.isEmpty() || c.equals("all banks", true) || c.equals("cbebirr", true) ||
+            c.equals("cbe birr", true) || c.equals("cbe", true) || c.equals("transfer", true)
+    }
+
+    private fun repairTransferLabel(
+        body: String,
+        receiptUrl: String,
+        recipientAccount: String,
+        destBank: String,
+        transferLabel: String
+    ): Pair<String, String> {
+        var cleanDestBank = if (!isGenericBankLabel(destBank)) destBank.trim() else ""
+        if (cleanDestBank.isEmpty() && receiptUrl.isNotBlank()) {
+            try {
+                val uri = Uri.parse(receiptUrl)
+                val b = (uri.getQueryParameter("bank") ?: uri.getQueryParameter("destBank") ?: "").trim()
+                if (!isGenericBankLabel(b)) cleanDestBank = b
+            } catch (_: Throwable) {
+            }
+        }
+        val cleanLabel = transferLabel.trim()
+        val label = when {
+            cleanLabel.isNotEmpty() && !cleanLabel.equals("transfer", true) -> cleanLabel
+            cleanDestBank.isNotEmpty() -> cleanDestBank
+            else -> {
+                val acc = if (recipientAccount.isNotBlank()) recipientAccount.trim() else {
+                    Regex("""\bto\s+([0-9A-Za-z]+)\s*[-–]""", RegexOption.IGNORE_CASE)
+                        .find(body)?.groupValues?.getOrNull(1)?.trim() ?: ""
+                }
+                val isPhone = acc.startsWith("09") || acc.startsWith("07") || (acc.startsWith("251") && acc.length >= 11)
+                if (isPhone) "CBEBirr" else "CBE"
+            }
+        }
+        val repaired = if (Regex("""\(\s*Transfer\s*\)""", RegexOption.IGNORE_CASE).containsMatchIn(body)) {
+            body.replaceFirst(Regex("""\(\s*Transfer\s*\)(?=\s+on\b|\s*\.|\s|$)""", RegexOption.IGNORE_CASE), "($label)")
+        } else {
+            body
+        }
+        return Pair(repaired, cleanDestBank)
+    }
+
     /**
      * Inserts an incoming message into SharedPreferences safely with deduplication & delete tombstones.
      * Returns true if the message was genuinely new (not seen or deleted before), false if duplicate/deleted.
@@ -83,9 +127,20 @@ object LocalMessageStore {
         amount: String = "",
         recipient: String = "",
         recipientAccount: String = "",
-        receiptUrl: String = ""
+        receiptUrl: String = "",
+        destBank: String = "",
+        transferLabel: String = "",
+        reason: String = ""
     ): Boolean {
         if (body.isBlank()) return false
+
+        val (repairedBody, cleanDestBank) = repairTransferLabel(
+            body = body,
+            receiptUrl = receiptUrl,
+            recipientAccount = recipientAccount,
+            destBank = destBank,
+            transferLabel = transferLabel
+        )
 
         synchronized(lock) {
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -95,8 +150,53 @@ object LocalMessageStore {
                 JSONArray()
             }
 
-            if (isDeletedLocked(deletedArr, id, address, body, dateMs, txnId, source)) {
+            if (isDeletedLocked(deletedArr, id, address, repairedBody, dateMs, txnId, source)) {
                 return false
+            }
+
+            val savedArr = try {
+                JSONArray(prefs.getString(KEY_SAVED_MESSAGES, "[]") ?: "[]")
+            } catch (_: Throwable) {
+                JSONArray()
+            }
+
+            val cleanTxn = txnId.trim()
+            if (cleanTxn.isNotEmpty()) {
+                for (i in 0 until savedArr.length()) {
+                    val existing = savedArr.optJSONObject(i) ?: continue
+                    val exTxn = existing.optString("txnId", "").trim()
+                    if (exTxn.equals(cleanTxn, ignoreCase = true)) {
+                        var mutated = false
+                        val exBody = existing.optString("body", existing.optString("text", ""))
+                        if (Regex("""\(\s*Transfer\s*\)""", RegexOption.IGNORE_CASE).containsMatchIn(exBody) &&
+                            !Regex("""\(\s*Transfer\s*\)""", RegexOption.IGNORE_CASE).containsMatchIn(repairedBody)
+                        ) {
+                            existing.put("body", repairedBody)
+                            existing.put("text", repairedBody)
+                            mutated = true
+                        }
+                        if (cleanDestBank.isNotEmpty() && existing.optString("destBank", "").isEmpty()) {
+                            existing.put("destBank", cleanDestBank)
+                            mutated = true
+                        }
+                        if (transferLabel.isNotBlank() && !transferLabel.equals("transfer", true) && existing.optString("transferLabel", "").isEmpty()) {
+                            existing.put("transferLabel", transferLabel.trim())
+                            mutated = true
+                        }
+                        if (reason.isNotBlank() && existing.optString("reason", "").isEmpty()) {
+                            existing.put("reason", reason.trim())
+                            mutated = true
+                        }
+                        if (receiptUrl.isNotBlank() && existing.optString("receiptUrl", "").length < receiptUrl.length) {
+                            existing.put("receiptUrl", receiptUrl)
+                            mutated = true
+                        }
+                        if (mutated) {
+                            prefs.edit().putString(KEY_SAVED_MESSAGES, savedArr.toString()).apply()
+                        }
+                        return false
+                    }
+                }
             }
 
             val seenArr = try {
@@ -106,9 +206,9 @@ object LocalMessageStore {
             }
 
             val dedupeKey = when {
-                txnId.isNotBlank() -> "tx:$source:$txnId:${body.hashCode()}"
+                cleanTxn.isNotBlank() -> "tx:$source:${cleanTxn.uppercase()}"
                 id.isNotBlank() -> "id:$source:$id"
-                else -> "msg:$source:${address.lowercase()}:${body.hashCode()}:${dateMs / 10000}"
+                else -> "msg:$source:${address.lowercase()}:${repairedBody.hashCode()}:${dateMs / 10000}"
             }
 
             for (i in 0 until seenArr.length()) {
@@ -117,19 +217,13 @@ object LocalMessageStore {
                 }
             }
 
-            val savedArr = try {
-                JSONArray(prefs.getString(KEY_SAVED_MESSAGES, "[]") ?: "[]")
-            } catch (_: Throwable) {
-                JSONArray()
-            }
-
             // Secondary check in savedArr for identical text+source within 15s
             for (i in 0 until savedArr.length()) {
                 val existing = savedArr.optJSONObject(i) ?: continue
                 val existingText = existing.optString("body", existing.optString("text", ""))
                 val existingDate = existing.optLong("date", 0L)
                 val existingSource = existing.optString("source", "sim")
-                if (existingSource == source && existingText == body && kotlin.math.abs(existingDate - dateMs) < 15000L) {
+                if (existingSource == source && existingText == repairedBody && kotlin.math.abs(existingDate - dateMs) < 15000L) {
                     return false
                 }
             }
@@ -139,8 +233,8 @@ object LocalMessageStore {
                 put("address", address.ifBlank { "Messages" })
                 put("sender", address.ifBlank { "Messages" })
                 put("senderName", address.ifBlank { "Messages" })
-                put("body", body)
-                put("text", body)
+                put("body", repairedBody)
+                put("text", repairedBody)
                 put("date", dateMs)
                 put("type", type)
                 put("status", if (type == "sent") "read" else "unread")
@@ -148,11 +242,14 @@ object LocalMessageStore {
                 put("isOutgoing", type == "sent")
                 put("isBank", isBank)
                 put("source", source)
-                if (txnId.isNotBlank()) put("txnId", txnId)
+                if (cleanTxn.isNotBlank()) put("txnId", cleanTxn)
                 if (amount.isNotBlank()) put("amount", amount)
                 if (recipient.isNotBlank()) put("recipient", recipient)
                 if (recipientAccount.isNotBlank()) put("recipientAccount", recipientAccount)
                 if (receiptUrl.isNotBlank()) put("receiptUrl", receiptUrl)
+                if (cleanDestBank.isNotBlank()) put("destBank", cleanDestBank)
+                if (transferLabel.isNotBlank() && !transferLabel.equals("transfer", true)) put("transferLabel", transferLabel.trim())
+                if (reason.isNotBlank()) put("reason", reason.trim())
             }
 
             savedArr.put(obj)
@@ -314,7 +411,42 @@ object LocalMessageStore {
     fun getSavedMessagesJson(context: Context): String {
         synchronized(lock) {
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            return prefs.getString(KEY_SAVED_MESSAGES, "[]") ?: "[]"
+            val raw = prefs.getString(KEY_SAVED_MESSAGES, "[]") ?: "[]"
+            return try {
+                val arr = JSONArray(raw)
+                var changed = false
+                for (i in 0 until arr.length()) {
+                    val obj = arr.optJSONObject(i) ?: continue
+                    val body = obj.optString("body", obj.optString("text", ""))
+                    if (Regex("""\(\s*Transfer\s*\)""", RegexOption.IGNORE_CASE).containsMatchIn(body)) {
+                        val (repaired, cleanDest) = repairTransferLabel(
+                            body = body,
+                            receiptUrl = obj.optString("receiptUrl", ""),
+                            recipientAccount = obj.optString("recipientAccount", ""),
+                            destBank = obj.optString("destBank", ""),
+                            transferLabel = obj.optString("transferLabel", "")
+                        )
+                        if (repaired != body) {
+                            obj.put("body", repaired)
+                            obj.put("text", repaired)
+                            changed = true
+                        }
+                        if (cleanDest.isNotEmpty() && obj.optString("destBank", "").isEmpty()) {
+                            obj.put("destBank", cleanDest)
+                            changed = true
+                        }
+                    }
+                }
+                if (changed) {
+                    val out = arr.toString()
+                    prefs.edit().putString(KEY_SAVED_MESSAGES, out).apply()
+                    out
+                } else {
+                    raw
+                }
+            } catch (_: Throwable) {
+                raw
+            }
         }
     }
 

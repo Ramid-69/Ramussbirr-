@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { getReceipt, saveReceipt, StoredReceipt } from './receipt-store';
+import { repairTransferLabelInSmsText, resolveDestBankName } from './sms-webhook';
 
 import {
   SmsMessage,
@@ -73,6 +74,13 @@ class SmsStore {
             .replace(/PH=\+?959842829/gi, 'PH=+251959754788')
             .replace(/PH=0959754788/gi, 'PH=+251959754788');
         }
+        cleanedText = repairTransferLabelInSmsText(cleanedText, {
+          transferLabel: m.transferLabel,
+          destBank: m.destBank,
+          bank: m.bankName,
+          receiptUrl: cleanedUrl,
+          recipientAccount: m.recipientAccount,
+        });
         return {
           ...m,
           text: cleanedText,
@@ -182,17 +190,6 @@ class SmsStore {
   public addMessage(msgInput: Partial<SmsMessage>): SmsMessage {
     this.init();
 
-    // Deduplicate by transaction ID (txnId) so existing transactions are never duplicated
-    if (msgInput.txnId) {
-      const cleanTxn = msgInput.txnId.trim().toUpperCase();
-      const existing = this.messages.find(
-        (m) => m.txnId && m.txnId.trim().toUpperCase() === cleanTxn
-      );
-      if (existing) {
-        return existing;
-      }
-    }
-
     const now = new Date();
     const id = msgInput.id || `sms-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     let senderName = msgInput.senderName || msgInput.sender || 'CBEBirr';
@@ -209,23 +206,74 @@ class SmsStore {
     const hour12 = hours % 12 || 12;
     const timestamp = msgInput.timestamp || `${hour12}:${mins} ${ampm}`;
 
-    let extractedDestBank = msgInput.destBank;
-    if (!extractedDestBank && msgInput.bankName && !/^(all banks|cbebirr|cbe birr|cbe)$/i.test(msgInput.bankName.trim())) {
-      extractedDestBank = msgInput.bankName.trim();
+    let extractedDestBank = resolveDestBankName(msgInput.destBank);
+    if (!extractedDestBank) {
+      extractedDestBank = resolveDestBankName(msgInput.bankName);
     }
     if (!extractedDestBank && msgInput.receiptUrl) {
       try {
         const u = new URL(msgInput.receiptUrl);
         const ub = u.searchParams.get('bank') || u.searchParams.get('destBank') || '';
-        if (ub && !/^(all banks|cbebirr|cbe birr|cbe)$/i.test(ub.trim())) {
-          extractedDestBank = ub.trim();
-        }
+        extractedDestBank = resolveDestBankName(ub);
       } catch {}
     }
     if (!extractedDestBank && msgInput.text) {
       const pm = msgInput.text.match(/to\s+[0-9]+\s*[-–]\s*.+?\s*\(([^)]+)\)\s+on\s+/i);
-      if (pm && pm[1] && !/^(transfer|cbebirr|cbe birr|cbe|all banks)$/i.test(pm[1].trim())) {
-        extractedDestBank = pm[1].trim();
+      if (pm && pm[1]) {
+        extractedDestBank = resolveDestBankName(pm[1]);
+      }
+    }
+
+    const repairedText = repairTransferLabelInSmsText(msgInput.text || '', {
+      transferLabel: msgInput.transferLabel,
+      destBank: extractedDestBank,
+      bank: msgInput.bankName,
+      receiptUrl: msgInput.receiptUrl,
+      recipientAccount: msgInput.recipientAccount,
+    });
+
+    // Deduplicate by transaction ID (txnId) and upgrade existing stale (Transfer) entries in place
+    if (msgInput.txnId) {
+      const cleanTxn = msgInput.txnId.trim().toUpperCase();
+      const existing = this.messages.find(
+        (m) => m.txnId && m.txnId.trim().toUpperCase() === cleanTxn
+      );
+      if (existing) {
+        let changed = false;
+        const upgradedExistingText = repairTransferLabelInSmsText(
+          /\(\s*Transfer\s*\)/i.test(existing.text) && !/\(\s*Transfer\s*\)/i.test(repairedText)
+            ? repairedText
+            : existing.text,
+          {
+            transferLabel: msgInput.transferLabel || existing.transferLabel,
+            destBank: extractedDestBank || existing.destBank,
+            bank: existing.bankName,
+            receiptUrl: msgInput.receiptUrl || existing.receiptUrl,
+            recipientAccount: msgInput.recipientAccount || existing.recipientAccount,
+          }
+        );
+        if (upgradedExistingText && upgradedExistingText !== existing.text) {
+          existing.text = upgradedExistingText;
+          changed = true;
+        }
+        if (extractedDestBank && !existing.destBank) {
+          existing.destBank = extractedDestBank;
+          changed = true;
+        }
+        if (msgInput.transferLabel && !/^transfer$/i.test(msgInput.transferLabel.trim()) && existing.transferLabel !== msgInput.transferLabel) {
+          existing.transferLabel = msgInput.transferLabel;
+          changed = true;
+        }
+        if (msgInput.reason && !existing.reason) {
+          existing.reason = msgInput.reason;
+          changed = true;
+        }
+        if (msgInput.receiptUrl && (!existing.receiptUrl || msgInput.receiptUrl.length > existing.receiptUrl.length)) {
+          existing.receiptUrl = msgInput.receiptUrl;
+          changed = true;
+        }
+        if (changed) this.persist();
+        return existing;
       }
     }
 
@@ -234,7 +282,7 @@ class SmsStore {
       conversationId,
       sender: msgInput.sender === 'All Banks' ? 'CBEBirr' : (msgInput.sender || senderName),
       senderName,
-      text: msgInput.text || '',
+      text: repairedText,
       timestamp,
       date: dateStr,
       isOutgoing: !!msgInput.isOutgoing,

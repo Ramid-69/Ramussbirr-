@@ -46,6 +46,10 @@ class CbeSmsReceiver : BroadcastReceiver() {
             val receiptUrl = obj.optString("receiptUrl", "")
             val id = obj.optString("id", "").ifBlank { "cbe_$dateMs" }
 
+            val destBank = obj.optString("destBank", obj.optString("bank", ""))
+            val transferLabel = obj.optString("transferLabel", "")
+            val reason = obj.optString("reason", "")
+
             val isNew = LocalMessageStore.saveIncomingMessage(
                 context = context,
                 id = id,
@@ -59,7 +63,10 @@ class CbeSmsReceiver : BroadcastReceiver() {
                 amount = amount,
                 recipient = recipient,
                 recipientAccount = recipientAcc,
-                receiptUrl = receiptUrl
+                receiptUrl = receiptUrl,
+                destBank = destBank,
+                transferLabel = transferLabel,
+                reason = reason
             )
 
             if (isNew) {

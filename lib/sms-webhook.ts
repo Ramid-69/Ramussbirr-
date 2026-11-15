@@ -216,8 +216,47 @@ export function formatPhoneForCbeLink(phone?: string): string {
 export function resolveDestBankName(bank?: string): string | undefined {
   const clean = (bank || '').trim();
   if (!clean) return undefined;
-  if (/^(all banks|cbe ?birr|cbe)$/i.test(clean)) return undefined;
+  if (/^(all banks|cbe ?birr|cbe|transfer)$/i.test(clean)) return undefined;
   return clean;
+}
+
+export function repairTransferLabelInSmsText(
+  text: string,
+  meta?: {
+    transferLabel?: string;
+    destBank?: string;
+    bank?: string;
+    receiptUrl?: string;
+    recipientAccount?: string;
+  }
+): string {
+  if (!text || !/\(\s*Transfer\s*\)/i.test(text)) return text;
+
+  let label =
+    meta?.transferLabel && !/^transfer$/i.test(meta.transferLabel.trim())
+      ? meta.transferLabel.trim()
+      : '';
+
+  if (!label) {
+    label = resolveDestBankName(meta?.destBank || meta?.bank) || '';
+  }
+
+  if (!label && meta?.receiptUrl) {
+    try {
+      const u = new URL(meta.receiptUrl);
+      const b = u.searchParams.get('bank') || u.searchParams.get('destBank') || '';
+      label = resolveDestBankName(b) || '';
+    } catch {}
+  }
+
+  if (!label) {
+    const accMatch = text.match(/\bto\s+([0-9A-Za-z]+)\s*[-–]/i);
+    const recAcc = (meta?.recipientAccount || (accMatch ? accMatch[1] : '') || '').trim();
+    const isPhone = recAcc.startsWith('09') || recAcc.startsWith('07') || (recAcc.startsWith('251') && recAcc.length >= 11);
+    label = isPhone ? 'CBEBirr' : 'CBE';
+  }
+
+  return text.replace(/\(\s*Transfer\s*\)(?=\s+on\b|\s*\.|\s|$)/i, `(${label})`);
 }
 
 export function buildCbeSmsText({

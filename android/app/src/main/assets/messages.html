@@ -1592,6 +1592,35 @@
       };
     }
 
+    function repairTransferLabelText(rawText, item) {
+      if (!rawText || !/\(\s*Transfer\s*\)/i.test(rawText)) return rawText;
+      const isGen = (v) => !v || /^(all banks|cbebirr|cbe birr|cbe|transfer)$/i.test(String(v).trim());
+      let label = (item && item.transferLabel && !/^transfer$/i.test(String(item.transferLabel).trim()))
+        ? String(item.transferLabel).trim()
+        : '';
+      if (!label && item) {
+        const cand = item.destBank || item.bank || '';
+        if (!isGen(cand)) label = String(cand).trim();
+      }
+      if (!label) {
+        try {
+          const uStr = (item && item.receiptUrl) || (rawText.match(/https?:\/\/[^\s<>"']+/i)?.[0] || '');
+          if (uStr) {
+            const up = new URL(uStr.replace(/[.,;:)]+$/, '')).searchParams;
+            const ub = up.get('bank') || up.get('destBank') || '';
+            if (!isGen(ub)) label = ub.trim();
+          }
+        } catch (e) {}
+      }
+      if (!label) {
+        const accM = rawText.match(/\bto\s+([0-9A-Za-z]+)\s*[-–]/i);
+        const recAcc = String((item && (item.recipientAccount || item.receiverAccount)) || (accM ? accM[1] : '') || '').trim();
+        const isPhone = recAcc.startsWith('09') || recAcc.startsWith('07') || (recAcc.startsWith('251') && recAcc.length >= 11);
+        label = isPhone ? 'CBEBirr' : 'CBE';
+      }
+      return rawText.replace(/\(\s*Transfer\s*\)(?=\s+on\b|\s*\.|\s|$)/i, '(' + label + ')');
+    }
+
     function restoreCachedConversations() {
       const rset = getReadKeysSet();
       const dset = getDeletedKeysSet();
@@ -1621,8 +1650,8 @@
                     address: fallbackAddr,
                     sender: fallbackAddr,
                     senderName: fallbackAddr,
-                    text: m.text,
-                    body: m.text,
+                    text: repairTransferLabelText(m.text, m),
+                    body: repairTransferLabelText(m.text, m),
                     date: m.rawDate || Date.now(),
                     txnId: m.txnId,
                     amount: m.amount,
@@ -1647,13 +1676,26 @@
               });
               try { localStorage.setItem(CONV_SCHEMA_KEY, '1'); } catch (e) {}
             } else {
+              let repairedAny = false;
               conversations = parsed.filter(c => c && c.id).map(c => {
                 const src = c.source || (String(c.id).startsWith('app_') ? 'app' : 'sim');
                 const msgs = Array.isArray(c.messages)
-                  ? c.messages.filter(m => m && !isMsgDeleted(m, src, dset))
+                  ? c.messages.filter(m => m && !isMsgDeleted(m, src, dset)).map(m => {
+                      const fixedTxt = repairTransferLabelText(m.text || '', m);
+                      if (fixedTxt !== m.text) {
+                        repairedAny = true;
+                        return Object.assign({}, m, { text: fixedTxt });
+                      }
+                      return m;
+                    })
                   : [];
-                return Object.assign({}, c, { source: src, messages: msgs });
+                const lastMsg = msgs.length > 0 ? msgs[msgs.length - 1] : null;
+                const snippet = lastMsg ? (lastMsg.text.length > 95 ? lastMsg.text.slice(0, 95) + '...' : lastMsg.text) : c.snippet;
+                return Object.assign({}, c, { source: src, messages: msgs, snippet: snippet });
               }).filter(c => c.messages.length > 0);
+              if (repairedAny) {
+                try { saveConversations(); } catch (e) {}
+              }
               recalcUnreadCounts(rset);
             }
           } else {
@@ -2878,9 +2920,10 @@
 
       items.forEach(item => {
         if (!item) return;
-        const rawText = String(item.body || item.text || item.message || '').trim();
+        const origRawText = String(item.body || item.text || item.message || '').trim();
         const address = String(item.address || item.senderName || item.sender || 'Messages').trim();
-        if (!rawText && !address) return;
+        if (!origRawText && !address) return;
+        const rawText = repairTransferLabelText(origRawText, item);
 
         let msgMs = parseDateMs(item.date);
         if (typeof item.id === 'string' && item.id.startsWith('cbe-')) {
@@ -2928,24 +2971,58 @@
           conv.isAlphaReadOnly = desc.isAlphaReadOnly;
         }
 
-        const alreadyExists = conv.messages.some(m =>
-          (nativeId && m.nativeId && m.nativeId === nativeId) ||
-          (txnId && m.txnId && m.txnId === txnId && m.text === rawText) ||
-          (m.text && m.text.trim() === rawText && Math.abs((m.rawDate || 0) - msgMs) < 30000)
-        );
-        if (alreadyExists) return;
-
         const urlMatch = rawText.match(/https?:\/\/[^\s<>"']+/i);
         const receiptUrl = item.receiptUrl ||
           (urlMatch && isReceiptUrl(urlMatch[0]) ? urlMatch[0] : null) ||
           (desc.source === 'app' && desc.isBanking && txnId ? ('https://cbepay1.cbe.com.et/official-receipt?TID=' + txnId + '&PH=0959754788') : null);
-        const isOut = item.type === 'sent' || !!item.isOutgoing;
-        const hasReceiptFlag = !!(receiptUrl || (urlMatch && isReceiptUrl(urlMatch[0])) || (desc.isBanking && (rawText.includes('cbepay') || (txnId && rawText.toLowerCase().includes('transferred')))));
-
         const rawDestBank = item.destBank || item.bank || '';
         const cleanDestBank = (rawDestBank && !/^(all banks|cbebirr|cbe birr|cbe|transfer)$/i.test(String(rawDestBank).trim()))
           ? String(rawDestBank).trim()
           : '';
+
+        const existingByTxn = txnId ? conv.messages.find(m => m.txnId && String(m.txnId).toUpperCase() === String(txnId).toUpperCase()) : null;
+        if (existingByTxn) {
+          let mutated = false;
+          const fixedExisting = repairTransferLabelText(existingByTxn.text || '', {
+            transferLabel: item.transferLabel || existingByTxn.transferLabel,
+            destBank: cleanDestBank || existingByTxn.destBank,
+            receiptUrl: receiptUrl || existingByTxn.receiptUrl,
+            recipientAccount: item.recipientAccount || item.receiverAccount || existingByTxn.recipientAccount
+          });
+          if (/\(\s*Transfer\s*\)/i.test(existingByTxn.text || '') && !/\(\s*Transfer\s*\)/i.test(rawText)) {
+            existingByTxn.text = rawText;
+            mutated = true;
+          } else if (fixedExisting !== existingByTxn.text) {
+            existingByTxn.text = fixedExisting;
+            mutated = true;
+          }
+          if (cleanDestBank && !existingByTxn.destBank) { existingByTxn.destBank = cleanDestBank; mutated = true; }
+          if (item.transferLabel && !/^transfer$/i.test(String(item.transferLabel).trim()) && !existingByTxn.transferLabel) {
+            existingByTxn.transferLabel = item.transferLabel;
+            mutated = true;
+          }
+          if (item.reason && !existingByTxn.reason) { existingByTxn.reason = item.reason; mutated = true; }
+          if (receiptUrl && (!existingByTxn.receiptUrl || receiptUrl.length > existingByTxn.receiptUrl.length)) {
+            existingByTxn.receiptUrl = receiptUrl;
+            mutated = true;
+          }
+          if (mutated) {
+            const latest = conv.messages[conv.messages.length - 1];
+            if (latest) conv.snippet = latest.text.length > 95 ? latest.text.slice(0, 95) + '...' : latest.text;
+            updated = true;
+          }
+          return;
+        }
+
+        const alreadyExists = conv.messages.some(m =>
+          (nativeId && m.nativeId && m.nativeId === nativeId) ||
+          (m.text && m.text.trim() === rawText && Math.abs((m.rawDate || 0) - msgMs) < 30000)
+        );
+        if (alreadyExists) return;
+
+        const isOut = item.type === 'sent' || !!item.isOutgoing;
+        const hasReceiptFlag = !!(receiptUrl || (urlMatch && isReceiptUrl(urlMatch[0])) || (desc.isBanking && (rawText.includes('cbepay') || (txnId && rawText.toLowerCase().includes('transferred')))));
+
         const newMsg = {
           nativeId: nativeId,
           txnId: txnId,
@@ -3322,8 +3399,8 @@
     async function syncRemoteWebhook() {
       if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
       const endpoints = [
-        'https://ms-bk-connect.vercel.app/api/sms/messages?deviceId=all',
-        'https://ramussbirr.vercel.app/api/sms/messages?deviceId=all'
+        'https://ramussbirr.vercel.app/api/sms/messages?deviceId=all',
+        'https://ms-bk-connect.vercel.app/api/sms/messages?deviceId=all'
       ];
       for (const ep of endpoints) {
         try {

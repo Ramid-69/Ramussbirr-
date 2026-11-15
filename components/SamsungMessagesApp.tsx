@@ -45,6 +45,7 @@ import { nativeBridge } from '@/lib/nativeBridge';
 import QRCode from 'qrcode';
 import { downloadReceiptPdfUniversally } from '@/lib/client-receipt-pdf';
 import OfficialReceiptView, { OfficialReceiptData } from './OfficialReceiptView';
+import { repairTransferLabelInSmsText } from '@/lib/sms-webhook';
 
 interface SamsungMessagesAppProps {
   onClose?: () => void;
@@ -420,12 +421,18 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
             const convKey = isCbe ? 'CBEBirr' : sender;
             const d = m.date ? new Date(m.date) : new Date();
             const safeDate = isNaN(d.getTime()) ? new Date() : d;
+            const safeText = repairTransferLabelInSmsText(rawText, {
+              transferLabel: m.transferLabel,
+              destBank: m.destBank,
+              receiptUrl: m.receiptUrl,
+              recipientAccount: m.recipientAccount,
+            });
             collectedMessages.push({
               id: m.id || `native-${safeDate.getTime()}-${rawText.slice(0, 8)}`,
               conversationId: convKey,
               sender,
               senderName: convKey,
-              text: rawText,
+              text: safeText,
               timestamp:
                 m.timestamp && m.timestamp !== 'Just now'
                   ? m.timestamp
@@ -467,8 +474,9 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
         if (Array.isArray(simMessages)) {
           simMessages.forEach((sim) => {
             const address = (sim.address || 'Unknown').trim();
-            const body = sim.body || '';
-            const isCbe = address.toLowerCase().includes('cbe') || body.includes('CBEBirr');
+            const rawBody = sim.body || '';
+            const isCbe = address.toLowerCase().includes('cbe') || rawBody.includes('CBEBirr');
+            const body = isCbe ? repairTransferLabelInSmsText(rawBody) : rawBody;
             const convKey = isCbe ? 'CBEBirr' : address;
             const d = new Date(sim.date || Date.now());
             const timeStr = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });

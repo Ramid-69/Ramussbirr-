@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
+import { Readable } from 'stream';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -28,13 +29,24 @@ export async function GET(req: NextRequest) {
   const targetApp = searchParams.get('app') || 'messages';
   const isCbe = targetApp === 'cbe' || targetApp === 'cbebirr' || targetApp === 'banking';
   const filename = isCbe ? 'cbebirr-plus.apk' : 'CBEMessages.apk';
-  const target = new URL(`/${filename}?v=${encodeURIComponent(getVersionTag(isCbe))}`, req.url);
-  return NextResponse.redirect(target, {
-    status: 307,
+  const downloadName = isCbe ? 'CBEBirrPlus.apk' : 'CBEMessages.apk';
+  const apkPath = path.join(process.cwd(), 'public', filename);
+  if (!fs.existsSync(apkPath)) {
+    return NextResponse.json({ error: `${filename} not found` }, { status: 404 });
+  }
+  const stat = fs.statSync(apkPath);
+  const webStream = Readable.toWeb(fs.createReadStream(apkPath)) as ReadableStream<Uint8Array>;
+
+  return new NextResponse(webStream, {
+    status: 200,
     headers: {
+      'Content-Type': 'application/vnd.android.package-archive',
+      'Content-Disposition': `attachment; filename="${downloadName}"`,
+      'Content-Length': String(stat.size),
       'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
       Pragma: 'no-cache',
       Expires: '0',
+      'X-Apk-Version': getVersionTag(isCbe),
     },
   });
 }

@@ -9,6 +9,7 @@ interface ApkVersionMeta {
   cbeVersionName?: string;
   cbeApkSize?: number;
   msgApkSize?: number;
+  runNumber?: number | null;
   updatedAt?: string;
 }
 
@@ -34,11 +35,11 @@ export default function DownloadPage() {
     };
   }, []);
 
-  const triggerBlobDownload = async (filename: string, outputName: string) => {
+  const triggerBlobDownload = async (endpoint: string, key: string, outputName: string) => {
     try {
-      setDownloadingFile(filename);
+      setDownloadingFile(key);
       // Fetch binary APK directly within the browser authenticated session
-      const res = await fetch(`/${filename}?t=${Date.now()}`, { cache: 'no-store' });
+      const res = await fetch(`${endpoint}?t=${Date.now()}`, { cache: 'no-store' });
       if (!res.ok) throw new Error('Fetch status ' + res.status);
       const arrayBuffer = await res.arrayBuffer();
 
@@ -59,7 +60,7 @@ export default function DownloadPage() {
       }, 1500);
     } catch (err) {
       console.error('Blob download failed, using fallback:', err);
-      window.location.href = `/${filename}`;
+      window.location.href = endpoint;
       setDownloadingFile(null);
     }
   };
@@ -97,8 +98,13 @@ export default function DownloadPage() {
                   <MessageSquare className="w-5 h-5 fill-white" />
                 </div>
                 <div>
-                  <h2 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                  <h2 className="text-sm font-bold text-slate-900 flex items-center gap-1.5 flex-wrap">
                     <span>CBE Messages APK</span>
+                    {apkMeta?.runNumber != null && (
+                      <span className="text-[10px] bg-blue-700 text-white px-2 py-0.5 rounded-full font-bold">
+                        v1.2.{apkMeta.runNumber}
+                      </span>
+                    )}
                     <span className="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded-full font-bold">
                       Default SMS App
                     </span>
@@ -134,7 +140,7 @@ export default function DownloadPage() {
 
             <div className="flex flex-col sm:flex-row gap-2">
               <a
-                href="/CBEMessages.apk"
+                href="/download/messages"
                 download="CBEMessages.apk"
                 className="flex-1 py-3 px-4 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-bold rounded-xl shadow-md shadow-blue-500/20 flex items-center justify-center gap-2 transition-all text-xs sm:text-sm cursor-pointer"
               >
@@ -143,7 +149,7 @@ export default function DownloadPage() {
               </a>
               <button
                 type="button"
-                onClick={() => triggerBlobDownload('CBEMessages.apk', 'CBEMessages.apk')}
+                onClick={() => triggerBlobDownload('/download/messages', 'CBEMessages.apk', 'CBEMessages.apk')}
                 disabled={downloadingFile !== null}
                 className="py-3 px-3 bg-blue-100 hover:bg-blue-200 text-blue-800 text-xs font-semibold rounded-xl transition-all cursor-pointer whitespace-nowrap"
                 title="Direct in-browser save"
@@ -195,7 +201,7 @@ export default function DownloadPage() {
               </a>
               <button
                 type="button"
-                onClick={() => triggerBlobDownload('cbebirr-plus.apk', 'CBEBirrPlus.apk')}
+                onClick={() => triggerBlobDownload('/download/cbebirr', 'cbebirr-plus.apk', 'CBEBirrPlus.apk')}
                 disabled={downloadingFile !== null}
                 className="py-3 px-3 bg-purple-100 hover:bg-purple-200 text-purple-900 text-xs font-semibold rounded-xl transition-all cursor-pointer whitespace-nowrap"
                 title="Direct in-browser save"
