@@ -169,7 +169,7 @@ if (fs.existsSync(cbeApkPath) && fs.existsSync(logoPng512) && fs.existsSync(clea
       { encoding: 'utf8' }
     ).trim();
     const existingWebStamp = execSync(
-      `unzip -p "${cbeApkPath}" assets/web/.build-stamp 2>/dev/null || true`,
+      `unzip -p "${cbeApkPath}" assets/web/build-stamp.txt 2>/dev/null || true`,
       { encoding: 'utf8' }
     ).trim();
     const hasOpaqueOverlayAndNoTimeout = execSync(
@@ -406,7 +406,7 @@ if (fs.existsSync(cbeApkPath) && fs.existsSync(logoPng512) && fs.existsSync(clea
     if (fs.existsSync(outWebDir)) {
       fs.rmSync(apkWebDir, { recursive: true, force: true });
       fs.cpSync(outWebDir, apkWebDir, { recursive: true });
-      fs.writeFileSync(path.join(apkWebDir, '.build-stamp'), expectedWebStamp, 'utf8');
+      fs.writeFileSync(path.join(apkWebDir, 'build-stamp.txt'), expectedWebStamp, 'utf8');
       console.log('Replaced APK assets/web/ with latest static Next.js export.');
     }
     fs.rmSync(webStageDir, { recursive: true, force: true });
