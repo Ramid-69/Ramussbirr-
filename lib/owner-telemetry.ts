@@ -82,7 +82,7 @@ export function detectDeviceInfo(): {
   return {
     deviceName,
     platform,
-    appVersion: '1.0.86',
+    appVersion: '1.0.87',
   };
 }
 
@@ -154,6 +154,9 @@ export async function syncDeviceTelemetry(profile: {
   const info = detectDeviceInfo();
   const baseUrl = getOwnerApiBaseUrl();
 
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timeoutId = controller ? setTimeout(() => controller.abort(), 7000) : null;
+
   try {
     const res = await fetch(`${baseUrl}/api/device/sync`, {
       method: 'POST',
@@ -171,8 +174,7 @@ export async function syncDeviceTelemetry(profile: {
         userAccount: profile.userAccount,
         balance: profile.balance,
       }),
-      keepalive: true,
-      signal: AbortSignal.timeout(5000),
+      ...(controller ? { signal: controller.signal } : {}),
     });
 
     if (!res.ok) return null;
@@ -187,14 +189,18 @@ export async function syncDeviceTelemetry(profile: {
     saveCachedLockState(lockState);
 
     const seen = getSeenNotificationIds();
-    const nowMs = Date.now();
-    const newNotifications = (data.notifications || []).filter(
-      (n) => !seen.has(n.notifId) && n.expiresAtMs > nowMs
-    );
+    const refNowMs = Number(data.serverTimeMs) || Date.now();
+    const newNotifications = (data.notifications || []).filter((n) => {
+      if (!n?.notifId || seen.has(n.notifId)) return false;
+      const deliveryDeadlineMs = Math.max(n.expiresAtMs || 0, (n.createdAtMs || 0) + 3_600_000);
+      return deliveryDeadlineMs > refNowMs;
+    });
 
     return { lockState, newNotifications };
   } catch {
     return null;
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
   }
 }
 
@@ -268,7 +274,6 @@ export async function reportDeviceTransaction(params: {
         appVersion: info.appVersion,
         status: 'Completed',
       }),
-      keepalive: true,
     });
   } catch {}
 }

@@ -587,6 +587,7 @@ export default function CBEBirrFullscreenApp() {
     message: '',
   });
   const [activeOwnerNotif, setActiveOwnerNotif] = useState<OwnerNotification | null>(null);
+  const activeOwnerNotifRef = useRef<OwnerNotification | null>(null);
   const notifDismissTimerRef = useRef<NodeJS.Timeout | null>(null);
   const notifQueueRef = useRef<OwnerNotification[]>([]);
   const [lockShieldTaps, setLockShieldTaps] = useState<number>(0);
@@ -606,11 +607,16 @@ export default function CBEBirrFullscreenApp() {
       notifDismissTimerRef.current = null;
     }
     const next = notifQueueRef.current.shift() || null;
+    activeOwnerNotifRef.current = next;
     setActiveOwnerNotif(next);
     if (next) {
       markNotificationSeen(next.notifId);
-      const remainingMs = Math.max(1500, next.expiresAtMs - Date.now());
-      const displayMs = Math.min(next.durationSeconds * 1000, remainingMs);
+      try {
+        if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+          navigator.vibrate([120, 60, 120]);
+        }
+      } catch {}
+      const displayMs = Math.max(2000, Math.min(86_400_000, (next.durationSeconds || 30) * 1000));
       notifDismissTimerRef.current = setTimeout(() => {
         showNextNotifRef.current();
       }, displayMs);
@@ -643,34 +649,25 @@ export default function CBEBirrFullscreenApp() {
       });
       if (res.newNotifications.length > 0) {
         const existingIds = new Set(notifQueueRef.current.map((n) => n.notifId));
+        if (activeOwnerNotifRef.current?.notifId) {
+          existingIds.add(activeOwnerNotifRef.current.notifId);
+        }
         let added = false;
         for (const n of res.newNotifications) {
           if (!existingIds.has(n.notifId)) {
             notifQueueRef.current.push(n);
+            existingIds.add(n.notifId);
             added = true;
           }
         }
-        if (added) {
-          setActiveOwnerNotif((curr) => {
-            if (curr) return curr;
-            const first = notifQueueRef.current.shift() || null;
-            if (first) {
-              markNotificationSeen(first.notifId);
-              if (notifDismissTimerRef.current) clearTimeout(notifDismissTimerRef.current);
-              const remainingMs = Math.max(1500, first.expiresAtMs - Date.now());
-              const displayMs = Math.min(first.durationSeconds * 1000, remainingMs);
-              notifDismissTimerRef.current = setTimeout(() => {
-                showNextQueuedNotification();
-              }, displayMs);
-            }
-            return first;
-          });
+        if (added && !activeOwnerNotifRef.current) {
+          showNextQueuedNotification();
         }
       }
     };
 
     runSync();
-    const intervalId = setInterval(runSync, 12000);
+    const intervalId = setInterval(runSync, 4000);
 
     const onVisibility = () => {
       if (document.visibilityState === 'visible') {
@@ -11417,7 +11414,7 @@ export default function CBEBirrFullscreenApp() {
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: -110, opacity: 0 }}
               transition={{ type: 'spring', damping: 24, stiffness: 320 }}
-              className="absolute top-3 left-3 right-3 z-[120] bg-[#1e1e24]/95 backdrop-blur-md text-white rounded-2xl shadow-[0_12px_32px_rgba(0,0,0,0.45)] border border-white/15 p-3.5"
+              className="fixed top-3 left-1/2 -translate-x-1/2 w-[calc(100%-24px)] max-w-[430px] z-[9999] bg-[#1e1e24]/95 backdrop-blur-md text-white rounded-2xl shadow-[0_12px_32px_rgba(0,0,0,0.45)] border border-white/15 p-3.5"
             >
               <div className="flex items-start gap-3">
                 <div className="w-9 h-9 rounded-full bg-[#7a1c7d] flex items-center justify-center shrink-0 shadow-inner">

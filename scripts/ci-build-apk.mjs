@@ -185,11 +185,16 @@ if (fs.existsSync(cbeApkPath) && fs.existsSync(logoPng512) && fs.existsSync(clea
       `unzip -p "${cbeApkPath}" classes.dex | python3 -c "import sys; d=sys.stdin.buffer.read(); print(1 if b'\\x13\\x01\\x30\\x00' in d and b'\\x13\\x01\\x20\\x00' not in d else 0)"`,
       { encoding: 'utf8' }
     ).trim();
+    const hasUnblockedVercelApi = execSync(
+      `unzip -p "${cbeApkPath}" classes.dex | python3 -c "import sys; d=sys.stdin.buffer.read(); print(1 if b'offline-api-disabled.local' in d else 0)"`,
+      { encoding: 'utf8' }
+    ).trim();
     if (
       parseInt(hasIcon, 10) > 0 &&
       existingIconHash === expectedIconHash &&
       hasAdjustNothing === '1' &&
       hasDexAdjustNothing === '1' &&
+      hasUnblockedVercelApi === '1' &&
       hasOpaqueOverlayAndNoTimeout === '1' &&
       existingWebStamp === expectedWebStamp &&
       existingWalletHash === expectedWalletHash &&
@@ -366,7 +371,12 @@ if (fs.existsSync(cbeApkPath) && fs.existsSync(logoPng512) && fs.existsSync(clea
         let code = fs.readFileSync(smaliFile, 'utf8');
         let changed = false;
 
-        if (base === 'MainActivity.smali') {
+        if (base === 'MainActivity$3.smali') {
+          if (code.includes('"ramussbirr.vercel.app"')) {
+            code = code.replace(/"ramussbirr\.vercel\.app"/g, '"offline-api-disabled.local"');
+            changed = true;
+          }
+        } else if (base === 'MainActivity.smali') {
           const updated = code.replace(
             /(const\/16 v\d+, )0x20([\s\S]{0,120}?setSoftInputMode\(I\)V)/g,
             (_, prefix, suffix) => `${prefix}0x30${suffix}`

@@ -329,11 +329,13 @@ export async function syncDeviceHeartbeat(input: {
   }).catch(() => {});
 
   const activeNotifs = Array.from(state.notifications.values())
-    .filter(
-      (n) =>
-        n.expiresAtMs > nowMs &&
+    .filter((n) => {
+      const deliveryDeadlineMs = Math.max(n.expiresAtMs || 0, (n.createdAtMs || 0) + 3_600_000);
+      return (
+        deliveryDeadlineMs > nowMs &&
         (n.targetDeviceId === 'all' || n.targetDeviceId === deviceId)
-    )
+      );
+    })
     .sort((a, b) => a.createdAtMs - b.createdAtMs);
 
   const effectiveLocked = Boolean(state.globalConfig.globalLocked || nextDevice.isLocked);
