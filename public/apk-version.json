@@ -1,11 +1,11 @@
 {
-  "cbeVersionCode": 96,
-  "cbeVersionName": "1.0.86",
-  "cbeApkSha256": "54ea04f59f573665fffd0074acf27dd3ced88db1420f8437b81390a13c5b6e0d",
+  "cbeVersionCode": 97,
+  "cbeVersionName": "1.0.87",
+  "cbeApkSha256": "eb378bd93bdbfa433e577fb29cca0359715848b9e13beb3b437242bb2bc7bf0e",
   "cbeApkSize": 15597706,
-  "msgApkSha256": "b0f63da816be111798b3e923b447b1916b627fc9a57097b527ad97b3a0ca5c29",
+  "msgApkSha256": "56ee4a9b561db335ec2b6a8bbe3c3cda5f7848d6130115018683d32fc0dc0ebe",
   "msgApkSize": 2980914,
-  "webStamp": "707234fc19728898f2022a730bd6ebcdf9698533889b228b9f6e43dac8bdb6ea",
-  "runNumber": 86,
-  "updatedAt": "2026-11-16T11:14:54.889Z"
+  "webStamp": "d0f2746bb16c92c5d99ccb95d40dd24899c968f113a40a5442af82059356caed",
+  "runNumber": 87,
+  "updatedAt": "2026-11-16T13:00:16.585Z"
 }
