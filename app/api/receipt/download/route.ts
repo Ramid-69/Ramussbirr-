@@ -67,15 +67,15 @@ function amountToWords(num: number): string {
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = req.nextUrl;
-    const ref = searchParams.get('TID') || searchParams.get('ref') || '9V8GPL5D';
+    const ref = searchParams.get('TID') || searchParams.get('ref') || '-';
     const stored = getReceipt(ref);
 
-    const rawAmt = searchParams.get('amt') || (stored && stored.amt) || '740.00';
-    const date = searchParams.get('date') || (stored && stored.date) || '27-10-2026 11:56:20';
-    const rec = searchParams.get('rec') || searchParams.get('receiverAccount') || (stored && stored.rec) || '1000760389289';
+    const rawAmt = searchParams.get('amt') || (stored && stored.amt) || '0.00';
+    const date = searchParams.get('date') || (stored && stored.date) || '-';
+    const rec = searchParams.get('rec') || searchParams.get('receiverAccount') || (stored && stored.rec) || '-';
     const recName = searchParams.get('name') ?? (stored ? (stored.name || '') : '');
-    const user = searchParams.get('user') || searchParams.get('fullName') || (stored && stored.user) || 'JUREY ABDUL HUSSEN';
-    let rawAcc = searchParams.get('PH') || searchParams.get('acc') || searchParams.get('userAcc') || (stored && stored.acc) || '1000760389289';
+    const user = searchParams.get('user') || searchParams.get('fullName') || (stored && stored.user) || 'CBEBIRR CUSTOMER';
+    let rawAcc = searchParams.get('PH') || searchParams.get('acc') || searchParams.get('userAcc') || (stored && stored.acc) || '';
     if (rawAcc.startsWith('251')) {
       rawAcc = rawAcc.slice(3);
     }

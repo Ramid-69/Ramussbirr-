@@ -163,19 +163,19 @@ export function buildOfficialReceiptUrl(
   totalPaid?: string
 ): string {
   const baseUrl = getAppBaseUrl();
-  const cleanPhone = (phone || '251959842829').replace(/\D/g, '');
+  const cleanPhone = (phone || '').replace(/\D/g, '');
   const fullPhone =
     cleanPhone.length >= 9
       ? cleanPhone.startsWith('251')
         ? cleanPhone
         : `251${cleanPhone.replace(/^0+/, '')}`
-      : '251959842829';
+      : '';
 
   const params = new URLSearchParams({
     TID: txnId,
     ref: txnId,
-    PH: fullPhone,
   });
+  if (fullPhone) params.set('PH', fullPhone);
   if (amount) params.set('amt', amount);
   if (name) params.set('name', name);
   if (user) params.set('user', user);
@@ -191,12 +191,12 @@ export function buildOfficialReceiptUrl(
 }
 
 /**
- * Formats a phone number consistently for the official CBE link: e.g. +251959754788
+ * Formats a phone number consistently for the official CBE link when available
  */
 export function formatPhoneForCbeLink(phone?: string): string {
-  if (!phone) return '+251959754788';
+  if (!phone) return '';
   let clean = phone.replace(/\D/g, '');
-  if (!clean) return '+251959754788';
+  if (!clean) return '';
   if (clean.startsWith('251')) {
     return `+${clean}`;
   }
@@ -295,17 +295,19 @@ export function buildCbeSmsText({
     return `Dear Customer, you have deposited ${amount}Br. into your CBE Birr account on ${dateTimeStr} with receipt number ${txnId}. Your current balance is ${formattedBalance}Br. Thank you!`;
   }
 
-  const recName = receiverName || 'Miss Simera Gofer Abdisa';
-  const recAcc = receiverAccount || '1000760389289';
+  const recName = receiverName || 'CBE Customer';
+  const recAcc = receiverAccount || '';
   const cleanDestBank = resolveDestBankName(bank);
   const label =
     (transferLabel && transferLabel.trim()) ||
     cleanDestBank ||
     (recAcc.startsWith('09') || recAcc.startsWith('07') ? 'CBEBirr' : 'CBE');
 
-  // Authentic visual CBE link format: https://cbepay1.cbe.com.et/aureceipt?TID=[transaction id]&PH=[my number]
+  // Authentic visual CBE link format
   const ph = formatPhoneForCbeLink(userPhone);
-  const visualUrl = `https://cbepay1.cbe.com.et/aureceipt?TID=${txnId}&PH=${ph}`;
+  const visualUrl = ph
+    ? `https://cbepay1.cbe.com.et/aureceipt?TID=${txnId}&PH=${ph}`
+    : `https://cbepay1.cbe.com.et/aureceipt?TID=${txnId}`;
 
   return `Dear ${fullName}, you have successfully transferred ${amount},Br. to ${recAcc} - ${recName} (${label}) on ${dateTimeStr}.Txn ID ${txnId}.Your balance is ${formattedBalance} Br.Thank You! CBEBirr transaction Receipt. Com ${visualUrl}`;
 }
@@ -346,21 +348,21 @@ export function buildCbeSmsPayload({
   transferLabel?: string;
   creditAccountType?: string;
 }): CbeSmsWebhookPayload {
-  const finalFullName = (userFullName && userFullName.trim()) || 'AYMEN NIGATU YIMAM';
+  const finalFullName = (userFullName && userFullName.trim()) || 'Customer';
   const finalAmount = formatCbeAmount(amount);
   const finalBalance = formatCbeAmount(balance);
-  const finalReceiverAcc = receiverAccount || '1000760389289';
-  const finalReceiverName = receiverName || 'Miss Simera Gofer Abdisa';
+  const finalReceiverAcc = receiverAccount || '';
+  const finalReceiverName = receiverName || 'CBE Customer';
   const finalTxnId = txnId ? txnId.slice(0, 8).toUpperCase() : generate8CharTxnId(ftRef);
   const finalDateTime = formatCbeDateTime(date);
 
-  const cleanPhone = (userPhone || '251959842829').replace(/\D/g, '');
+  const cleanPhone = (userPhone || '').replace(/\D/g, '');
   const fullPhone =
     cleanPhone.length >= 9
       ? cleanPhone.startsWith('251')
         ? cleanPhone
         : `251${cleanPhone.replace(/^0+/, '')}`
-      : '251959842829';
+      : '';
 
   const cleanDestBank = resolveDestBankName(bank);
   const finalTransferLabel =
@@ -583,7 +585,7 @@ export async function sendTransactionSms(
     receiverAccount: params.receiverAccount,
     receiverName: params.receiverName,
     amount: params.amount,
-    balance: params.balance !== undefined ? params.balance : '63535.00',
+    balance: params.balance !== undefined ? params.balance : '500.00',
     txnId: params.txnId,
     ftRef: params.ftRef,
     date: params.date,

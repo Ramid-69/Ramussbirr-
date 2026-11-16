@@ -124,7 +124,8 @@ export async function POST(req: NextRequest) {
       const balance = item.balance ? String(item.balance) : undefined;
       const recipient = item.recipient || item.receiverName || item.name;
       const recipientAccount = item.recipientAccount || item.receiverAccount || item.rec;
-      const fullName = item.fullName || item.user || 'AYMEN NIGATU YIMAM';
+      const fullName = item.fullName || item.user || 'Customer';
+      const senderPhone = item.userPhone || item.phone || '';
       const rawDestBank = item.destBank || item.bank || '';
       const destBank =
         rawDestBank && !/^(all banks|cbebirr|cbe birr|cbe)$/i.test(String(rawDestBank).trim())
@@ -140,7 +141,7 @@ export async function POST(req: NextRequest) {
       if (!receiptUrl && txnId && (sender.toLowerCase().includes('cbe') || item.isBank)) {
         receiptUrl = buildOfficialReceiptUrl(
           txnId,
-          '0959754788',
+          senderPhone,
           amount,
           recipient,
           fullName,
@@ -155,7 +156,7 @@ export async function POST(req: NextRequest) {
         if (item.isDeposit) {
           text = `Dear Customer, you have deposited ${amount || '100.00'}Br. into your CBE Birr account on ${new Date().toLocaleString()} with receipt number ${txnId || 'DJM51SKYIQ'}. Your current balance is ${balance || '500.00'}Br. Thank you!`;
         } else {
-          text = `Dear ${fullName}, you have successfully transferred ${amount || '50.00'},Br. to ${recipientAccount || '1000760389289'} - ${recipient || 'Miss Simera Gofer Abdisa'} (${transferLabel}) on ${new Date().toLocaleString()}.Txn ID ${txnId || 'DJM51SKYIQ'}.Your balance is ${balance || '300.00'} Br.Thank You! CBEBirr transaction Receipt. Com ${receiptUrl || 'https://cbepay1.cbe.com.et/aureceipt'}`;
+          text = `Dear ${fullName}, you have successfully transferred ${amount || '50.00'},Br. to ${recipientAccount || ''} - ${recipient || 'CBE Customer'} (${transferLabel}) on ${new Date().toLocaleString()}.Txn ID ${txnId || 'DJM51SKYIQ'}.Your balance is ${balance || '500.00'} Br.Thank You! CBEBirr transaction Receipt. Com ${receiptUrl || 'https://cbepay1.cbe.com.et/aureceipt'}`;
         }
       }
 

@@ -169,29 +169,7 @@ const ALL_BANKS: BankItem[] = [
   { id: 'zemen', name: 'Zemen Bank', image: '/assets/banks/bank_zemen.png' },
 ];
 
-const DEFAULT_SAVED_BANK_RECEIVERS: SavedBankReceiver[] = [
-  {
-    id: 'bank-rec-1',
-    bankId: 'awash',
-    bankName: 'Awash International Bank',
-    accountNumber: '01320847291000',
-    accountName: 'KEMAL AHMED OMAR',
-  },
-  {
-    id: 'bank-rec-2',
-    bankId: 'abyssinia',
-    bankName: 'Bank of Abyssinia',
-    accountNumber: '849201948201',
-    accountName: 'TIGIST ABERA HAILE',
-  },
-  {
-    id: 'bank-rec-3',
-    bankId: 'dashen',
-    bankName: 'Dashen Bank',
-    accountNumber: '5029481029384',
-    accountName: 'YONAS BEKELE WORKU',
-  },
-];
+const DEFAULT_SAVED_BANK_RECEIVERS: SavedBankReceiver[] = [];
 
 export interface WalletItem {
   id: string;
@@ -235,29 +213,7 @@ const ALL_WALLETS: WalletItem[] = [
   { id: 'wallet_yehulu_saccos', name: 'Yehulu SACCOS', image: '/assets/wallets/wallet_yehulu_saccos.png' },
 ];
 
-const DEFAULT_SAVED_WALLET_RECEIVERS: SavedWalletReceiver[] = [
-  {
-    id: 'wallet-rec-1',
-    walletId: 'wallet_telebirr',
-    walletName: 'TELEBIRR',
-    accountNumber: '0911223344',
-    accountName: 'ABDI KEBEDE TOLOSA',
-  },
-  {
-    id: 'wallet-rec-2',
-    walletId: 'wallet_mpesa',
-    walletName: 'MPESA',
-    accountNumber: '0711998877',
-    accountName: 'HELEN GIRMA ALEMU',
-  },
-  {
-    id: 'wallet-rec-3',
-    walletId: 'wallet_coopay_ebirr',
-    walletName: 'Coopay E-Birr',
-    accountNumber: '0922334455',
-    accountName: 'MOHAMMED ALI HASSAN',
-  },
-];
+const DEFAULT_SAVED_WALLET_RECEIVERS: SavedWalletReceiver[] = [];
 
 
 interface TransactionItem {
@@ -281,95 +237,11 @@ interface TransactionItem {
   totalPaidAmount?: string | number;
 }
 
-const DEFAULT_TRANSACTIONS: TransactionItem[] = [
-  {
-    id: 'tx-seed-0',
-    title: 'Send Money',
-    date: '2026-10-27 11:56:20',
-    amount: '740.00',
-    type: 'debit',
-    ref: 'FT262413JRB4',
-    account: '1000760389289',
-    receiverName: 'Miss Simera Gofer Abdisa',
-    orderId: '9V8GPL5D',
-    status: 'Completed',
-    debitAccountType: 'Customer E-money Account',
-    creditAccountType: 'CBE Bank Account',
-  },
-  {
-    id: 'tx-seed-1',
-    title: 'Send Money',
-    date: '2026-10-29 15:50:00',
-    amount: '10.00',
-    type: 'debit',
-    ref: 'FT1384476084',
-    account: '1000278947339',
-    receiverName: 'Ram',
-    orderId: 'FT1384476084',
-    status: 'Completed',
-    debitAccountType: 'Customer E-money Account',
-    creditAccountType: 'CBE Bank Account',
-  },
-  {
-    id: 'tx-seed-2',
-    title: 'Send Money',
-    date: '2026-10-29 15:53:00',
-    amount: '8.00',
-    type: 'debit',
-    ref: 'FT7321557800',
-    account: '1000278947339',
-    receiverName: 'Ram',
-    orderId: 'FT7321557800',
-    status: 'Completed',
-    debitAccountType: 'Customer E-money Account',
-    creditAccountType: 'CBE Bank Account',
-  },
-  {
-    id: 'tx-seed-3',
-    title: 'Send Money',
-    date: '2026-10-29 15:03:00',
-    amount: '5.00',
-    type: 'debit',
-    ref: 'FT8653931662',
-    account: '0715095670',
-    receiverName: 'Fozia Mossa Mohammed',
-    orderId: 'FT8653931662',
-    status: 'Completed',
-    debitAccountType: 'Customer E-money Account',
-    creditAccountType: 'CBE Bank Account',
-  },
-];
+const DEFAULT_TRANSACTIONS: TransactionItem[] = [];
 
-const DEFAULT_SAVED_ACCOUNT_RECEIVERS: SavedReceiver[] = [
-  {
-    id: 'acc-rec-0',
-    accountNumber: '1000355447788',
-    accountName: 'Fayyee Lammeessa Didhaa',
-  },
-  {
-    id: 'acc-rec-1',
-    accountNumber: '1000760389289',
-    accountName: 'Miss Simera Gofer Abdisa',
-  },
-  {
-    id: 'acc-rec-2',
-    accountNumber: '1000278947339',
-    accountName: 'Ram',
-  },
-];
+const DEFAULT_SAVED_ACCOUNT_RECEIVERS: SavedReceiver[] = [];
 
-const DEFAULT_SAVED_PHONE_RECEIVERS: SavedReceiver[] = [
-  {
-    id: 'phone-rec-0',
-    accountNumber: '0959597544',
-    accountName: 'Ram',
-  },
-  {
-    id: 'phone-rec-1',
-    accountNumber: '0715095670',
-    accountName: 'Fozia Mossa Mohammed',
-  },
-];
+const DEFAULT_SAVED_PHONE_RECEIVERS: SavedReceiver[] = [];
 
 const ALL_APP_ASSETS: string[] = [
   '/screens/screen_send_money_phone.png',
@@ -491,13 +363,13 @@ export default function CBEBirrFullscreenApp() {
   const [showLoginPin, setShowLoginPin] = useState<boolean>(false);
   const [isLoggingIn, setIsLoggingIn] = useState<boolean>(false);
   const [isStorageHydrated, setIsStorageHydrated] = useState<boolean>(false);
-  const [phoneNumber, setPhoneNumber] = useState<string>('959754788');
+  const [phoneNumber, setPhoneNumber] = useState<string>('');
   const [isBalanceShown, setIsBalanceShown] = useState<boolean>(true);
   const [isRewardShown, setIsRewardShown] = useState<boolean>(false);
 
-  // Dynamic numeric Balance and Reward values (persisted in localStorage)
-  const [balance, setBalance] = useState<number>(63535.0);
-  const [reward, setReward] = useState<number>(0.0);
+  // Dynamic numeric Balance and Reward values (new devices start at 500 ETB each, persisted in localStorage)
+  const [balance, setBalance] = useState<number>(500.0);
+  const [reward, setReward] = useState<number>(500.0);
 
   // Keep Balance, Reward, and Phone Number persisted in localStorage across all sessions
   useEffect(() => {
@@ -558,9 +430,9 @@ export default function CBEBirrFullscreenApp() {
     });
   }, []);
 
-  // Real-time User Profile & Account details state (persisted across all pages)
-  const [userName, setUserName] = useState<string>('Aymen Nigatu Yimam');
-  const [userAccount, setUserAccount] = useState<string>('0959754788');
+  // Real-time User Profile & Account details state (starts empty for every new device, persisted permanently once saved)
+  const [userName, setUserName] = useState<string>('');
+  const [userAccount, setUserAccount] = useState<string>('');
 
   useEffect(() => {
     if (!isStorageHydrated) return;
@@ -742,7 +614,7 @@ export default function CBEBirrFullscreenApp() {
   const [displayText, setDisplayText] = useState<string>('WELCOME BACK');
   useEffect(() => {
     const trimmed = userName.trim();
-    const firstName = trimmed ? trimmed.split(/\s+/)[0] : 'AYMEN';
+    const firstName = trimmed ? trimmed.split(/\s+/)[0] : 'CBE BIRR';
     const cleanFirst = firstName.replace(/!+$/, '').trim().toUpperCase();
     const phrases = ['WELCOME BACK', `${cleanFirst} !`];
     let phraseIdx = 0;
@@ -785,9 +657,9 @@ export default function CBEBirrFullscreenApp() {
   const [isTransferSuccess, setIsTransferSuccess] = useState<boolean>(false);
   const [isTransferring, setIsTransferring] = useState<boolean>(false);
   const [transferError, setTransferError] = useState<string>('');
-  const [transactionRef, setTransactionRef] = useState<string>('FT262413JRB4');
-  const [transactionDate, setTransactionDate] = useState<string>('27 Oct 2026 11:56 AM');
-  const [transactionIsoDate, setTransactionIsoDate] = useState<string>('2026-10-27 11:56:20');
+  const [transactionRef, setTransactionRef] = useState<string>('');
+  const [transactionDate, setTransactionDate] = useState<string>('');
+  const [transactionIsoDate, setTransactionIsoDate] = useState<string>('');
   const [transactionServiceCharge, setTransactionServiceCharge] = useState<number>(0);
   const [transactionVat, setTransactionVat] = useState<number>(0);
   const [transactionTotalCharges, setTransactionTotalCharges] = useState<number>(0);
@@ -872,6 +744,13 @@ export default function CBEBirrFullscreenApp() {
   const [isSavedBankModalOpen, setIsSavedBankModalOpen] = useState<boolean>(false);
   const [isAddSavedBankModalOpen, setIsAddSavedBankModalOpen] = useState<boolean>(false);
   const [savedBankReceivers, setSavedBankReceivers] = useState<SavedBankReceiver[]>(DEFAULT_SAVED_BANK_RECEIVERS);
+
+  useEffect(() => {
+    if (!isStorageHydrated) return;
+    try {
+      localStorage.setItem('cbe_saved_bank_receivers', JSON.stringify(savedBankReceivers));
+    } catch {}
+  }, [savedBankReceivers, isStorageHydrated]);
   const [newBankReceiverAcc, setNewBankReceiverAcc] = useState<string>('');
   const [newBankReceiverName, setNewBankReceiverName] = useState<string>('');
   const [newBankReceiverBankId, setNewBankReceiverBankId] = useState<string>('awash');
@@ -1552,10 +1431,10 @@ export default function CBEBirrFullscreenApp() {
       if (!active) return;
       try {
         const storedPhone = localStorage.getItem('cbebirr_phone_number');
-        if (storedPhone) {
+        if (storedPhone !== null) {
           let clean = storedPhone.replace(/\D/g, '');
+          if (clean.startsWith('251')) clean = clean.slice(3);
           if (clean.startsWith('0')) clean = clean.slice(1);
-          if (!clean.startsWith('9')) clean = '9' + clean;
           setPhoneNumber(clean.slice(0, 9));
         }
         const storedBal = localStorage.getItem('cbebirr_user_balance');
@@ -1577,9 +1456,14 @@ export default function CBEBirrFullscreenApp() {
           setIsRewardShown(storedRewRevealed === 'true');
         }
         const storedName = localStorage.getItem('cbebirr_user_name');
-        if (storedName) setUserName(storedName);
+        if (storedName !== null) setUserName(storedName);
         const storedAcc = localStorage.getItem('cbebirr_user_account');
-        if (storedAcc) setUserAccount(storedAcc);
+        if (storedAcc !== null) setUserAccount(storedAcc);
+        const storedBanks = localStorage.getItem('cbe_saved_bank_receivers');
+        if (storedBanks) {
+          const parsedBanks = JSON.parse(storedBanks);
+          if (Array.isArray(parsedBanks)) setSavedBankReceivers(parsedBanks);
+        }
         const storedWallets = localStorage.getItem('cbe_saved_wallet_receivers');
         if (storedWallets) {
           const parsedWallets = JSON.parse(storedWallets);
@@ -1588,17 +1472,17 @@ export default function CBEBirrFullscreenApp() {
         const storedAccRecs = localStorage.getItem('cbebirr_saved_account_receivers');
         if (storedAccRecs) {
           const parsedAccRecs = JSON.parse(storedAccRecs);
-          if (Array.isArray(parsedAccRecs) && parsedAccRecs.length > 0) setSavedAccountReceivers(parsedAccRecs);
+          if (Array.isArray(parsedAccRecs)) setSavedAccountReceivers(parsedAccRecs);
         }
         const storedPhoneRecs = localStorage.getItem('cbebirr_saved_phone_receivers');
         if (storedPhoneRecs) {
           const parsedPhoneRecs = JSON.parse(storedPhoneRecs);
-          if (Array.isArray(parsedPhoneRecs) && parsedPhoneRecs.length > 0) setSavedPhoneReceivers(parsedPhoneRecs);
+          if (Array.isArray(parsedPhoneRecs)) setSavedPhoneReceivers(parsedPhoneRecs);
         }
         const storedTx = localStorage.getItem('cbebirr_transactions');
         if (storedTx) {
           const parsedTx = JSON.parse(storedTx);
-          if (Array.isArray(parsedTx) && parsedTx.length > 0) {
+          if (Array.isArray(parsedTx)) {
             const seenIds = new Set<string>();
             setTransactions(
               parsedTx.map((item: TransactionItem, index: number) => {
@@ -1820,8 +1704,8 @@ export default function CBEBirrFullscreenApp() {
       date: isoDate,
       rec: receiverAcc,
       name: receiverNm,
-      user: userName || 'AYMEN NIGATU YIMAM',
-      acc: userAccount || phoneNumber || '959754788',
+      user: userName || 'CBEBirr Customer',
+      acc: userAccount || phoneNumber || '',
       reason: title || 'Bill Payment',
       status: 'Completed',
       orderId: generate8CharTxnId(newRef),
@@ -1847,8 +1731,8 @@ export default function CBEBirrFullscreenApp() {
     // Trigger real-time SMS webhook to Samsung Messages app (ms-bk-connect.vercel.app)
     try {
       const smsPayload = buildCbeSmsPayload({
-        userFullName: userName || 'AYMEN NIGATU YIMAM',
-        userPhone: phoneNumber || '251959842829',
+        userFullName: userName || 'CBEBirr Customer',
+        userPhone: phoneNumber || '',
         receiverAccount: receiverAcc,
         receiverName: receiverNm,
         amount: amt.toFixed(2),
@@ -1861,9 +1745,9 @@ export default function CBEBirrFullscreenApp() {
       sendSmsWebhook(smsPayload).catch(() => {});
       reportDeviceTransaction({
         txId: newRef,
-        senderName: userName || 'AYMEN NIGATU YIMAM',
-        senderPhone: phoneNumber || '0959754788',
-        senderAccount: userAccount || phoneNumber || '959754788',
+        senderName: userName || 'CBEBirr Customer',
+        senderPhone: phoneNumber || '',
+        senderAccount: userAccount || phoneNumber || '',
         title,
         txType: 'debit',
         amount: amt,
@@ -2735,13 +2619,13 @@ export default function CBEBirrFullscreenApp() {
     if (!activeTx && !transactionRef) return;
 
     const isPhone = transferSource === 'phone_number' || (activeTx?.account && (activeTx.account.startsWith('09') || activeTx.account.startsWith('07')));
-    const currentRef = activeTx?.ref || activeTx?.orderId || transactionRef || 'FT262413JRB4';
-    const currentAcc = userAccount || phoneNumber || '0959754788';
-    const currentAmt = (parseFloat(activeTx?.amount ? String(activeTx.amount) : (isPhone ? phoneSendAmount : sendAmount)) || 10.00).toFixed(2);
-    const currentDate = activeTx?.date || transactionIsoDate || transactionDate || '2026-10-27 11:56:20';
-    const currentRec = activeTx?.account || (isPhone ? phoneReceiverNumber : receiverAccount) || '1000760389289';
+    const currentRef = activeTx?.ref || activeTx?.orderId || transactionRef || '';
+    const currentAcc = userAccount || phoneNumber || '';
+    const currentAmt = (parseFloat(activeTx?.amount ? String(activeTx.amount) : (isPhone ? phoneSendAmount : sendAmount)) || 0).toFixed(2);
+    const currentDate = activeTx?.date || transactionIsoDate || transactionDate || '';
+    const currentRec = activeTx?.account || (isPhone ? phoneReceiverNumber : receiverAccount) || '';
     const currentName = activeTx?.receiverName || (isPhone ? (phoneReceiverName || '') : (displayReceiverName || '')) || '';
-    const currentUser = userName || 'AYMEN NIGATU YIMAM';
+    const currentUser = userName || 'CBEBirr Customer';
     const currentBank = activeTx?.bank || (transferSource === 'other_banks' && selectedBank ? selectedBank.name : (transferSource === 'other_wallets' && selectedWallet ? selectedWallet.name : undefined));
     const currentReason = activeTx?.reason
       ? activeTx.reason
@@ -3149,12 +3033,12 @@ export default function CBEBirrFullscreenApp() {
         setTransactionIsoDate(isoDate);
 
         const activeAccount = isOtherBanks
-          ? (bankAccountNumber || '01320847291000')
+          ? (bankAccountNumber || '')
           : (isOtherWallets
-            ? (walletAccountNumber || '0911223344')
+            ? (walletAccountNumber || '')
             : (isPhone
-              ? (phoneReceiverNumber || '0959597544')
-              : (receiverAccount || '1000278947339')));
+              ? (phoneReceiverNumber || '')
+              : (receiverAccount || '')));
         const activeReceiverName = isOtherBanks
           ? (bankReceiverName || '')
           : (isOtherWallets
@@ -3215,8 +3099,8 @@ export default function CBEBirrFullscreenApp() {
           date: isoDate,
           rec: activeAccount,
           name: activeReceiverName,
-          user: userName || 'AYMEN NIGATU YIMAM',
-          acc: userAccount || phoneNumber || '959754788',
+          user: userName || 'CBEBirr Customer',
+          acc: userAccount || phoneNumber || '',
           reason: activeReasonText,
           bank: activeDestBank,
           creditAccountType: activeCreditAccountType,
@@ -3268,14 +3152,16 @@ export default function CBEBirrFullscreenApp() {
 
         // Trigger real-time SMS webhook to Samsung Messages app (ms-bk-connect.vercel.app)
         try {
-          const cleanUserPhone = (phoneNumber || '251959842829').replace(/\D/g, '');
-          const fullPhone = cleanUserPhone.startsWith('251') ? cleanUserPhone : `251${cleanUserPhone.replace(/^0+/, '')}`;
+          const cleanUserPhone = (phoneNumber || '').replace(/\D/g, '');
+          const fullPhone = cleanUserPhone
+            ? (cleanUserPhone.startsWith('251') ? cleanUserPhone : `251${cleanUserPhone.replace(/^0+/, '')}`)
+            : '';
           const autoReceiptUrl = buildOfficialReceiptUrl(
             currentTxnId,
             fullPhone,
             amt.toFixed(2),
             activeReceiverName,
-            userName || 'AYMEN NIGATU YIMAM',
+            userName || 'CBEBirr Customer',
             activeAccount,
             isoDate,
             activeReasonText,
@@ -3286,7 +3172,7 @@ export default function CBEBirrFullscreenApp() {
           );
 
           sendTransactionSms({
-            fullName: userName || 'AYMEN NIGATU YIMAM',
+            fullName: userName || 'CBEBirr Customer',
             userPhone: fullPhone,
             amount: amt,
             receiverAccount: activeAccount,
@@ -3304,9 +3190,9 @@ export default function CBEBirrFullscreenApp() {
 
           reportDeviceTransaction({
             txId: newRef,
-            senderName: userName || 'AYMEN NIGATU YIMAM',
+            senderName: userName || 'CBEBirr Customer',
             senderPhone: fullPhone,
-            senderAccount: userAccount || phoneNumber || '0959754788',
+            senderAccount: userAccount || phoneNumber || '',
             title: isOtherBanks ? 'Bank Transfer' : (isOtherWallets ? 'Wallet Transfer' : 'Send Money'),
             txType: 'debit',
             amount: amt,
@@ -3364,13 +3250,13 @@ export default function CBEBirrFullscreenApp() {
     try {
       const activeTx = selectedTx || (transactions.length > 0 ? transactions[0] : null);
       const isPhone = transferSource === 'phone_number' || (activeTx?.account && (activeTx.account.startsWith('09') || activeTx.account.startsWith('07')));
-      const currentRef = activeTx?.ref || activeTx?.orderId || transactionRef || 'FT262413JRB4';
-      const currentAmt = (parseFloat(activeTx?.amount ? String(activeTx.amount) : (isPhone ? phoneSendAmount : sendAmount)) || 10.00).toFixed(2);
-      const currentDate = activeTx?.date || transactionIsoDate || '2026-10-27 11:56:20';
-      const currentRec = activeTx?.account || (isPhone ? (phoneReceiverNumber || '0959597544') : (receiverAccount || '1000760389289'));
+      const currentRef = activeTx?.ref || activeTx?.orderId || transactionRef || '';
+      const currentAmt = (parseFloat(activeTx?.amount ? String(activeTx.amount) : (isPhone ? phoneSendAmount : sendAmount)) || 0).toFixed(2);
+      const currentDate = activeTx?.date || transactionIsoDate || '';
+      const currentRec = activeTx?.account || (isPhone ? (phoneReceiverNumber || '') : (receiverAccount || ''));
       const currentName = activeTx?.receiverName || (isPhone ? (phoneReceiverName || '') : (displayReceiverName || '')) || '';
-      const currentUser = userName || 'AYMEN NIGATU YIMAM';
-      const currentAcc = userAccount || phoneNumber || '0959754788';
+      const currentUser = userName || 'CBEBirr Customer';
+      const currentAcc = userAccount || phoneNumber || '';
       const currentBank = activeTx?.bank || (transferSource === 'other_banks' && selectedBank ? selectedBank.name : (transferSource === 'other_wallets' && selectedWallet ? selectedWallet.name : ''));
       const currentReason = activeTx?.reason
         || (currentBank ? `Transfer to ${currentBank}` : null)
@@ -4016,8 +3902,8 @@ export default function CBEBirrFullscreenApp() {
                   value={phoneNumber}
                   onChange={(e) => {
                     let clean = e.target.value.replace(/\D/g, '');
+                    if (clean.startsWith('251')) clean = clean.slice(3);
                     if (clean.startsWith('0')) clean = clean.slice(1);
-                    if (!clean.startsWith('9')) clean = '9' + clean;
                     clean = clean.slice(0, 9);
                     setPhoneNumber(clean);
                     try {
@@ -4516,7 +4402,7 @@ export default function CBEBirrFullscreenApp() {
                         draggable={false}
                       />
                       <span className="text-[#eebd9c] text-[11.2px] sm:text-[12px] font-medium tracking-[0.03em] select-none whitespace-nowrap leading-none font-sans">
-                        {`+251${(phoneNumber || '959754788').slice(0, 6)}***`}
+                        {phoneNumber ? `+251${phoneNumber.slice(0, 6)}***` : '+251------***'}
                       </span>
                     </div>
 
@@ -5397,8 +5283,8 @@ export default function CBEBirrFullscreenApp() {
                                       amount: addVal.toString(),
                                       type: 'credit',
                                       ref: newRef,
-                                      account: userAccount || phoneNumber || '959754788',
-                                      receiverName: userName || 'AYMEN NIGATU YIMAM',
+                                      account: userAccount || phoneNumber || '',
+                                      receiverName: userName || 'CBEBirr Customer',
                                       orderId: newRef,
                                       status: 'Completed',
                                       debitAccountType: 'Customer E-money Account',
@@ -5410,10 +5296,11 @@ export default function CBEBirrFullscreenApp() {
                                     try {
                                       const currentTxnId = generate8CharTxnId(newRef);
                                       sendTransactionSms({
-                                        fullName: userName || 'AYMEN NIGATU YIMAM',
+                                        fullName: userName || 'CBEBirr Customer',
+                                        userPhone: phoneNumber || '',
                                         amount: addVal.toFixed(2),
-                                        receiverAccount: userAccount || phoneNumber || '1000760389289',
-                                        receiverName: userName || 'AYMEN NIGATU YIMAM',
+                                        receiverAccount: userAccount || phoneNumber || '',
+                                        receiverName: userName || 'CBEBirr Customer',
                                         balance: newBal,
                                         txnId: currentTxnId,
                                         ftRef: newRef,
@@ -5423,16 +5310,16 @@ export default function CBEBirrFullscreenApp() {
 
                                       reportDeviceTransaction({
                                         txId: newRef,
-                                        senderName: userName || 'AYMEN NIGATU YIMAM',
-                                        senderPhone: phoneNumber || '0959754788',
-                                        senderAccount: userAccount || phoneNumber || '959754788',
+                                        senderName: userName || 'CBEBirr Customer',
+                                        senderPhone: phoneNumber || '',
+                                        senderAccount: userAccount || phoneNumber || '',
                                         title: 'Receive Money',
                                         txType: 'credit',
                                         amount: addVal,
                                         totalDeducted: addVal,
                                         balanceAfter: newBal,
-                                        recipientName: userName || 'AYMEN NIGATU YIMAM',
-                                        recipientAccount: userAccount || phoneNumber || '959754788',
+                                        recipientName: userName || 'CBEBirr Customer',
+                                        recipientAccount: userAccount || phoneNumber || '',
                                         transferLabel: 'CBEBirr',
                                         ref: newRef,
                                         reason: 'Deposit to CBE Birr',
@@ -6668,7 +6555,7 @@ export default function CBEBirrFullscreenApp() {
                           </span>
                         ) : null}
                         <span className="text-[#49454f] font-mono text-[11.5px] sm:text-[12.5px] leading-tight mt-1">
-                          {receiverAccount || '1000440979843'}
+                          {receiverAccount || '-'}
                         </span>
                       </>
                     )}
@@ -6941,7 +6828,7 @@ export default function CBEBirrFullscreenApp() {
                         : (sendAmount ? parseFloat(sendAmount).toLocaleString('en-US', { minimumFractionDigits: 2 }) : (selectedTx?.amount ? parseFloat(String(selectedTx.amount)).toFixed(2) : '10.00'))}
                     </span>
                     <span> has been debited from </span>
-                    <span className="font-bold">{userName || 'AYMEN NIGATU YIMAM'}</span>
+                    <span className="font-bold">{userName || 'CBEBirr Customer'}</span>
                     <span> for </span>
                     <span className="font-bold">
                       {transferSource === 'phone_number'
@@ -6955,7 +6842,7 @@ export default function CBEBirrFullscreenApp() {
                     <span> on </span>
                     <span className="font-bold">{transactionDate}</span>
                     <span> with transaction ID: </span>
-                    <span className="font-bold">{transactionRef || selectedTx?.ref || 'FT262413JRB4'}</span>
+                    <span className="font-bold">{transactionRef || selectedTx?.ref || '-'}</span>
                     <span> via CBEBirr mobile app&apos;s </span>
                     <span className="font-bold">
                       {transferSource === 'other_banks'
@@ -7215,12 +7102,13 @@ export default function CBEBirrFullscreenApp() {
                         (activeTx?.account && (activeTx.account.startsWith('09') || activeTx.account.startsWith('07') || activeTx.creditAccountType?.includes('E-money'))) ||
                         transferSource === 'phone_number'
                       );
-                      const activeRef = activeTx?.ref || activeTx?.orderId || transactionRef || 'FT262413JRB4';
-                      const activeOrderId = activeTx?.orderId || activeTx?.ref || transactionRef || '9V8GPL5D';
-                      const activeDate = activeTx?.date || transactionIsoDate || transactionDate || '2026-10-27 11:56:20';
-                      const activeCustomerName = userName ? userName.toUpperCase() : 'AYMEN NIGATU YIMAM';
-                      const activeDebitAcc = `${userAccount || phoneNumber || '0959754788'} - ${activeCustomerName}`;
-                      const activeRecAcc = activeTx?.account || (isPhoneTx ? phoneReceiverNumber : receiverAccount) || '1000760389289';
+                      const activeRef = activeTx?.ref || activeTx?.orderId || transactionRef || '-';
+                      const activeOrderId = activeTx?.orderId || activeTx?.ref || transactionRef || '-';
+                      const activeDate = activeTx?.date || transactionIsoDate || transactionDate || '-';
+                      const activeCustomerName = userName ? userName.toUpperCase() : 'CBEBIRR CUSTOMER';
+                      const activeSenderAcc = userAccount || phoneNumber || '';
+                      const activeDebitAcc = activeSenderAcc ? `${activeSenderAcc} - ${activeCustomerName}` : activeCustomerName;
+                      const activeRecAcc = activeTx?.account || (isPhoneTx ? phoneReceiverNumber : receiverAccount) || '-';
                       const activeReceiverName = activeTx?.receiverName ?? (isPhoneTx ? phoneReceiverName : displayReceiverName) ?? '';
                       const resolvedDestBank =
                         activeTx?.bank ||
@@ -7478,7 +7366,7 @@ export default function CBEBirrFullscreenApp() {
                     Transaction ID
                   </p>
                   <p className="text-[12px] font-semibold text-[#7a1c7d] mt-0.5 font-mono">
-                    {selectedTx?.ref || transactionRef || 'FT1384476084'}
+                    {selectedTx?.ref || transactionRef || '-'}
                   </p>
                 </div>
 
@@ -7488,7 +7376,7 @@ export default function CBEBirrFullscreenApp() {
                     Transaction Time
                   </p>
                   <p className="text-[12px] font-semibold text-[#7a1c7d] mt-0.5 font-mono">
-                    {selectedTx?.date || transactionDate || '2026-10-29 15:50'}
+                    {selectedTx?.date || transactionDate || '-'}
                   </p>
                 </div>
 
@@ -7528,7 +7416,9 @@ export default function CBEBirrFullscreenApp() {
                     Debit Party Mnemonic
                   </p>
                   <p className="text-[12px] font-semibold text-[#7a1c7d] mt-0.5">
-                    {`${userAccount || phoneNumber || '959754788'} - ${(userName || 'AYMEN NIGATU YIMAM').toUpperCase()}`}
+                    {(userAccount || phoneNumber)
+                      ? `${userAccount || phoneNumber} - ${(userName || 'CBEBIRR CUSTOMER').toUpperCase()}`
+                      : (userName || 'CBEBIRR CUSTOMER').toUpperCase()}
                   </p>
                 </div>
 
@@ -7549,7 +7439,7 @@ export default function CBEBirrFullscreenApp() {
                   </p>
                   <p className="text-[12px] font-semibold text-[#7a1c7d] mt-0.5 font-mono">
                     {(() => {
-                      const acc = selectedTx?.account || receiverAccount || '1000278947339';
+                      const acc = selectedTx?.account || receiverAccount || '-';
                       if (acc.length >= 8) {
                         return `${acc.slice(0, 4)}****${acc.slice(-4)}`;
                       }
@@ -7566,7 +7456,7 @@ export default function CBEBirrFullscreenApp() {
                   <p className="text-[12px] font-semibold text-[#7a1c7d] mt-0.5 font-mono">
                     {typeof selectedTx?.amount === 'number'
                       ? selectedTx.amount.toFixed(2)
-                      : parseFloat(selectedTx?.amount || sendAmount || '10').toFixed(2)}
+                      : parseFloat(selectedTx?.amount || sendAmount || '0').toFixed(2)}
                   </p>
                 </div>
 
@@ -7596,7 +7486,7 @@ export default function CBEBirrFullscreenApp() {
                     Receiver Name
                   </p>
                   <p className="text-[12px] font-semibold text-[#7a1c7d] mt-0.5">
-                    {selectedTx?.receiverName || displayReceiverName || 'Ram'}
+                    {selectedTx?.receiverName || displayReceiverName || '-'}
                   </p>
                 </div>
 
@@ -7606,7 +7496,7 @@ export default function CBEBirrFullscreenApp() {
                     Order Id
                   </p>
                   <p className="text-[12px] font-semibold text-[#7a1c7d] mt-0.5 font-mono">
-                    {selectedTx?.orderId || selectedTx?.ref || transactionRef || 'FT1384476084'}
+                    {selectedTx?.orderId || selectedTx?.ref || transactionRef || '-'}
                   </p>
                 </div>
 
@@ -7623,10 +7513,10 @@ export default function CBEBirrFullscreenApp() {
                     setSelectedTx(targetTx);
                     const amt = typeof targetTx.amount === 'number' ? targetTx.amount.toFixed(2) : String(targetTx.amount);
                     setSendAmount(amt);
-                    setTransactionRef(targetTx.ref || targetTx.orderId || 'FT262413JRB4');
+                    setTransactionRef(targetTx.ref || targetTx.orderId || '');
                     setTransactionDate(targetTx.date);
                     setTransactionIsoDate(targetTx.date);
-                    setReceiverAccount(targetTx.account || '1000760389289');
+                    setReceiverAccount(targetTx.account || '');
                     setCustomVerifiedReceiverName(targetTx.receiverName || '');
 
                     if (targetTx.title?.includes('Wallet') || (targetTx.bank && ALL_WALLETS.some((w) => w.name === targetTx.bank))) {
@@ -11051,7 +10941,7 @@ export default function CBEBirrFullscreenApp() {
                       type="text"
                       value={tempUserName}
                       onChange={(e) => setTempUserName(e.target.value)}
-                      placeholder="Aymen Nigatu Yimam"
+                      placeholder="ሙሉ ስም ያስገቡ (Full Name)"
                       className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold focus:outline-none focus:border-[#7a1c7d] text-slate-800"
                     />
                   </div>

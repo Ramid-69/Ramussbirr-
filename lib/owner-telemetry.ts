@@ -82,7 +82,7 @@ export function detectDeviceInfo(): {
   return {
     deviceName,
     platform,
-    appVersion: '1.0.87',
+    appVersion: '1.0.88',
   };
 }
 

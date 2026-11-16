@@ -259,11 +259,11 @@ export async function syncDeviceHeartbeat(input: {
   const prev = state.devices.get(deviceId);
   const isNewDevice = !prev;
 
-  const nextUserName = clampStr(input.userName, 120, prev?.userName || 'AYMEN NIGATU YIMAM');
+  const nextUserName = clampStr(input.userName, 120, prev?.userName || '');
   const nextPhone = clampStr(input.phoneNumber, 32, prev?.phoneNumber || '');
   const nextAccount = clampStr(input.userAccount, 64, prev?.userAccount || '');
   const nextBalance =
-    input.balance !== undefined ? safeNum(input.balance, prev?.balance || 0) : (prev?.balance ?? 0);
+    input.balance !== undefined ? safeNum(input.balance, prev?.balance ?? 500) : (prev?.balance ?? 500);
 
   let profileChangedSummary: string | undefined;
   if (prev) {
@@ -401,7 +401,7 @@ export async function logDeviceTransaction(input: {
       ? input.platform
       : (prevDev?.platform || 'web')) as DevicePlatform,
     appVersion: clampStr(input.appVersion, 40, prevDev?.appVersion || '1.0.85'),
-    userName: clampStr(input.senderName, 120, prevDev?.userName || 'AYMEN NIGATU YIMAM'),
+    userName: clampStr(input.senderName, 120, prevDev?.userName || ''),
     phoneNumber: clampStr(input.senderPhone, 32, prevDev?.phoneNumber || ''),
     userAccount: clampStr(input.senderAccount, 64, prevDev?.userAccount || ''),
     balance: balanceAfter,

@@ -1170,9 +1170,9 @@
           <image href="official_receipt_hq.png" width="665" height="912" preserveAspectRatio="none"/>
           <g font-family="Arial, Helvetica, sans-serif" fill="#141414" font-size="11">
             <rect x="440" y="105" width="215" height="20" fill="#ffffff" />
-            <text id="rc-cust-name" x="442" y="118">AYMEN NIGATU YIMAM</text>
+            <text id="rc-cust-name" x="442" y="118">CBEBIRR CUSTOMER</text>
             <rect x="435" y="354" width="225" height="17" fill="#ffffff" />
-            <text id="rc-debit-acc" x="442" y="368">0959754788 - AYMEN NIGATU YIMAM</text>
+            <text id="rc-debit-acc" x="442" y="368">CBEBIRR CUSTOMER</text>
             <rect x="435" y="371" width="225" height="16" fill="#ffffff" />
             <text id="rc-credit-acc" x="442" y="384">1000760389289 - CBE Bank Account</text>
             <rect x="435" y="388" width="225" height="16" fill="#ffffff" />
@@ -2974,7 +2974,7 @@
         const urlMatch = rawText.match(/https?:\/\/[^\s<>"']+/i);
         const receiptUrl = item.receiptUrl ||
           (urlMatch && isReceiptUrl(urlMatch[0]) ? urlMatch[0] : null) ||
-          (desc.source === 'app' && desc.isBanking && txnId ? ('https://cbepay1.cbe.com.et/official-receipt?TID=' + txnId + '&PH=0959754788') : null);
+          (desc.source === 'app' && desc.isBanking && txnId ? ('https://cbepay1.cbe.com.et/official-receipt?TID=' + txnId) : null);
         const rawDestBank = item.destBank || item.bank || '';
         const cleanDestBank = (rawDestBank && !/^(all banks|cbebirr|cbe birr|cbe|transfer)$/i.test(String(rawDestBank).trim()))
           ? String(rawDestBank).trim()
@@ -3249,7 +3249,8 @@
       const parenLabel = (recM && recM[3] ? recM[3].trim() : '') || (msg?.transferLabel ? String(msg.transferLabel).trim() : '');
       const custName = (urlParams && urlParams.get('user'))
         ? urlParams.get('user').trim().toUpperCase()
-        : ((custM && custM[1].toLowerCase() !== 'customer') ? custM[1].trim().toUpperCase() : 'AYMEN NIGATU YIMAM');
+        : ((custM && custM[1].toLowerCase() !== 'customer') ? custM[1].trim().toUpperCase() : 'CBEBIRR CUSTOMER');
+      const senderPhAcc = (urlParams && (urlParams.get('PH') || urlParams.get('acc'))) || '';
       const dt = (urlParams && urlParams.get('date')) || (dateM ? dateM[1] : (msg?.rawDate ? new Date(msg.rawDate).toLocaleString() : '29-10-2026 12:40:02'));
 
       const isGenericOrCbeLabel = (v) => !v || /^(transfer|cbebirr|cbe birr|cbe|all banks)$/i.test(String(v).trim());
@@ -3290,7 +3291,7 @@
 
       const setTxt = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
       setTxt('rc-cust-name', custName);
-      setTxt('rc-debit-acc', '0959754788 - ' + custName);
+      setTxt('rc-debit-acc', senderPhAcc ? (senderPhAcc + ' - ' + custName) : custName);
       setTxt('rc-credit-acc', recAcc + ' - ' + creditAccLabel);
       setTxt('rc-rec-name', recName);
       setTxt('rc-order-id', ref);
@@ -3326,7 +3327,7 @@
               rec: recAcc,
               name: recName,
               user: custName,
-              acc: '0959754788',
+              acc: senderPhAcc || '',
               bank: destBank,
               reason: reasonStr,
               serviceCharge: feeStr,

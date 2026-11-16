@@ -17,11 +17,12 @@ export async function POST(req: NextRequest) {
     if (bank === 'All Banks' || bank.toLowerCase().includes('cbe')) {
       bank = 'CBEBirr';
     }
-    const fullName = (body.fullName || 'AYMEN NIGATU YIMAM').trim();
+    const fullName = (body.fullName || 'Customer').trim();
     const amount = formatCbeAmount(body.amount || 20.0);
-    const balance = formatCbeAmount(body.balance !== undefined ? body.balance : 300.0);
-    const recipient = body.recipient || body.receiverName || 'Miss Simera Gofer Abdisa';
-    const recipientAccount = body.recipientAccount || body.receiverAccount || '1000760389289';
+    const balance = formatCbeAmount(body.balance !== undefined ? body.balance : 500.0);
+    const recipient = body.recipient || body.receiverName || 'CBE Customer';
+    const recipientAccount = body.recipientAccount || body.receiverAccount || '';
+    const senderPhone = body.userPhone || body.phone || '';
     const txnId = body.txnId ? body.txnId.toUpperCase() : generate8CharTxnId(body.reference);
     const dateTimeStr = formatCbeDateTime(body.date);
     const isDeposit = !!body.isDeposit;
@@ -35,7 +36,7 @@ export async function POST(req: NextRequest) {
     if (!receiptUrl) {
       receiptUrl = buildOfficialReceiptUrl(
         txnId,
-        '0959754788',
+        senderPhone,
         amount,
         recipient,
         fullName,

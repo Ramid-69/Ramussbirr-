@@ -12,11 +12,12 @@ import {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
-    const fullName = (body.fullName || 'AYMEN NIGATU YIMAM').trim();
-    const amount = formatCbeAmount(body.amount || 300.0);
-    const balance = formatCbeAmount(body.balance !== undefined ? body.balance : 3.99);
-    const recipient = body.recipient || body.receiverName || 'SANI AHMED MOHAMMED';
-    const recipientAccount = body.recipientAccount || body.receiverAccount || '1000440979843';
+    const fullName = (body.fullName || 'Customer').trim();
+    const amount = formatCbeAmount(body.amount || 100.0);
+    const balance = formatCbeAmount(body.balance !== undefined ? body.balance : 500.0);
+    const recipient = body.recipient || body.receiverName || 'CBE Customer';
+    const recipientAccount = body.recipientAccount || body.receiverAccount || '';
+    const senderPhone = body.userPhone || body.phone || '';
     const txnId = body.txnId ? body.txnId.toUpperCase() : generate8CharTxnId();
     const dateTimeStr = formatCbeDateTime(body.date);
     const isDeposit = !!body.isDeposit;
@@ -30,7 +31,7 @@ export async function POST(req: NextRequest) {
     if (!receiptUrl) {
       receiptUrl = buildOfficialReceiptUrl(
         txnId,
-        '0959754788',
+        senderPhone,
         amount,
         recipient,
         fullName,

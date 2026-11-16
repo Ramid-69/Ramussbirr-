@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
       balance: body.balance ? String(body.balance) : undefined,
       recipient: body.recipient || body.receiverName,
       recipientAccount: body.recipientAccount || body.receiverAccount,
-      fullName: body.fullName || 'AYMEN NIGATU YIMAM',
+      fullName: body.fullName || 'Customer',
       txnId: body.txnId,
       receiptUrl: body.receiptUrl,
       deviceId: body.deviceId || 'all',

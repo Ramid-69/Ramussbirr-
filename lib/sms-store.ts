@@ -65,15 +65,8 @@ class SmsStore {
         let cleanedText = m.text
           .replace(/For your feedback please click the link https:\/\/shorturl\.at\/[^\s]+/gi, '')
           .replace(/For invoice\s+https:\/\/cbepay1\.cbe\.com\.et\/aureceipt/gi, 'Thank You! CBEBirr transaction Receipt. Com https://cbepay1.cbe.com.et/aureceipt')
-          .replace(/PH=\+?959842829/gi, 'PH=+251959754788')
-          .replace(/PH=0959754788/gi, 'PH=+251959754788')
           .trim();
-        let cleanedUrl = m.receiptUrl;
-        if (cleanedUrl) {
-          cleanedUrl = cleanedUrl
-            .replace(/PH=\+?959842829/gi, 'PH=+251959754788')
-            .replace(/PH=0959754788/gi, 'PH=+251959754788');
-        }
+        const cleanedUrl = m.receiptUrl;
         cleanedText = repairTransferLabelInSmsText(cleanedText, {
           transferLabel: m.transferLabel,
           destBank: m.destBank,
@@ -323,10 +316,10 @@ class SmsStore {
             ref: newMsg.reference || newMsg.txnId,
             amt: newMsg.amount || '0.00',
             date: newMsg.date,
-            rec: newMsg.recipientAccount || '1000760389289',
-            name: newMsg.recipient || 'Miss Simera Gofer Abdisa',
-            user: newMsg.fullName || 'AYMEN NIGATU YIMAM',
-            acc: '959754788',
+            rec: newMsg.recipientAccount || '',
+            name: newMsg.recipient || 'CBE Customer',
+            user: newMsg.fullName || 'CBEBirr Customer',
+            acc: '',
             bank: extractedDestBank,
             reason: newMsg.isDeposit
               ? 'Deposit to CBE Birr'

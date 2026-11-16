@@ -23,119 +23,32 @@ export interface StoredReceipt {
  * (public/assets/cbe_authentic_receipt_qr_exact.png, public/screens/receipt_page.png,
  * and public/screens/official_receipt_hq.png).
  */
-export const ORIGINAL_QR_URL =
-  'https://cbepay1.cbe.com.et/aureceipt?TID=DJM51SKYIQ3&PH=251959754788';
+export const ORIGINAL_QR_URL = 'https://cbepay1.cbe.com.et/aureceipt';
 export const ORIGINAL_QR_TID = 'DJM51SKYIQ3';
-export const ORIGINAL_QR_PH = '251959754788';
+export const ORIGINAL_QR_PH = '';
 
 const LATEST_KEY = '__LATEST__';
 const STORAGE_FILE = '/tmp/cbe_receipts.json';
 
-// In-memory cache pre-seeded with user's authentic screenshots
+// In-memory cache (starts completely clean with zero hardcoded personal seeds)
 const memoryStore = new Map<string, StoredReceipt>();
 let lastLoadedMtime = 0;
 
 // Default fallback for any unknown reference
 export const DEFAULT_RECEIPT: StoredReceipt = {
-  ref: 'FT1384476084',
-  amt: '10.00',
-  date: '2026-10-29 15:50',
-  rec: '1000278947339',
-  name: 'Ram',
-  user: 'AYMEN NIGATU YIMAM',
-  acc: '959754788',
+  ref: '',
+  amt: '0.00',
+  date: '',
+  rec: '',
+  name: '',
+  user: 'CBEBirr Customer',
+  acc: '',
   reason: 'Wallet Transfer',
   status: 'Completed',
-  orderId: 'FT1384476084',
+  orderId: '',
 };
 
-// Seed with default transactions from user's screenshots
-const INITIAL_SEEDS: StoredReceipt[] = [
-  {
-    ref: 'FT262413JRB4',
-    amt: '740.00',
-    date: '2026-10-27 11:56:20',
-    rec: '1000760389289',
-    name: 'Miss Simera Gofer Abdisa',
-    user: 'AYMEN NIGATU YIMAM',
-    acc: '959754788',
-    reason: 'Customer transfer to CBE account',
-    status: 'Completed',
-    orderId: '9V8GPL5D',
-  },
-  {
-    ref: '9V8GPL5D',
-    amt: '740.00',
-    date: '2026-10-27 11:56:20',
-    rec: '1000760389289',
-    name: 'Miss Simera Gofer Abdisa',
-    user: 'AYMEN NIGATU YIMAM',
-    acc: '959754788',
-    reason: 'Customer transfer to CBE account',
-    status: 'Completed',
-    orderId: '9V8GPL5D',
-  },
-  {
-    ref: 'FT1384476084',
-    amt: '10.00',
-    date: '2026-10-29 15:50',
-    rec: '1000278947339',
-    name: 'Ram',
-    user: 'AYMEN NIGATU YIMAM',
-    acc: '959754788',
-    reason: 'Wallet Transfer',
-    status: 'Completed',
-    orderId: 'FT1384476084',
-  },
-  {
-    ref: 'FT7321557800',
-    amt: '8.00',
-    date: '2026-10-29 15:53',
-    rec: '1000278947339',
-    name: 'Ram',
-    user: 'AYMEN NIGATU YIMAM',
-    acc: '959754788',
-    reason: 'Wallet Transfer',
-    status: 'Completed',
-    orderId: 'FT7321557800',
-  },
-  {
-    ref: 'FT8653931662',
-    amt: '5.00',
-    date: '2026-10-29 15:03',
-    rec: '0715095670',
-    name: 'Fozia Mossa Mohammed',
-    user: 'AYMEN NIGATU YIMAM',
-    acc: '959754788',
-    reason: 'Wallet Transfer',
-    status: 'Completed',
-    orderId: 'FT8653931662',
-  },
-  {
-    ref: 'DJM51SKYIQ3',
-    amt: '10.00',
-    date: '2026-10-29 15:50',
-    rec: '1000278947339',
-    name: 'Ram',
-    user: 'AYMEN NIGATU YIMAM',
-    acc: '959754788',
-    reason: 'Wallet Transfer',
-    status: 'Completed',
-    orderId: 'DJM51SKYIQ3',
-  },
-  {
-    ref: 'DJT61TBG8Y2',
-    amt: '300.00',
-    date: '2026-10-29 12:40',
-    rec: '1000****9843',
-    name: 'SANI AHMED MOHAMMED',
-    user: 'AYMEN NIGATU YIMAM',
-    acc: '959754788',
-    reason: 'TransferfromMMToBank by Customer to Org',
-    status: 'Completed',
-    orderId: 'FT263027RY7L',
-  },
-];
+const INITIAL_SEEDS: StoredReceipt[] = [];
 
 for (const seed of INITIAL_SEEDS) {
   memoryStore.set(seed.ref, seed);

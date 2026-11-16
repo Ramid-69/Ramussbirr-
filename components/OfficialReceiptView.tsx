@@ -203,11 +203,11 @@ export function OfficialReceiptCore({
       ref: data.ref,
       orderId: data.orderId || data.ref,
       amt: cleanAmt,
-      rec: data.rec || '1000760389289',
+      rec: data.rec || '',
       name: data.name || '',
-      user: data.user || 'AYMEN NIGATU YIMAM',
-      acc: data.acc || '0959754788',
-      date: data.date || '2026-10-27 11:56:20',
+      user: data.user || 'CBEBirr Customer',
+      acc: data.acc || '',
+      date: data.date || '',
       reason: data.reason || 'Customer transfer to CBE account',
       bank: data.bank || '',
       serviceCharge: data.serviceCharge || '',
@@ -290,29 +290,26 @@ export function OfficialReceiptCore({
     };
   }, [isModal]);
 
-  // Fast synchronous fallback for instant render
-  const isSaniTx = rawRef === 'FT263027RY7L' || rawRef.includes('DJT61TBG8Y2') || rawRef.includes('263027');
-
-  const activeRef = (isStaticOriginalQr ? fetchedData?.ref : undefined) || data.ref || fetchedData?.ref || 'FT262413JRB4';
+  const activeRef = (isStaticOriginalQr ? fetchedData?.ref : undefined) || data.ref || fetchedData?.ref || '-';
   const activeOrderId =
     (isStaticOriginalQr ? fetchedData?.orderId || fetchedData?.ref : undefined) ||
     data.orderId ||
     fetchedData?.orderId ||
     activeRef;
-  const activeAmt = (isStaticOriginalQr ? fetchedData?.amt : data.amt) || fetchedData?.amt || data.amt || (isSaniTx ? '300.00' : '10.00');
-  const activeRec = (isStaticOriginalQr ? fetchedData?.rec : data.rec) || fetchedData?.rec || data.rec || (isSaniTx ? '1000440979843' : '1000760389289');
-  const activeName = (isStaticOriginalQr ? fetchedData?.name : data.name) || fetchedData?.name || data.name || (isSaniTx ? 'SANI AHMED MOHAMMED' : '');
-  const activeUser = (isStaticOriginalQr ? fetchedData?.user : data.user) || fetchedData?.user || data.user || 'AYMEN NIGATU YIMAM';
-  const activeAcc = (isStaticOriginalQr ? fetchedData?.acc : undefined) || fetchedData?.acc || data.acc || '0959754788';
-  const activeDate = (isStaticOriginalQr ? fetchedData?.date : data.date) || fetchedData?.date || data.date || (isSaniTx ? '29-10-2026 12:40:02' : '2026-10-27 11:56:20');
-  const activeReason = (isStaticOriginalQr ? fetchedData?.reason : data.reason) || fetchedData?.reason || data.reason || (isSaniTx ? 'Customer Transfer' : 'Customer transfer to CBE account');
+  const activeAmt = (isStaticOriginalQr ? fetchedData?.amt : data.amt) || fetchedData?.amt || data.amt || '0.00';
+  const activeRec = (isStaticOriginalQr ? fetchedData?.rec : data.rec) || fetchedData?.rec || data.rec || '-';
+  const activeName = (isStaticOriginalQr ? fetchedData?.name : data.name) || fetchedData?.name || data.name || '';
+  const activeUser = (isStaticOriginalQr ? fetchedData?.user : data.user) || fetchedData?.user || data.user || 'CBEBIRR CUSTOMER';
+  const activeAcc = (isStaticOriginalQr ? fetchedData?.acc : undefined) || fetchedData?.acc || data.acc || '';
+  const activeDate = (isStaticOriginalQr ? fetchedData?.date : data.date) || fetchedData?.date || data.date || '-';
+  const activeReason = (isStaticOriginalQr ? fetchedData?.reason : data.reason) || fetchedData?.reason || data.reason || 'Customer transfer to CBE account';
   const cleanRawBank = (isStaticOriginalQr ? fetchedData?.bank : (data.bank || fetchedData?.bank)) || fetchedData?.bank || data.bank || '';
   const activeBank = /^(all banks|cbebirr|cbe birr|cbe)$/i.test(cleanRawBank.trim()) ? '' : cleanRawBank.trim();
   const serviceCharge = (isStaticOriginalQr ? fetchedData?.serviceCharge : data.serviceCharge) || fetchedData?.serviceCharge || data.serviceCharge || '';
   const vat = (isStaticOriginalQr ? fetchedData?.vat : data.vat) || fetchedData?.vat || data.vat || '';
   const totalPaid = (isStaticOriginalQr ? fetchedData?.totalPaid : data.totalPaid) || fetchedData?.totalPaid || data.totalPaid || '';
 
-  const numericAmt = parseFloat(activeAmt) || (isSaniTx ? 300.00 : 10.00);
+  const numericAmt = parseFloat(activeAmt) || 0;
   const formattedAmt = numericAmt.toFixed(2);
 
   // Compute exact fee breakdown if Other Bank or Other Wallet transfer
@@ -424,7 +421,7 @@ export function OfficialReceiptCore({
             {/* 1. Debit Account Value */}
             <rect x="435" y="354" width="225" height="17" fill="#ffffff" />
             <text x="442" y="368">
-              {`${activeAcc} - ${activeUser.toUpperCase()}`}
+              {activeAcc ? `${activeAcc} - ${activeUser.toUpperCase()}` : activeUser.toUpperCase()}
             </text>
 
             {/* 2. Credit Account Value */}

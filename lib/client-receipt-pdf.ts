@@ -68,14 +68,14 @@ function amountToWords(num: number): string {
  * 100% identical to the in-app Official Receipt view.
  */
 export async function generateClientReceiptPdf(data: ReceiptData): Promise<{ blob: Blob; base64: string }> {
-  const ref = data.ref || 'FT262413JRB4';
-  const amtNum = parseFloat(data.amt) || 10.0;
+  const ref = data.ref || '-';
+  const amtNum = parseFloat(data.amt) || 0;
   const formattedAmt = amtNum.toFixed(2);
-  const user = (data.user || 'AYMEN NIGATU YIMAM').toUpperCase();
-  const acc = data.acc || '0959754788';
-  const rec = data.rec || '1000760389289';
+  const user = (data.user || 'CBEBIRR CUSTOMER').toUpperCase();
+  const acc = data.acc || '';
+  const rec = data.rec || '-';
   const recName = data.name || '';
-  const date = data.date || '2026-10-27 11:56:20';
+  const date = data.date || '-';
   const reason = data.reason || 'Customer transfer to CBE account';
   const bank = data.bank || '';
   const sc = data.serviceCharge && parseFloat(data.serviceCharge) > 0 ? parseFloat(data.serviceCharge).toFixed(2) : '0.00';
@@ -114,7 +114,7 @@ export async function generateClientReceiptPdf(data: ReceiptData): Promise<{ blo
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(870, 715, 450, 30);
         ctx.fillStyle = '#141414';
-        ctx.fillText(`${acc} - ${user}`, 884, 736);
+        ctx.fillText(acc ? `${acc} - ${user}` : user, 884, 736);
 
         // 2. Credit Account
         ctx.fillStyle = '#ffffff';

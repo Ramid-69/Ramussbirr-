@@ -277,15 +277,15 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
       });
     }
   };
-  const [deviceId, setDeviceId] = useState<string>('cbe-samsung-galaxy-device-01');
+  const [deviceId, setDeviceId] = useState<string>('');
 
-  const [devFullName, setDevFullName] = useState('AYMEN NIGATU YIMAM');
-  const [devAmount, setDevAmount] = useState('300.00');
-  const [devReceiverName, setDevReceiverName] = useState('SANI AHMED MOHAMMED');
-  const [devReceiverAcc, setDevReceiverAcc] = useState('1000440979843');
-  const [devBalance, setDevBalance] = useState('3.99');
-  const [devDepositAmount, setDevDepositAmount] = useState('200.00');
-  const [devDepositBalance, setDevDepositBalance] = useState('503.99');
+  const [devFullName, setDevFullName] = useState('');
+  const [devAmount, setDevAmount] = useState('100.00');
+  const [devReceiverName, setDevReceiverName] = useState('');
+  const [devReceiverAcc, setDevReceiverAcc] = useState('');
+  const [devBalance, setDevBalance] = useState('500.00');
+  const [devDepositAmount, setDevDepositAmount] = useState('100.00');
+  const [devDepositBalance, setDevDepositBalance] = useState('500.00');
 
   // Android Default SMS App Dialog matching user screenshot (image.png)
   const [showDefaultSmsDialog, setShowDefaultSmsDialog] = useState<boolean>(false);
@@ -689,18 +689,11 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
     });
   }, [conversations, selectedCategory, searchQuery, showUnreadOnly, totalUnreadCount]);
 
-  // Contacts seed list for Contacts Tab
+  // Contacts seed list for Contacts Tab (official carrier/service numbers only; no personal build data)
   const CONTACTS_LIST = useMemo(
     () => [
-      { name: 'A A', phone: '+251911223344', note: 'Friend', initial: 'A', color: '#10b981' },
-      { name: 'Abdu Siraj Siraj', phone: '0965848508', note: 'CBE Sender', initial: 'A', color: '#3b82f6' },
       { name: 'BeepCall710', phone: '710', note: 'Service', initial: 'B', color: '#64748b' },
       { name: 'CBEBirr Customer Care', phone: '951', note: 'Bank', initial: 'C', color: '#7a1c7d' },
-      { name: 'Fayyee Lammeessa Didhaa', phone: '0715095670', note: 'M-PESA Recipient', initial: 'F', color: '#e60000' },
-      { name: 'ጅብሪል', phone: '+251912345678', note: 'Contact', initial: 'ጅ', color: '#8b5cf6' },
-      { name: 'My 😘', phone: '+251959754788', note: 'Favorite', initial: 'M', color: '#10b981' },
-      { name: 'Miss Simera Gofer Abdisa', phone: '1000760389289', note: 'CBE Recipient', initial: 'M', color: '#ec4899' },
-      { name: 'SANI AHMED MOHAMMED', phone: '1000440979843', note: 'CBE Recipient', initial: 'S', color: '#f59e0b' },
       { name: 'Safaricom Ethiopia', phone: '700', note: 'Carrier', initial: 'S', color: '#e60000' },
       { name: 'telebirr (Ethio telecom)', phone: '127', note: 'Mobile Money', initial: 'T', color: '#009fe3' },
     ],
@@ -939,8 +932,8 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
       }
     }
 
-    if (!rec) rec = '1000760389289';
-    if (!name) name = 'Miss Simera Gofer Abdisa';
+    if (!rec) rec = '-';
+    if (!name) name = 'CBE Customer';
 
     // Customer / Payer Name
     let user = msg.fullName || urlParams?.get('user') || '';
@@ -950,7 +943,12 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
         user = dearMatch[1].trim();
       }
     }
-    if (!user) user = 'AYMEN NIGATU YIMAM';
+    if (!user && typeof window !== 'undefined') {
+      try {
+        user = localStorage.getItem('cbebirr_user_name') || '';
+      } catch {}
+    }
+    if (!user) user = 'CBEBirr Customer';
 
     // Payer Phone / Account
     let acc = urlParams?.get('PH') || urlParams?.get('acc') || '';
@@ -958,7 +956,11 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
       const phMatch = text.match(/PH=([+0-9]+)/i);
       if (phMatch) acc = phMatch[1];
     }
-    if (!acc) acc = '0959754788';
+    if (!acc && typeof window !== 'undefined') {
+      try {
+        acc = localStorage.getItem('cbebirr_user_account') || localStorage.getItem('cbebirr_phone_number') || '';
+      } catch {}
+    }
 
     // Date
     let date = msg.date || urlParams?.get('date') || '';
@@ -1139,15 +1141,17 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
 
             if (isReceipt || isCbe) {
               const data = extractReceiptDataFromMsg(msg);
-              const tid = data.ref || 'DJT61TBG';
-              let ph = '+251959754788';
+              const tid = data.ref || '';
+              let ph = '';
               if (data.acc) {
                 const digits = data.acc.replace(/\D/g, '');
                 if (digits.startsWith('251')) ph = `+${digits}`;
                 else if (digits.startsWith('0')) ph = `+251${digits.slice(1)}`;
-                else ph = `+251${digits}`;
+                else if (digits) ph = `+251${digits}`;
               }
-              const displayUrl = `https://cbepay1.cbe.com.et/aureceipt?TID=${tid}&PH=${ph}`;
+              const displayUrl = ph
+                ? `https://cbepay1.cbe.com.et/aureceipt?TID=${tid}&PH=${ph}`
+                : `https://cbepay1.cbe.com.et/aureceipt?TID=${tid}`;
 
               const params = new URLSearchParams({
                 TID: tid,
@@ -1234,11 +1238,11 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
   -H "Content-Type: application/json" \\
   -H "x-api-key: Ram69" \\
   -d '{
-    "fullName": "AYMEN NIGATU YIMAM",
-    "amount": "300.00",
-    "recipient": "SANI AHMED MOHAMMED",
-    "recipientAccount": "1000440979843",
-    "balance": "3.99"
+    "fullName": "CUSTOMER NAME",
+    "amount": "100.00",
+    "recipient": "RECEIVER NAME",
+    "recipientAccount": "1000000000000",
+    "balance": "500.00"
   }'`;
 
   return (
@@ -2335,8 +2339,8 @@ export default function SamsungMessagesApp({ onClose, initialConversationId }: S
                     <span>Target Device Profile</span>
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-600 dark:text-slate-300">
-                    <div><strong>Device:</strong> Galaxy A12 (SM-A127F/DS)</div>
-                    <div><strong>Phone:</strong> 0959754788</div>
+                    <div><strong>Device:</strong> Android Device</div>
+                    <div><strong>ID:</strong> {deviceId || 'Pending'}</div>
                     <div><strong>SIM 1:</strong> Ethio telecom</div>
                     <div><strong>SIM 2:</strong> Safaricom Ethiopia</div>
                   </div>
