@@ -1,0 +1,412 @@
+{
+  "entities": {
+    "AdminUser": {
+      "title": "AdminUser",
+      "description": "Authorized owner/administrator allowed to inspect all devices, transactions, locks, and timed notifications.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth UID of the administrator",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Verified administrator email address",
+          "maxLength": 200
+        },
+        "role": {
+          "type": "string",
+          "enum": ["admin"],
+          "description": "Role identifier strictly locked to admin"
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "Creator UID matching request.auth.uid",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp"
+        }
+      },
+      "required": ["uid", "email", "role", "ownerId", "createdAt", "updatedAt"]
+    },
+    "DeviceClient": {
+      "title": "DeviceClient",
+      "description": "Registered CBEBirr Plus device installation with online heartbeat, profile details, and per-device lock flag.",
+      "type": "object",
+      "properties": {
+        "deviceId": {
+          "type": "string",
+          "description": "Unique persistent device identifier",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "deviceName": {
+          "type": "string",
+          "description": "Human-readable phone/browser label",
+          "maxLength": 120
+        },
+        "platform": {
+          "type": "string",
+          "enum": ["android-apk", "web-pwa", "web"],
+          "description": "Runtime client platform"
+        },
+        "appVersion": {
+          "type": "string",
+          "description": "Installed app/bundle version string",
+          "maxLength": 40
+        },
+        "userName": {
+          "type": "string",
+          "description": "Display profile name configured inside the app",
+          "maxLength": 120
+        },
+        "phoneNumber": {
+          "type": "string",
+          "description": "Phone number entered on login screen",
+          "maxLength": 32
+        },
+        "userAccount": {
+          "type": "string",
+          "description": "Account number/phone configured in app",
+          "maxLength": 64
+        },
+        "balance": {
+          "type": "number",
+          "description": "Current ETB balance on this device"
+        },
+        "isLocked": {
+          "type": "boolean",
+          "description": "Whether the owner has remotely locked this specific device"
+        },
+        "lockReason": {
+          "type": "string",
+          "description": "Optional lock banner message shown on this device",
+          "maxLength": 240
+        },
+        "lastSeenAtMs": {
+          "type": "number",
+          "description": "Unix epoch ms of the latest heartbeat from this device"
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "Owner UID governing this device record",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp"
+        }
+      },
+      "required": [
+        "deviceId",
+        "deviceName",
+        "platform",
+        "appVersion",
+        "userName",
+        "phoneNumber",
+        "userAccount",
+        "balance",
+        "isLocked",
+        "lastSeenAtMs",
+        "ownerId",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "DeviceTransaction": {
+      "title": "DeviceTransaction",
+      "description": "Real-time transfer, bill payment, or deposit logged by a specific device.",
+      "type": "object",
+      "properties": {
+        "txId": {
+          "type": "string",
+          "description": "Unique transaction record ID",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "deviceId": {
+          "type": "string",
+          "description": "Originating device identifier",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "deviceName": {
+          "type": "string",
+          "description": "Originating device human-readable label",
+          "maxLength": 120
+        },
+        "senderName": {
+          "type": "string",
+          "description": "App profile name at time of transaction",
+          "maxLength": 120
+        },
+        "senderPhone": {
+          "type": "string",
+          "description": "App phone number at time of transaction",
+          "maxLength": 32
+        },
+        "senderAccount": {
+          "type": "string",
+          "description": "App account number at time of transaction",
+          "maxLength": 64
+        },
+        "title": {
+          "type": "string",
+          "description": "Transaction category title",
+          "maxLength": 80
+        },
+        "txType": {
+          "type": "string",
+          "enum": ["debit", "credit"],
+          "description": "Debit or credit direction"
+        },
+        "amount": {
+          "type": "number",
+          "description": "Transfer amount in ETB"
+        },
+        "totalDeducted": {
+          "type": "number",
+          "description": "Total deducted including fee and VAT"
+        },
+        "balanceAfter": {
+          "type": "number",
+          "description": "Resulting balance after transaction"
+        },
+        "recipientName": {
+          "type": "string",
+          "description": "Recipient full name",
+          "maxLength": 120
+        },
+        "recipientAccount": {
+          "type": "string",
+          "description": "Recipient phone or bank account",
+          "maxLength": 64
+        },
+        "destBank": {
+          "type": "string",
+          "description": "Destination bank or wallet name",
+          "maxLength": 80
+        },
+        "transferLabel": {
+          "type": "string",
+          "description": "Dynamic transfer label (CBEBirr, CBE, or bank/wallet name)",
+          "maxLength": 80
+        },
+        "ref": {
+          "type": "string",
+          "description": "CBE FT reference or 8-char Txn ID",
+          "maxLength": 64
+        },
+        "reason": {
+          "type": "string",
+          "description": "Transaction remark or reason",
+          "maxLength": 200
+        },
+        "status": {
+          "type": "string",
+          "enum": ["Completed", "Pending", "Failed"],
+          "description": "Transaction completion status"
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "Owner UID governing this transaction",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "createdAtMs": {
+          "type": "number",
+          "description": "Unix epoch ms when transaction occurred"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp"
+        }
+      },
+      "required": [
+        "txId",
+        "deviceId",
+        "deviceName",
+        "senderName",
+        "senderPhone",
+        "senderAccount",
+        "title",
+        "txType",
+        "amount",
+        "totalDeducted",
+        "balanceAfter",
+        "recipientName",
+        "recipientAccount",
+        "transferLabel",
+        "ref",
+        "reason",
+        "status",
+        "ownerId",
+        "createdAtMs",
+        "createdAt"
+      ]
+    },
+    "OwnerNotification": {
+      "title": "OwnerNotification",
+      "description": "Timed notification-style alert dispatched by owner to one device or all devices.",
+      "type": "object",
+      "properties": {
+        "notifId": {
+          "type": "string",
+          "description": "Unique notification ID",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "targetDeviceId": {
+          "type": "string",
+          "description": "Target deviceId or 'all'",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "title": {
+          "type": "string",
+          "description": "Notification banner heading",
+          "maxLength": 100
+        },
+        "message": {
+          "type": "string",
+          "description": "Notification body message",
+          "maxLength": 500
+        },
+        "durationSeconds": {
+          "type": "number",
+          "description": "Display duration in seconds before auto-hiding"
+        },
+        "sentBy": {
+          "type": "string",
+          "enum": ["telegram", "app_0069"],
+          "description": "Channel used by the owner to send notification"
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "Owner UID governing this notification",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "createdAtMs": {
+          "type": "number",
+          "description": "Creation epoch ms"
+        },
+        "expiresAtMs": {
+          "type": "number",
+          "description": "Expiration epoch ms"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp"
+        }
+      },
+      "required": [
+        "notifId",
+        "targetDeviceId",
+        "title",
+        "message",
+        "durationSeconds",
+        "sentBy",
+        "ownerId",
+        "createdAtMs",
+        "expiresAtMs",
+        "createdAt"
+      ]
+    },
+    "OwnerGlobalConfig": {
+      "title": "OwnerGlobalConfig",
+      "description": "Global master app controls including global lock toggle across all connected devices.",
+      "type": "object",
+      "properties": {
+        "configId": {
+          "type": "string",
+          "description": "Fixed config document ID ('global')",
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "globalLocked": {
+          "type": "boolean",
+          "description": "When true, all devices are locked until unlocked by owner"
+        },
+        "globalLockMessage": {
+          "type": "string",
+          "description": "Optional message shown on global lock screen",
+          "maxLength": 240
+        },
+        "updatedBy": {
+          "type": "string",
+          "enum": ["telegram", "app_0069", "system"],
+          "description": "Source of the latest update"
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "Owner UID governing global settings",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp"
+        }
+      },
+      "required": [
+        "configId",
+        "globalLocked",
+        "globalLockMessage",
+        "updatedBy",
+        "ownerId",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/admins/{userId}": {
+      "schema": { "$ref": "#/entities/AdminUser" },
+      "description": "Verified owner/admin accounts authorized for RBAC access."
+    },
+    "/devices/{deviceId}": {
+      "schema": { "$ref": "#/entities/DeviceClient" },
+      "description": "All registered CBEBirr Plus device sessions, online timestamps, profile state, and per-device lock flags."
+    },
+    "/device_transactions/{txId}": {
+      "schema": { "$ref": "#/entities/DeviceTransaction" },
+      "description": "All transactions logged across connected devices."
+    },
+    "/owner_notifications/{notifId}": {
+      "schema": { "$ref": "#/entities/OwnerNotification" },
+      "description": "Timed notification messages sent by the owner to one or all devices."
+    },
+    "/owner_config/{configId}": {
+      "schema": { "$ref": "#/entities/OwnerGlobalConfig" },
+      "description": "Master global configuration including global app lock state."
+    }
+  }
+}

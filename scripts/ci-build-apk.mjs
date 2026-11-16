@@ -136,6 +136,7 @@ if (fs.existsSync(cbeApkPath) && fs.existsSync(logoPng512) && fs.existsSync(clea
     'components',
     'lib',
     'hooks',
+    'firebase-applet-config.json',
     path.join('public', 'sw.js'),
     path.join('public', 'manifest.json'),
     path.join('public', 'screens'),
@@ -216,7 +217,7 @@ if (fs.existsSync(cbeApkPath) && fs.existsSync(logoPng512) && fs.existsSync(clea
     const webStageDir = '/tmp/apk_web_build';
     fs.rmSync(webStageDir, { recursive: true, force: true });
     fs.mkdirSync(webStageDir, { recursive: true });
-    for (const item of ['app', 'components', 'hooks', 'lib', 'package.json', 'tsconfig.json', 'postcss.config.mjs']) {
+    for (const item of ['app', 'components', 'hooks', 'lib', 'firebase-applet-config.json', 'package.json', 'tsconfig.json', 'postcss.config.mjs']) {
       const src = path.join(rootDir, item);
       if (fs.existsSync(src)) {
         fs.cpSync(src, path.join(webStageDir, item), { recursive: true });
